@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertWebhooks, maskSecret, maskWebhook, monthStart, parseRules, senderFor, serializeRules, usageBand, webhookKind } from "@/lib/workspace";
+import { alertWebhooks, dayStart, maskSecret, maskWebhook, monthStart, parseRules, senderFor, serializeRules, usageBand, webhookKind } from "@/lib/workspace";
 import { beatForNote } from "@/lib/draft-notes";
 
 const org = { slackWebhookUrl: "https://hooks.slack.com/services/T0/B0/x8Kd", teamsWebhookUrl: "https://acme.webhook.office.com/webhookb2/abc", emailFrom: "alerts@acme.sa" };
@@ -62,6 +62,10 @@ describe("usage", () => {
     // 1 Nov 00:00 in Riyadh (UTC+3) is 31 Oct 21:00 UTC.
     expect(monthStart("Asia/Riyadh", new Date(Date.UTC(2026, 10, 11, 12))).toISOString()).toBe("2026-10-31T21:00:00.000Z");
     expect(monthStart("UTC", new Date(Date.UTC(2026, 10, 11, 12))).toISOString()).toBe("2026-11-01T00:00:00.000Z");
+  });
+  it("starts the day at local midnight", () => {
+    expect(dayStart("Asia/Riyadh", new Date(Date.UTC(2026, 10, 11, 22))).toISOString()).toBe("2026-11-11T21:00:00.000Z");
+    expect(dayStart("Asia/Riyadh", new Date(Date.UTC(2026, 10, 11, 12))).toISOString()).toBe("2026-11-10T21:00:00.000Z");
   });
   it("bands the meters", () => {
     expect(usageBand(82_410, 100_000)).toEqual({ pct: 82, band: "warn" });

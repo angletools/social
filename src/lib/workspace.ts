@@ -76,6 +76,14 @@ export function monthStart(timeZone: string, now = new Date()) {
   return new Date(Date.UTC(get("year"), get("month") - 1, 1) - offset);
 }
 
+/** Local midnight today in a timezone, as a UTC instant. */
+export function dayStart(timeZone: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  const offset = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute")) - Math.floor(now.getTime() / 60_000) * 60_000;
+  return new Date(Date.UTC(get("year"), get("month") - 1, get("day")) - offset);
+}
+
 /** Share of a limit used, 0..100 (rounded), and the colour band the meters use. */
 export function usageBand(used: number, limit: number) {
   const pct = Math.min(100, Math.round((used / Math.max(1, limit)) * 100));

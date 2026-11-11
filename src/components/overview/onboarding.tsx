@@ -2,52 +2,62 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { Check, X } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { dismissOnboarding } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { DotBar } from "@/components/dots";
 
 type Step = { key: string; title: string; body: string; href: string; done: boolean };
 
+/** First-run checklist on Home: shown until setup is done or an admin hides it. */
 export function Onboarding({ steps, labels }: { steps: Step[]; labels: { title: string; subtitle: string; progress: string; dismiss: string } }) {
   const [pending, start] = useTransition();
   const done = steps.filter((s) => s.done).length;
+  const next = steps.findIndex((s) => !s.done);
   return (
-    <section className="card overflow-hidden">
-      <div className="flex items-start justify-between gap-4 px-6 pt-5">
-        <div>
-          <h2 className="text-[15px] font-semibold">{labels.title}</h2>
-          <p className="mt-1 text-[13px] text-muted">{labels.subtitle}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted">{labels.progress.replace("{done}", String(done)).replace("{total}", String(steps.length))}</span>
-          <button type="button" className="btn-ghost btn-sm w-7 px-0" disabled={pending} onClick={() => start(() => dismissOnboarding())} aria-label={labels.dismiss} title={labels.dismiss}>
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <section className="card flex flex-col px-5 pt-5 pb-2 sm:px-6" aria-labelledby="onboarding-title">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 id="onboarding-title" className="text-[15px] font-semibold">{labels.title}</h2>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => start(() => dismissOnboarding())}
+          className="-me-2 rounded-md px-2 py-1 text-[13px] text-muted transition-colors hover:text-ink max-md:py-2.5"
+        >
+          {labels.dismiss}
+        </button>
       </div>
-      <div className="mx-5 mt-4">
-        <DotBar segments={[{ value: done, color: "var(--color-chart)" }]} max={steps.length} rows={1} />
+      <p className="mt-0.5 text-[13px] text-muted">{labels.subtitle}</p>
+      <div className="mt-3 flex items-center gap-2.5">
+        <DotBar segments={[{ value: done, color: "var(--color-ink)" }]} max={steps.length} className="flex-1" label={labels.progress.replace("{done}", String(done)).replace("{total}", String(steps.length))} />
+        <span className="shrink-0 text-[12.5px] text-muted tnum">{labels.progress.replace("{done}", String(done)).replace("{total}", String(steps.length))}</span>
       </div>
-      <ol className="mt-2 grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-5">
-        {steps.map((s, i) => (
-          <li key={s.key}>
-            <Link href={s.href} className={cn("group flex h-full gap-3 px-6 py-4 transition-colors hover:bg-canvas", s.done && "opacity-60")}>
-              <span
-                className={cn(
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tnum",
-                  s.done ? "border-brand-600 bg-brand-600 text-on-ink" : "border-line-strong text-muted group-hover:border-ink group-hover:text-ink",
-                )}
-              >
-                {s.done ? <Check className="h-3.5 w-3.5" /> : i + 1}
-              </span>
-              <span className="min-w-0">
-                <span className={cn("block text-[13px] font-medium leading-snug", s.done && "line-through decoration-line-strong")}>{s.title}</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-muted">{s.body}</span>
-              </span>
-            </Link>
-          </li>
-        ))}
+      <ol className="mt-2">
+        {steps.map((s, i) => {
+          const current = i === next;
+          return (
+            <li key={s.key} className="border-t border-sunken first:border-0">
+              <Link href={s.href} prefetch={false} className="group -mx-2 flex items-start gap-2.5 rounded-lg px-2 py-[11px] transition-colors hover:bg-canvas/70">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-px flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full",
+                    s.done ? "bg-ink text-on-ink" : current ? "border-[1.5px] border-ink" : "border-[1.5px] border-faint group-hover:border-ink",
+                  )}
+                >
+                  {s.done && <Check className="h-[11px] w-[11px]" strokeWidth={3} />}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className={cn("text-[13.5px]", s.done ? "font-medium text-faint" : current ? "font-semibold" : "font-medium")}>
+                    {s.title}
+                  </span>
+                  {current && <span className="text-[12.5px] leading-normal text-muted">{s.body}</span>}
+                </span>
+                {!s.done && <ChevronRight aria-hidden className="mt-[3px] h-3.5 w-3.5 shrink-0 text-faint transition-transform duration-150 group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" strokeWidth={1.8} />}
+              </Link>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
