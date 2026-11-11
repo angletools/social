@@ -145,44 +145,56 @@ export async function setMentionStatus(ids: string[], status: MentionStatus) {
 // ---------- alerts ----------
 
 const AlertInput = z.object({
-  name: z.string().trim().min(1).max(80),
-  kind: z.enum(["NEGATIVE_SPIKE", "VOLUME_SPIKE", "KEYWORD", "HIGH_REACH", "RISK"]),
+  name: z.string().trim().max(80).optional(),
+  defaultName: z.string().trim().max(80).optional(),
+  kind: z.enum(["NEGATIVE_SPIKE", "VOLUME_SPIKE", "KEYWORD", "HIGH_REACH", "RISK", "CHURN_RISK"]),
   monitorId: z.string().optional(),
-  threshold: z.coerce.number().min(0).default(0),
+  threshold: z.coerce.number().min(0).max(1_000_000_000).default(0),
   windowMinutes: z.coerce.number().int().min(15).max(10080).default(60),
-  keyword: z.string().trim().max(100).optional(),
-  emails: z.string().optional(),
+  keyword: z.string().trim().max(200).optional(),
+  emails: z.string().max(2000).optional(),
   webhookUrl: z.string().trim().max(500).optional(),
 });
+
+/** Splits a comma/space separated list of emails. Returns null when any entry isn't an email. */
+function parseEmails(raw: string | undefined) {
+  const list = (raw ?? "")
+    .split(/[,،;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.some((e) => !z.email().safeParse(e).success)) return null;
+  return [...new Set(list)].slice(0, 20);
+}
 
 export async function createAlert(_: unknown, form: FormData): Promise<ActionResult> {
   const user = await requireRole("ADMIN");
   const parsed = AlertInput.safeParse(Object.fromEntries([...form.entries()].filter(([, v]) => v !== "")));
   if (!parsed.success) return { ok: false, error: "invalid" };
   const d = parsed.data;
+  const name = d.name || d.defaultName;
+  if (!name) return { ok: false, error: "name" };
   if (d.monitorId) await ownMonitor(d.monitorId, user.organizationId);
-  if (d.kind === "KEYWORD" && !d.keyword) return { ok: false, error: "keyword" };
+  if (d.kind === "KEYWORD" && !d.keyword?.split(/[,،]/).some((w) => w.trim())) return { ok: false, error: "keyword" };
+  if (d.kind === "NEGATIVE_SPIKE" && d.threshold > 100) return { ok: false, error: "threshold" };
   const { isAllowedWebhook } = await import("@/lib/webhooks");
   if (d.webhookUrl && !isAllowedWebhook(d.webhookUrl)) return { ok: false, error: "webhook" };
-  const emails = (d.emails ?? "")
-    .split(/[,\s]+/)
-    .map((e) => e.trim())
-    .filter((e) => z.email().safeParse(e).success);
+  const emails = parseEmails(d.emails);
+  if (!emails) return { ok: false, error: "emails" };
   await db.alertRule.create({
     data: {
       organizationId: user.organizationId,
-      name: d.name,
+      name,
       kind: d.kind as AlertKind,
       monitorId: d.monitorId || null,
       threshold: d.threshold,
       windowMinutes: d.windowMinutes,
-      keyword: d.keyword,
+      keyword: d.kind === "KEYWORD" ? d.keyword : null,
       emails,
       notifyEmail: emails.length > 0,
       webhookUrl: d.webhookUrl || null,
     },
   });
-  await audit(user, "alert.create", undefined, { name: d.name });
+  await audit(user, "alert.create", undefined, { name });
   revalidatePath("/alerts");
   return { ok: true };
 }
@@ -217,7 +229,11 @@ export async function createReport(_: unknown, form: FormData): Promise<ActionRe
   const monitor = monitorId ? await ownMonitor(monitorId, user.organizationId) : null;
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
-  const title = `${monitor?.name ?? (locale === "ar" ? "كل المراقبات" : "All monitors")} · ${start.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`;
+  const range =
+    locale === "ar"
+      ? ({ 1: "آخر 24 ساعة", 7: "آخر 7 أيام", 30: "آخر 30 يومًا", 90: "آخر 90 يومًا" } as Record<number, string>)[days] ?? `آخر ${days} يوم`
+      : ({ 1: "last 24 hours" } as Record<number, string>)[days] ?? `last ${days} days`;
+  const title = `${monitor?.name ?? (locale === "ar" ? "كل المراقبات" : "All monitors")} · ${range}`;
   const r = await db.report.create({
     data: { organizationId: user.organizationId, monitorId, title, locale, periodStart: start, periodEnd: end, createdById: user.id },
   });
@@ -265,6 +281,21 @@ export async function refreshIntelligenceBrief(days: number): Promise<ActionResu
   await generateIntelligenceBrief(user.organizationId, d);
   revalidatePath("/intelligence");
   return { ok: true, message: "done" };
+}
+
+/** Re-queues a report that failed to generate. */
+export async function retryReport(id: string): Promise<ActionResult> {
+  const user = await requireRole("ANALYST");
+  const r = await db.report.updateMany({
+    where: { id, organizationId: user.organizationId, status: "FAILED" },
+    data: { status: "GENERATING", error: null },
+  });
+  if (r.count === 0) return { ok: false, error: "not_found" };
+  await enqueue(QUEUES.report, { reportId: id });
+  await audit(user, "report.retry", id);
+  revalidatePath("/reports");
+  revalidatePath(`/reports/${id}`);
+  return { ok: true };
 }
 
 export async function deleteReport(id: string) {
@@ -703,6 +734,14 @@ export async function assignMention(mentionId: string, assigneeId: string | null
   return { ok: true as const, name: assignee?.name ?? null };
 }
 
+// ---------- assistant ----------
+
+export async function deleteAssistantThread(id: string) {
+  const user = await requireRole("VIEWER");
+  await db.assistantThread.deleteMany({ where: { id, userId: user.id } });
+  revalidatePath("/assistant");
+}
+
 // ---------- weekly report ----------
 
 export async function saveWeeklyReport(_: unknown, form: FormData): Promise<ActionResult> {
@@ -721,6 +760,7 @@ export async function saveWeeklyReport(_: unknown, form: FormData): Promise<Acti
   });
   await audit(user, "org.weekly_report", undefined, { enabled, recipients: recipients.length });
   revalidatePath("/settings");
+  revalidatePath("/reports");
   return { ok: true };
 }
 

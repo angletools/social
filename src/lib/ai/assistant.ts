@@ -2,6 +2,7 @@ import type { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages
 import { AI_MODEL, fallbackParams, getAI } from "./client";
 import { assistantTools } from "./tools";
 import { DIALECT_GUIDE } from "./dialect";
+import type { ToolStep } from "../assistant-format";
 
 const SYSTEM = `You are angle social's analyst assistant. You help communications, marketing and customer-experience teams at a Saudi company understand what people say about them on social media. Most users are not technical.
 
@@ -9,7 +10,9 @@ How to work:
 - Answer from the organization's data. Use the tools to get numbers and read real posts before drawing conclusions; never invent figures or posts.
 - Reply in the language the user writes in. Arabic replies use clear Modern Standard Arabic; keep brand names as written.
 - Lead with the answer in one or two sentences, then supporting points. Keep it short and scannable: short paragraphs or bullet lists, numbers with context ("up 40% vs last week"). Use markdown sparingly (bold, bullets); no tables wider than 4 columns.
-- When you quote a post, quote briefly and say who posted it and on which platform.
+- When you quote or point to a specific post, cite it on its own line as [[post:ID]], using the post's id from search_mentions (for example [[post:cmw3x9k2a0001]]). The app shows each cited post as a card with the author, platform and a link, so don't repeat the whole post. Cite at most 4 posts, two in a row reads best. Never invent an id.
+- To compare a few items by count, a small markdown table works well: the label in the first column, then a column of plain counts, optionally a change column like +12 or −3. The app draws the counts as bars.
+- End every answer with one or two short follow-up questions the user could ask next, each on its own line as [[followup:question]], in the user's language. Make them specific to this answer.
 - If asked to draft replies, write them in the language and tone of the original post, polite and on-brand, and never promise anything regulatory or financial.
 - Read Arabic posts as a native Gulf speaker would: sarcasm, dialect slang and religious expressions change the meaning. When it helps a non-Arabic reader, explain what a phrase really means.
 - For questions about how customers feel, what they complain about or what to fix first, start with get_customer_intelligence, then read real posts with search_mentions to back up the answer.
@@ -18,7 +21,7 @@ How to work:
 
 export type AssistantEvent =
   | { type: "text"; text: string }
-  | { type: "tool"; name: string }
+  | ({ type: "tool" } & ToolStep)
   | { type: "error"; message: string };
 
 /**
@@ -34,7 +37,7 @@ export async function runAssistant(opts: {
   const ai = getAI();
   if (!ai) throw new Error("AI_DISABLED");
 
-  const tools = assistantTools(opts.orgId, (name) => opts.emit({ type: "tool", name }));
+  const tools = assistantTools(opts.orgId, (step) => opts.emit({ type: "tool", ...step }));
   const messages: BetaMessageParam[] = opts.history.map((m) => ({ role: m.role, content: m.text }));
   const today = new Date().toISOString().slice(0, 10);
   const system = `${SYSTEM}\n\n${DIALECT_GUIDE}${opts.brandContext ? `\n\nAbout the company: ${opts.brandContext}` : ""}`;

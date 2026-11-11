@@ -100,6 +100,7 @@ enum AlertKind {
   KEYWORD // any new mention containing keyword
   HIGH_REACH // a mention from an author with >= threshold followers
   RISK // AI flagged a mention as a reputational / compliance risk
+  CHURN_RISK // "May leave us": posts with intent CHURN_RISK in window above threshold (count)
 }
 
 enum Severity {
@@ -362,6 +363,7 @@ model Report {
   organizationId String
   monitorId      String?
   kind           String       @default("report") // "report" | "brief"
+  weekly         Boolean      @default(false) // created by the scheduled weekly email
   title          String
   locale         String       @default("ar")
   periodStart    DateTime
@@ -400,6 +402,7 @@ model AssistantMessage {
   role      String // "user" | "assistant"
   text      String // what the user sees
   content   Json // full API content blocks, replayed to the model
+  meta      Json? // assistant turns: { steps, posts (cited mentions), followups }
   createdAt DateTime @default(now())
 
   thread AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)

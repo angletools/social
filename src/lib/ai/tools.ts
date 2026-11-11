@@ -14,6 +14,7 @@ import {
   mentionWhere,
 } from "../analytics";
 import { getIntelligence, readBrief } from "../intelligence";
+import type { ToolStep } from "../assistant-format";
 
 const DIALECTS = ["SAUDI", "KHALEEJI", "EGYPTIAN", "LEVANTINE", "IRAQI", "MAGHREBI", "MSA", "ARABIZI", "ENGLISH", "OTHER"] as const;
 const INTENTS = ["COMPLAINT", "QUESTION", "PRAISE", "PURCHASE_INTENT", "CHURN_RISK", "SUGGESTION", "OTHER"] as const;
@@ -27,10 +28,14 @@ const platform = z.enum(PLATFORMS).optional();
  * Data tools for the assistant. Every query is hard-scoped to the caller's
  * organization; the model never supplies the organization id.
  */
-export function assistantTools(orgId: string, onTool?: (name: string) => void) {
+export function assistantTools(orgId: string, onTool?: (step: ToolStep) => void) {
+  // Reports each finished call (with its period and how many posts it read) so the chat can
+  // say "Read 40 posts and checked 7 days of numbers".
   const wrap = <T,>(name: string, fn: (i: T) => Promise<unknown>) => async (input: T) => {
-    onTool?.(name);
-    return JSON.stringify(await fn(input));
+    const result = await fn(input);
+    const days = (input as { days?: number } | undefined)?.days;
+    onTool?.({ name, ...(typeof days === "number" && { days }), ...(Array.isArray(result) && name === "search_mentions" && { n: result.length }) });
+    return JSON.stringify(result);
   };
 
   return [

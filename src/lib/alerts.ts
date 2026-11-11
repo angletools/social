@@ -6,7 +6,8 @@ import { alertWebhooks, senderFor } from "./workspace";
 
 type Hit = { severity: Severity; titleEn: string; titleAr: string; bodyEn: string; bodyAr: string; link: string };
 
-async function check(rule: AlertRule): Promise<Hit | null> {
+/** Checks one rule against recent mentions. Returns the notification to send, or null. */
+export async function checkRule(rule: AlertRule): Promise<Hit | null> {
   const since = new Date(Date.now() - rule.windowMinutes * 60_000);
   // Only consider mentions created after the last trigger to avoid repeat alerts on the same posts.
   const createdAfter = rule.lastTriggeredAt && rule.lastTriggeredAt > since ? rule.lastTriggeredAt : since;
@@ -48,20 +49,23 @@ async function check(rule: AlertRule): Promise<Hit | null> {
       };
     }
     case "KEYWORD": {
-      if (!rule.keyword) return null;
+      // Several words can be watched at once: "احتيال، نصب، hack".
+      const words = (rule.keyword ?? "").split(/[,،]/).map((w) => w.trim()).filter(Boolean);
+      if (words.length === 0) return null;
       const hits = await db.mention.findMany({
-        where: { ...base, createdAt: { gte: createdAfter }, text: { contains: rule.keyword, mode: "insensitive" } },
+        where: { ...base, createdAt: { gte: createdAfter }, OR: words.map((w) => ({ text: { contains: w, mode: "insensitive" as const } })) },
         take: 3,
         orderBy: { publishedAt: "desc" },
       });
       if (hits.length === 0) return null;
+      const matched = words.find((w) => hits[0].text.toLowerCase().includes(w.toLowerCase())) ?? words[0];
       return {
         severity: "WARNING",
-        titleEn: `"${rule.keyword}" mentioned`,
-        titleAr: `ذُكرت كلمة «${rule.keyword}»`,
+        titleEn: `"${matched}" mentioned`,
+        titleAr: `ذُكرت كلمة «${matched}»`,
         bodyEn: hits[0].text.slice(0, 200),
         bodyAr: hits[0].text.slice(0, 200),
-        link: `/mentions?q=${encodeURIComponent(rule.keyword)}`,
+        link: `/mentions?q=${encodeURIComponent(matched)}`,
       };
     }
     case "HIGH_REACH": {
@@ -95,6 +99,29 @@ async function check(rule: AlertRule): Promise<Hit | null> {
         link: "/mentions?risk=1",
       };
     }
+    case "CHURN_RISK": {
+      // "May leave us": people saying they'll close their account or move to a competitor.
+      // Counts posts in the window that were classified since the last alert, so the same
+      // posts don't fire twice once the cooldown ends.
+      const where = {
+        ...base,
+        intent: "CHURN_RISK" as const,
+        publishedAt: { gte: since },
+        OR: [{ enrichedAt: { gte: createdAfter } }, { enrichedAt: null, createdAt: { gte: createdAfter } }],
+      };
+      const n = await db.mention.count({ where });
+      if (n <= rule.threshold) return null;
+      const top = await db.mention.findFirst({ where, orderBy: [{ authorFollowers: { sort: "desc", nulls: "last" } }, { publishedAt: "desc" }] });
+      const hours = Math.round(rule.windowMinutes / 60);
+      return {
+        severity: n >= Math.max(3, rule.threshold * 2) ? "CRITICAL" : "WARNING",
+        titleEn: n === 1 ? `Someone says they may leave us` : `${n} people say they may leave us`,
+        titleAr: n === 1 ? `عميل يقول إنه قد يغادر` : `${n} أشخاص يقولون إنهم قد يغادرون`,
+        bodyEn: top ? top.text.slice(0, 200) : `${n} churn-risk posts in the last ${hours}h (limit ${rule.threshold}).`,
+        bodyAr: top ? top.text.slice(0, 200) : `${n} منشورات عن نية المغادرة خلال آخر ${hours} ساعة (الحد ${rule.threshold}).`,
+        link: `${link}${link.includes("?") ? "&" : "?"}intent=CHURN_RISK`,
+      };
+    }
   }
 }
 
@@ -107,7 +134,7 @@ export async function evaluateAlerts(organizationId: string) {
   let fired = 0;
   for (const rule of rules) {
     if (rule.lastTriggeredAt && Date.now() - rule.lastTriggeredAt.getTime() < rule.cooldownMinutes * 60_000) continue;
-    const hit = await check(rule);
+    const hit = await checkRule(rule);
     if (!hit) continue;
     fired++;
     await db.$transaction([
