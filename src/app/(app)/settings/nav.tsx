@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { Section } from "./styles";
@@ -23,9 +23,20 @@ export function SettingsNav({
     const target = LEGACY[window.location.hash.slice(1)];
     if (target) router.replace(`/settings?section=${target}`, { scroll: false });
   }, [router]);
+  // On phones the menu is a scrolling strip: keep the current section in view.
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = ref.current;
+    const el = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !el || nav.scrollWidth <= nav.clientWidth) return;
+    const navBox = nav.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    nav.scrollLeft += box.left - navBox.left - (navBox.width - box.width) / 2;
+  }, [current]);
 
   return (
     <nav
+      ref={ref}
       aria-label={label}
       className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:sticky lg:top-[84px] lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:px-0 lg:pb-0"
     >

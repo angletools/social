@@ -398,7 +398,7 @@ async function Plan({ user, t, locale }: Ctx) {
     return {
       period: `Q${quarter + 1} ${year}`,
       no: `INV-${year}-${String(412 - back * 105).padStart(4, "0")}`,
-      amount: `${locale === "ar" ? "ر.س" : "SAR"} ${N.format(amount)}`,
+      amount: locale === "ar" ? new Intl.NumberFormat("ar-SA-u-nu-latn", { style: "currency", currency: "SAR", maximumFractionDigits: 0 }).format(amount) : `SAR ${N.format(amount)}`,
       paid: back > 0,
       due: fmt(L.due, { date: new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(due) }),
     };
@@ -459,7 +459,7 @@ async function Plan({ user, t, locale }: Ctx) {
               <span className="text-[14.5px] font-medium ltr-nums">{v.period}</span>
               <span className="text-[12.5px] text-faint ltr-nums">{v.no}</span>
             </span>
-            <span className="text-end text-[14.5px] ltr-nums sm:text-start">{v.amount}</span>
+            <span className="text-end text-[14.5px] tnum sm:text-start">{v.amount}</span>
             <span className="text-[13.5px]">
               <Dot tone={v.paid ? "pos" : "warn"}>{v.paid ? L.paid : v.due}</Dot>
             </span>
