@@ -4,7 +4,7 @@ import type { Intent } from "@prisma/client";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
-import { cn, formatNumber, timeAgo } from "@/lib/utils";
+import { cn, formatNumber, guessLang, timeAgo, timeShort } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import type { Translation } from "@/lib/ai/engage";
 import { INBOX_INTENTS, inboxPriority } from "@/lib/analytics";
@@ -16,7 +16,13 @@ import { Queue, type QueueItem } from "./queue";
 import { Meaning } from "./meaning";
 
 const TONE: Partial<Record<Intent, QueueItem["tone"]>> = { CHURN_RISK: "neg", COMPLAINT: "warn", QUESTION: "info", PURCHASE_INTENT: "pos" };
-const TEXT_TONE: Record<QueueItem["tone"], string> = { neg: "text-neg", warn: "text-warn", info: "text-info", pos: "text-pos", faint: "text-muted" };
+const PILL_TONE: Record<QueueItem["tone"], string> = {
+  neg: "bg-neg/10 text-neg",
+  warn: "bg-warn/12 text-warn",
+  info: "bg-info/10 text-info",
+  pos: "bg-pos/10 text-pos",
+  faint: "bg-sunken text-muted",
+};
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ m?: string; who?: string }> }) {
   const user = await requireUser();
@@ -73,7 +79,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     id: m.id,
     name: m.authorName ?? m.authorHandle ?? "—",
     seed: m.authorHandle ?? m.authorName ?? m.id,
-    when: timeAgo(m.publishedAt, locale),
+    when: timeShort(m.publishedAt, locale),
     text: m.text,
     tone: tone(m),
     assignee: m.assignedTo?.name ?? null,
@@ -102,34 +108,42 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       <section className={cn("min-h-0 min-w-0 flex-1 flex-col md:flex", selectedId ? "flex" : "hidden")}>
         {selected ? (
           <>
-            <header className="flex items-center gap-3.5 border-b border-sunken px-5 py-4 md:px-10 md:py-5">
-              <Link href={base.slice(0, -1)} className="btn-ghost -ms-2 w-9 px-0 md:hidden" aria-label={t.common.back}>
+            <header className="flex min-h-[72px] items-center gap-3.5 border-b border-sunken px-5 py-3 md:h-[88px] md:px-10 md:py-0">
+              <Link href={base.slice(0, -1)} className="btn-ghost -ms-2 h-11 w-11 px-0 md:hidden" aria-label={t.common.back}>
                 <ArrowRight className="h-4 w-4 ltr:rotate-180" />
               </Link>
-              <SolidAvatar name={name} seed={selected.authorHandle ?? selected.authorName ?? selected.id} size={44} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-[16px] font-semibold">
-                  <span className="truncate">{name}</span>
+              <SolidAvatar name={name} seed={selected.authorHandle ?? selected.authorName ?? selected.id} size={40} />
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 text-[16px] leading-tight font-semibold">
+                  <span dir="auto" className="min-w-0 truncate">{name}</span>
                   {selected.authorVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-info" aria-label="verified" />}
                 </div>
-                <div className="flex items-center gap-1.5 text-[13px] text-faint">
+                <div className="flex min-w-0 items-center gap-1.5 text-[13px] leading-tight text-faint">
                   <PlatformIcon platform={selected.platform} size="xs" title={t.platforms[selected.platform]} />
-                  {selected.authorHandle && <span className="truncate ltr-nums">@{selected.authorHandle}</span>}
+                  {selected.authorHandle && <span className="truncate ltr-nums max-sm:hidden">@{selected.authorHandle}</span>}
                   {selected.authorFollowers ? (
                     <span className="shrink-0">
-                      · <span className="ltr-nums">{formatNumber(selected.authorFollowers, locale)}</span> {t.inbox.followers}
+                      · <span className="ltr-nums">{formatNumber(selected.authorFollowers, locale)}</span> {selected.authorFollowers === 1 ? t.inbox.follower : t.inbox.followers}
                     </span>
                   ) : null}
                 </div>
               </div>
               {(selected.intent || selected.isRisk) && (
-                <span className={cn("hidden text-[13px] font-medium sm:inline", TEXT_TONE[tone(selected)])}>
+                <span className={cn("hidden h-[30px] shrink-0 items-center gap-[7px] rounded-[9px] px-3 text-[13px] font-semibold sm:inline-flex", PILL_TONE[tone(selected)])}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
                   {selected.intent ? t.intents[selected.intent] : t.inbox.reasonRisk}
                 </span>
               )}
               {selected.url && (
-                <a href={selected.url} target="_blank" rel="noopener noreferrer" className="btn-ghost w-9 px-0" title={t.inbox.openPost} aria-label={t.inbox.openPost}>
-                  <ExternalLink className="h-4 w-4" strokeWidth={1.6} />
+                <a
+                  href={selected.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] border border-line text-muted transition-colors hover:text-ink max-md:h-11 max-md:w-11"
+                  title={t.inbox.openPost}
+                  aria-label={t.inbox.openPost}
+                >
+                  <ExternalLink className="h-[15px] w-[15px]" strokeWidth={1.7} />
                 </a>
               )}
               {canAct && (
@@ -138,19 +152,28 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                   mentionId={selected.id}
                   value={selected.assignedToId ?? ""}
                   label={t.inbox.assignTo}
+                  buttonLabel={t.inbox.assign}
                   members={members.map((u) => ({ id: u.id, name: u.id === user.id ? `${u.name} (${t.common.you})` : u.name }))}
                 />
               )}
             </header>
 
-            <div className="flex-1 overflow-y-auto px-5 py-7 md:px-10 md:py-9">
-              <div className="max-w-[760px] space-y-5">
-                <p dir="auto" className="text-[20px] leading-[1.75] md:text-[23px]">{selected.text}</p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13.5px] text-muted">
-                  <span>{timeAgo(selected.publishedAt, locale)}</span>
-                  {selected.dialect && selected.dialect !== "OTHER" && <span>{t.dialects[selected.dialect]}</span>}
-                  {selected.sarcasm && <span className="text-plum" title={t.engage.sarcasmHelp}>{t.engage.sarcasm}</span>}
-                  {selected.isRisk && selected.riskReason && <span className="text-neg">{selected.riskReason}</span>}
+            <div className="flex-1 overflow-y-auto px-5 pt-8 pb-6 md:px-10 md:pt-10">
+              <div className="flex max-w-[760px] flex-col gap-[18px]">
+                <p dir="auto" className="text-[19px] leading-[1.8] [overflow-wrap:anywhere] md:text-[22px]">{selected.text}</p>
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[13.5px] leading-5 text-muted">
+                  <Meta>{timeAgo(selected.publishedAt, locale)}</Meta>
+                  {selected.dialect && selected.dialect !== "OTHER" && <Meta dot>{t.dialects[selected.dialect]}</Meta>}
+                  {selected.sarcasm && (
+                    <Meta dot>
+                      <span className="text-plum" title={t.engage.sarcasmHelp}>{t.engage.sarcasm}</span>
+                    </Meta>
+                  )}
+                  {selected.isRisk && selected.riskReason && guessLang(selected.riskReason) === locale && (
+                    <Meta dot>
+                      <span className="text-neg">{selected.riskReason}</span>
+                    </Meta>
+                  )}
                   <Meaning
                     key={selected.id}
                     id={selected.id}
@@ -161,10 +184,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                   />
                 </div>
                 {posted.length > 0 && (
-                  <div className="space-y-2 pt-4">
-                    <p className="text-xs text-faint">{t.inbox.previous}</p>
+                  <div className="flex flex-col gap-2 pt-4">
+                    <p className="text-[13px] text-faint">{t.inbox.previous}</p>
                     {posted.map((p) => (
-                      <p key={p.id} dir="auto" className="rounded-2xl bg-surface px-4 py-3 text-[14.5px] leading-relaxed">
+                      <p key={p.id} dir="auto" className="rounded-xl bg-surface px-4 py-3 text-[14.5px] leading-relaxed">
                         {p.text} <span className="text-xs text-faint">· {p.postedAt ? timeAgo(p.postedAt, locale) : ""}</span>
                       </p>
                     ))}
@@ -174,8 +197,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             </div>
 
             {canAct && (
-              <div className="border-t border-sunken px-5 pt-4 pb-6 md:px-10">
-                <div className="max-w-[840px]">
+              <div className="bg-canvas px-5 pt-3 pb-4 max-md:sticky max-md:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] md:px-10 md:pt-0 md:pb-8">
+                <div className="max-w-[760px]">
                   <ReplyComposer
                     key={selected.id}
                     mentionId={selected.id}
@@ -185,6 +208,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                     drafts={replies.filter((r) => r.status === "DRAFT").map((r) => ({ id: r.id, text: r.text }))}
                     t={t.inbox}
                     aiOffLabel={t.engage.aiOff}
+                    replyingOn={fmt(t.inbox.replyingOn, { platform: t.platforms[selected.platform] })}
                   />
                 </div>
               </div>
@@ -195,5 +219,15 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         )}
       </section>
     </div>
+  );
+}
+
+/** One item in the post's meta row, with a 3px dot separating it from the previous one. */
+function Meta({ children, dot }: { children: React.ReactNode; dot?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-3.5">
+      {dot && <span className="h-[3px] w-[3px] rounded-full bg-faint" aria-hidden />}
+      {children}
+    </span>
   );
 }

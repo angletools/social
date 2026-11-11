@@ -59,9 +59,9 @@ export function Queue({
       aria-label={title}
       className={cn("min-h-0 w-full shrink-0 flex-col md:flex md:w-[360px] md:border-e md:border-sunken", hiddenOnPhone ? "hidden" : "flex")}
     >
-      <div className="flex items-baseline justify-between px-6 pt-7 pb-4">
-        <h1 className="text-[24px] font-semibold">{title}</h1>
-        <span className="text-sm text-muted">{waiting}</span>
+      <div className="flex items-baseline justify-between gap-3 px-6 pt-7 pb-4">
+        <h1 className="text-[24px] leading-tight font-semibold">{title}</h1>
+        <span className="text-sm text-muted tnum">{waiting}</span>
       </div>
       <div role="tablist" className="flex gap-5 border-b border-line px-6">
         {tabs.map((t) => (
@@ -71,7 +71,7 @@ export function Queue({
             aria-selected={t.active}
             prefetch={false}
             href={t.href}
-            className={cn("-mb-px border-b-2 py-3 text-sm", t.active ? "border-ink font-semibold text-ink" : "border-transparent text-faint hover:text-ink")}
+            className={cn("-mb-px flex h-11 items-center border-b-2 text-sm", t.active ? "border-ink font-semibold text-ink" : "border-transparent text-faint hover:text-ink")}
           >
             {t.label}
           </Link>
@@ -93,13 +93,13 @@ export function Queue({
                   scroll={false}
                   href={`${base}m=${m.id}`}
                   aria-current={active ? "true" : undefined}
-                  className={cn("flex gap-3 rounded-xl px-3 py-3 transition-colors", active ? "bg-selected" : "hover:bg-selected/60")}
+                  className={cn("flex items-center gap-3 rounded-xl p-3 transition-colors", active ? "bg-selected" : "hover:bg-selected/60")}
                 >
                   <SolidAvatar name={m.name} seed={m.seed} size={36} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[14.5px] font-medium">{m.name}</span>
-                      <span className="flex shrink-0 items-center gap-[7px] text-xs text-faint">
+                      <span dir="auto" className="min-w-0 truncate text-[14.5px] font-medium">{m.name}</span>
+                      <span className="flex shrink-0 items-center gap-[7px] text-xs text-faint tnum">
                         <span className={cn("h-[7px] w-[7px] rounded-full", DOT[m.tone])} aria-hidden />
                         {m.when}
                       </span>
@@ -109,8 +109,8 @@ export function Queue({
                     </span>
                   </span>
                   {m.assignee && (
-                    <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sunken text-[10px] font-semibold text-muted" title={m.assignee}>
-                      {m.assignee.slice(0, 1)}
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-sunken text-[10px] font-semibold text-muted" title={m.assignee}>
+                      {[...m.assignee][0]}
                     </span>
                   )}
                 </Link>

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { translateMentionAction } from "@/app/actions";
 import type { Translation } from "@/lib/ai/engage";
 
-/** "What do they mean?" — reveals slang glosses and, on demand, a plain translation. */
+/** "What do they mean?": reveals slang glosses and, on demand, a plain translation. */
 export function Meaning({
   id,
   slang,
@@ -36,22 +36,25 @@ export function Meaning({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="text-brand-700 underline decoration-1 underline-offset-4 hover:text-ink"
-      >
-        {open ? labels.hide : labels.meaning}
-      </button>
+      <span className="inline-flex items-center gap-3.5">
+        <span className="h-[3px] w-[3px] rounded-full bg-faint" aria-hidden />
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="text-ink underline decoration-faint decoration-1 underline-offset-[5px] hover:decoration-ink"
+        >
+          {open ? labels.hide : labels.meaning}
+        </button>
+      </span>
       {open && (
-        <div className="order-last basis-full space-y-3 pt-1">
+        <div className="order-last mt-2 flex basis-full flex-col gap-3 rounded-xl bg-surface px-4 py-3.5">
           {slang.length > 0 && (
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 text-sm">
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2.5 text-sm leading-5">
               {slang.map((s) => (
                 <div key={s.term} className="contents">
-                  <dt dir="auto" className="font-medium text-ink">{s.term}</dt>
-                  <dd dir="ltr" className="text-end text-muted rtl:text-start">{s.gloss}</dd>
+                  <dt dir="auto" className="font-semibold text-ink">{s.term}</dt>
+                  <dd dir="ltr" className="text-muted rtl:text-right">{s.gloss}</dd>
                 </div>
               ))}
             </dl>
@@ -63,7 +66,7 @@ export function Meaning({
                 <span className="ms-2 text-xs text-faint">{data.tone}</span>
               </p>
             ) : (
-              <button type="button" onClick={translate} disabled={pending} className="text-sm text-muted underline decoration-1 underline-offset-4 hover:text-ink">
+              <button type="button" onClick={translate} disabled={pending} className="self-start text-sm text-muted underline decoration-faint decoration-1 underline-offset-[5px] hover:text-ink">
                 {pending ? labels.translating : labels.translate}
               </button>
             ))}
