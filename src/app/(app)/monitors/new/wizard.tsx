@@ -302,7 +302,7 @@ export function MonitorWizard({
         ))}
       </ol>
 
-      <div className="mt-6 grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section aria-labelledby="step-h" className="flex flex-col rounded-[20px] bg-surface px-5 pb-6 pt-7 sm:px-8 sm:pt-8">
           <h2 id="step-h" ref={heading} tabIndex={-1} className="text-[20px] font-semibold outline-none">
             {headings[step]}
@@ -417,7 +417,7 @@ export function MonitorWizard({
 
           {step === 2 && (
             <>
-              <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <div className="mt-6 grid grid-cols-[repeat(2,minmax(0,1fr))] gap-2.5 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
                 {ALL_PLATFORMS.map((p) => {
                   const ok = available.includes(p);
                   const on = chosen.includes(p);
@@ -446,7 +446,7 @@ export function MonitorWizard({
               </div>
               <div className="mt-8 flex flex-col gap-2.5">
                 <span className="text-[14px] font-medium">{t.wizard.frequency}</span>
-                <div className="self-start">
+                <div className="max-w-full self-start">
                   <Segmented label={t.wizard.frequency} value={refresh} options={[...new Set<number>([...FREQS, refresh])].sort((x, y) => x - y).map((m) => ({ v: m, l: (FREQS as readonly number[]).includes(m) ? freqLabel(m) : everyLabel(m, v2.detail.every) }))} onChange={setRefresh} />
                 </div>
               </div>

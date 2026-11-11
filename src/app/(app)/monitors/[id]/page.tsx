@@ -185,7 +185,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
         ))}
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <section className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <div className="rounded-[20px] bg-surface px-5 pb-4 pt-6 sm:px-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[16px] font-semibold">{T.volume}</h2>
@@ -229,7 +229,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
         </div>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <section className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <div className="rounded-[20px] bg-surface px-5 pb-2 pt-6 sm:px-6">
           <div className="flex items-baseline justify-between">
             <h2 className="text-[16px] font-semibold">{T.latest}</h2>
