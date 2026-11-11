@@ -30,10 +30,6 @@ const DOTS = matrix();
 export default async function LoginPage() {
   const { t, locale, dir } = await getDict();
   if (await getCurrentUser()) redirect("/");
-  const ar = locale === "ar";
-  const day = 86400_000;
-  const tick = new Intl.DateTimeFormat(ar ? "ar-SA-u-nu-latn-ca-gregory" : "en-GB", { day: "numeric", month: ar ? "long" : "short" });
-  const ticks = [28, 21, 14, 7, 0].map((n) => tick.format(new Date(Date.now() - n * day)));
 
   return (
     <div dir={dir} className="grid min-h-dvh bg-black p-3 sm:p-4 lg:grid-cols-[600px_minmax(0,1fr)]">
@@ -59,27 +55,15 @@ export default async function LoginPage() {
       </section>
 
       <Stage rtl={dir === "rtl"}>
-        <div className="flex items-end justify-between gap-6">
-          <span className="text-[13.5px] text-white/55">{t.loginPage.chartLabel}</span>
-          <span className="flex items-baseline gap-3">
-            <span dir="ltr" className="text-[40px] leading-none font-semibold tracking-[-0.02em] text-white tnum">945</span>
-            <span dir="ltr" className="text-[14px] font-semibold text-[#ffb199]">↗ 13%</span>
-          </span>
-        </div>
         <svg
           viewBox={`0 0 ${COLS * 10} ${ROWS * 10}`}
-          className="mt-6 block h-auto w-full"
+          className="block h-auto w-full"
           style={{ direction: "ltr", maskImage: "linear-gradient(to bottom, transparent, #000 35%), linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)", maskComposite: "intersect", WebkitMaskComposite: "source-in" }}
         >
           {DOTS.map((d, i) => (
             <circle key={i} cx={d.x} cy={d.y} r={2.3} fill={d.on ? `rgba(255,${Math.round(200 + 30 * d.a)},${Math.round(180 + 40 * d.a)},${(0.45 + 0.55 * d.a).toFixed(2)})` : "rgba(255,255,255,0.055)"} />
           ))}
         </svg>
-        <div dir="ltr" className="mt-3 flex justify-between px-[8%] text-[12px] text-white/40 tnum">
-          {ticks.map((x) => (
-            <span key={x} dir="auto">{x}</span>
-          ))}
-        </div>
       </Stage>
     </div>
   );
