@@ -56,6 +56,8 @@
   --color-plum: #8a4f86;
 
   --radius-card: 18px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --shadow-pop: 0 1px 2px rgb(28 34 48 / 0.05), 0 14px 36px -10px rgb(28 34 48 / 0.2);
 }
 
@@ -155,6 +157,8 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 
 h1,
@@ -188,7 +192,7 @@ h3 {
 }
 
 @utility btn {
-  @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-[12px] px-4 text-[13.5px] font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45;
+  @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-[12px] px-4 text-[13.5px] font-medium whitespace-nowrap transition-[background-color,border-color,color,transform] duration-150 ease-(--ease-out) select-none active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100;
 }
 @utility btn-primary {
   @apply btn bg-ink text-on-ink hover:bg-ink/85;
@@ -210,7 +214,7 @@ h3 {
 }
 
 @utility input {
-  @apply w-full rounded-[12px] border border-line bg-surface px-3 py-2 text-[13.5px] outline-none transition placeholder:text-faint focus:border-brand-500 focus:bg-surface focus:ring-[3px] focus:ring-brand-100 disabled:bg-sunken disabled:text-faint;
+  @apply w-full rounded-[12px] border border-line bg-surface px-3 py-2 text-[16px] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-faint md:text-[13.5px] focus:border-brand-500 focus:bg-surface focus:ring-[3px] focus:ring-brand-100 disabled:bg-sunken disabled:text-faint;
 }
 @utility label {
   @apply mb-1.5 block text-[13px] font-medium text-ink;
@@ -236,7 +240,30 @@ h3 {
   }
 }
 .animate-rise {
-  animation: rise 0.18s ease-out both;
+  animation: rise 0.2s var(--ease-out) both;
+}
+
+/* Popovers grow from their trigger; modals stay centred. */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.animate-pop {
+  animation: pop 0.16s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-pop {
+    animation: fade-in 0.15s ease both;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes shimmer {
@@ -319,4 +346,84 @@ main:has(> .full-bleed) {
   --dot-dir: to left;
   -webkit-mask-position: right top;
   mask-position: right top;
+}
+
+/*
+ * Chart tokens for Bklit UI (src/components/charts). They point at the app
+ * tokens above, so they follow light / dark automatically.
+ */
+:root {
+  --background: var(--color-surface);
+  --foreground: var(--color-ink);
+  --border: var(--color-line);
+  --muted-foreground: var(--color-muted);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+  --radius-xl: 14px;
+
+  --chart-1: var(--color-chart);
+  --chart-2: var(--color-ink);
+  --chart-3: var(--color-info);
+  --chart-4: var(--color-faint);
+  --chart-5: var(--color-pos);
+  --chart-positive: var(--color-pos);
+  --chart-negative: var(--color-neg);
+  --chart-background: var(--color-surface);
+  --chart-foreground: var(--color-ink);
+  --chart-foreground-muted: var(--color-muted);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-2);
+  --chart-crosshair: var(--color-faint);
+  --chart-grid: var(--color-line);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: color-mix(in oklab, var(--color-surface) 94%, transparent);
+  --chart-tooltip-foreground: var(--color-ink);
+  --chart-tooltip-muted: var(--color-muted);
+  --chart-marker-background: var(--color-surface);
+  --chart-marker-border: var(--color-line-strong);
+  --chart-marker-foreground: var(--color-ink);
+  --chart-marker-badge-background: var(--color-ink);
+  --chart-marker-badge-foreground: var(--color-on-ink);
+  --chart-indicator-color: var(--color-ink);
+  --chart-indicator-secondary-color: var(--color-line);
+  --chart-segment-background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+  --chart-segment-line: color-mix(in oklab, var(--color-ink) 25%, transparent);
+  --chart-label: var(--color-faint);
+  --chart-scale-mix: var(--color-surface);
+  --chart-scale-01: var(--color-sunken);
+  --chart-scale-02: color-mix(in oklab, var(--chart-1) 35%, var(--chart-scale-mix));
+  --chart-scale-03: color-mix(in oklab, var(--chart-1) 55%, var(--chart-scale-mix));
+  --chart-scale-04: color-mix(in oklab, var(--chart-1) 78%, var(--chart-scale-mix));
+  --chart-scale-05: var(--chart-1);
+  --chart-scale-pattern-color: var(--color-surface);
+  --chart-pill-bg: var(--color-ink);
+  --chart-pill-fg: var(--color-on-ink);
+
+  --legend: var(--color-surface);
+  --legend-foreground: var(--color-ink);
+  --legend-muted: var(--color-sunken);
+  --legend-muted-foreground: var(--color-muted);
+  --legend-track: var(--color-line);
+}
+
+@theme inline {
+  --color-foreground: var(--foreground);
+  --color-chart-line-primary: var(--chart-line-primary);
+  --color-chart-line-secondary: var(--chart-line-secondary);
+  --color-chart-brush-border: var(--chart-brush-border);
+  --color-chart-label: var(--chart-label);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-positive: var(--chart-positive);
+  --color-chart-negative: var(--chart-negative);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-legend: var(--legend);
+  --color-legend-foreground: var(--legend-foreground);
+  --color-legend-muted: var(--legend-muted);
+  --color-legend-muted-foreground: var(--legend-muted-foreground);
+  --color-legend-track: var(--legend-track);
 }

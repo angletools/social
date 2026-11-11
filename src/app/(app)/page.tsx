@@ -19,8 +19,8 @@ import {
 } from "@/lib/analytics";
 import { Card, EmptyState, KpiCard, Meter } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
-import { ShareOfVoiceChart, VolumeChart } from "@/components/charts";
-import { Waffle } from "@/components/dots";
+import { SentimentGauge, ShareOfVoiceChart, VolumeChart } from "@/components/app-charts";
+import { sovColors } from "@/components/chart-colors";
 import { PLATFORM_COLORS, PlatformIcon } from "@/components/platform";
 import { SentimentBar } from "@/components/sentiment";
 import { Avatar } from "@/components/avatar";
@@ -121,6 +121,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const sentTotal = kpis.positive + kpis.neutral + kpis.negative;
   const pct = (n: number) => (sentTotal ? Math.round((n / sentTotal) * 100) : 0);
   const pts = series.points;
+  const sovColor = sovColors(sov);
 
   return (
     <>
@@ -191,7 +192,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card title={t.overview.volume} className="lg:col-span-2">
-            <VolumeChart height={392} points={pts} unit={series.unit} locale={locale} labels={{ positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
+            <VolumeChart height={392} points={pts} unit={series.unit} locale={locale} labels={{ total: t.overview.mentions, positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
           </Card>
           <Card
             title={t.inbox.title}
@@ -259,19 +260,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           </Card>
           <Card title={t.sentiment.label} help={t.sentiment.help}>
             <div className="space-y-5">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[32px] font-semibold leading-none tracking-tight ltr-nums">{`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`}</span>
-                <span className="text-[13px] text-muted">{t.sentiment.net}</span>
-              </div>
-              <Waffle
-                className="max-w-[360px]"
-                label={t.sentiment.label}
-                parts={[
-                  { name: t.sentiment.POSITIVE, value: kpis.positive, color: "var(--color-pos)" },
-                  { name: t.sentiment.NEUTRAL, value: kpis.neutral, color: "var(--color-neu)" },
-                  { name: t.sentiment.NEGATIVE, value: kpis.negative, color: "var(--color-neg)" },
-                ]}
-              />
+              <SentimentGauge net={kpis.netSentiment} label={t.sentiment.net} />
               <ul className="grid grid-cols-3 gap-2">
                 {(["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((s) => {
                   const v = s === "POSITIVE" ? kpis.positive : s === "NEUTRAL" ? kpis.neutral : kpis.negative;
@@ -300,15 +289,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
               <p className="text-[13px] text-muted">{t.common.noData}</p>
             ) : (
               <>
-                <ShareOfVoiceChart data={sov.map((s) => ({ name: s.name, share: s.share, isCompetitor: s.isCompetitor }))} />
-                <ul className="mt-3 space-y-1.5 text-xs">
-                  {sov.map((s) => (
-                    <li key={s.monitorId} className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-muted">
-                        <span className={`h-2 w-2 rounded-full ${s.isCompetitor ? "bg-line-strong" : "bg-brand-600"}`} />
-                        {s.name}
-                      </span>
-                      <span className={`font-medium ltr-nums ${s.netSentiment >= 0 ? "text-pos" : "text-neg"}`}>
+                <ShareOfVoiceChart totalLabel={t.overview.shareOfVoice} data={sov.map((s) => ({ name: s.name, share: s.share, isCompetitor: s.isCompetitor }))} />
+                <ul className="mt-4 space-y-2 text-[13px]">
+                  {sov.map((s, i) => (
+                    <li key={s.monitorId} className="flex items-center gap-2">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: sovColor[i] }} />
+                      <span className={`flex-1 truncate ${s.isCompetitor ? "text-muted" : "font-semibold"}`}>{s.name}</span>
+                      <span className="text-muted ltr-nums">{s.share}%</span>
+                      <span className={`w-10 text-end font-medium ltr-nums ${s.netSentiment >= 0 ? "text-pos" : "text-neg"}`}>
                         {s.netSentiment > 0 ? "+" : ""}
                         {s.netSentiment}
                       </span>

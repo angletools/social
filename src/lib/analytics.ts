@@ -319,3 +319,21 @@ export function inboxPriority(m: { intent: Intent | null; isRisk: boolean; autho
   const fresh = Math.max(0, 20 - ageH); // decays over the first 20h
   return intentW + (m.isRisk ? 30 : 0) + (m.sentiment === "NEGATIVE" ? 5 : 0) + reach + fresh;
 }
+
+/**
+ * When people post: mention counts by local weekday (0 = Sunday) and hour,
+ * in the org timezone. Uses at least four weeks so the pattern is stable.
+ */
+export async function getPostingHeatmap(s: Scope): Promise<number[][]> {
+  const tz = safeTz(s.tz);
+  const scope = { ...s, days: Math.max(28, s.days) };
+  const rows = await db.$queryRaw<{ dow: number; hr: number; n: bigint }[]>`
+    SELECT extract(dow FROM (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::int AS dow,
+           extract(hour FROM (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::int AS hr,
+           count(*) AS n
+    FROM "Mention" m WHERE ${cond(scope)}
+    GROUP BY 1, 2`;
+  const grid = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
+  for (const r of rows) grid[r.dow][r.hr] = Number(r.n);
+  return grid;
+}

@@ -103,7 +103,7 @@ async function writeWithAI(
     dialects: intel.dialects,
     comparableToPreviousPeriod: intel.comparable,
     churn: intel.churn,
-    complaints: intel.complaints.map(({ example: _e, ...c }) => c),
+    complaints: intel.complaints.map((c) => ({ key: c.key, labelEn: c.labelEn, labelAr: c.labelAr, count: c.count, churn: c.churn })),
   };
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);

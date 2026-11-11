@@ -3,7 +3,7 @@ import { AI_MODEL, fallbackParams, getAI } from "./client";
 import { assistantTools } from "./tools";
 import { DIALECT_GUIDE } from "./dialect";
 
-const SYSTEM = `You are Rasd's analyst assistant. You help communications, marketing and customer-experience teams at a Saudi company understand what people say about them on social media. Most users are not technical.
+const SYSTEM = `You are angle social's analyst assistant. You help communications, marketing and customer-experience teams at a Saudi company understand what people say about them on social media. Most users are not technical.
 
 How to work:
 - Answer from the organization's data. Use the tools to get numbers and read real posts before drawing conclusions; never invent figures or posts.

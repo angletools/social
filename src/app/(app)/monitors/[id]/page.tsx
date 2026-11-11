@@ -8,7 +8,7 @@ import { formatDate, formatNumber, timeAgo } from "@/lib/utils";
 import { getKpis, getTimeseries, getTopTopics, parseDays } from "@/lib/analytics";
 import { Card, KpiCard, PageHeader } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
-import { VolumeChart } from "@/components/charts";
+import { VolumeChart } from "@/components/app-charts";
 import { PlatformIcon } from "@/components/platform";
 import { SentimentBar } from "@/components/sentiment";
 import { MentionCard } from "@/components/mention-card";
@@ -90,7 +90,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card title={t.overview.volume} className="lg:col-span-2">
-            <VolumeChart points={series.points} unit={series.unit} locale={locale} labels={{ positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
+            <VolumeChart points={series.points} unit={series.unit} locale={locale} labels={{ total: t.overview.mentions, positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
           </Card>
           <Card title={t.overview.topTopics}>
             <ul className="space-y-3.5">

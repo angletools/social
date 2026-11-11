@@ -3,14 +3,15 @@ import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatNumber, timeAgo } from "@/lib/utils";
-import { getTopSlang, parseDays } from "@/lib/analytics";
+import { getPostingHeatmap, getTopSlang, parseDays } from "@/lib/analytics";
 import { fallbackBrief, getIntelligence, readBrief, type BriefTheme, type Driver } from "@/lib/intelligence";
 import { Card, Delta, Meter } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
-import { NetTrendChart } from "@/components/charts";
+import { NetTrendChart, ShareRings } from "@/components/app-charts";
+import { PostingHeatmapCard } from "./posting-heatmap";
 import { SentimentBar } from "@/components/sentiment";
 import { DIALECT_COLORS } from "@/components/dialect-badges";
-import { DotBar, Waffle } from "@/components/dots";
+import { DotBar } from "@/components/dots";
 import { Glossary } from "./glossary";
 import { RefreshBrief } from "./refresh-brief";
 
@@ -98,9 +99,10 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
     );
   }
 
-  const [intel, stored] = await Promise.all([
+  const [intel, stored, heat] = await Promise.all([
     getIntelligence(scope),
     db.intelligenceBrief.findFirst({ where: { organizationId: user.organizationId, days }, orderBy: { createdAt: "desc" } }),
+    getPostingHeatmap(scope),
   ]);
   const brief =
     readBrief(stored) ??
@@ -149,7 +151,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               {cmp && <Delta value={intel.kpis.deltas.netSentiment} suffix="" />}
             </div>
             <div className="mt-3">
-              <NetTrendChart points={intel.trend} unit={intel.unit} locale={locale} />
+              <NetTrendChart points={intel.trend} unit={intel.unit} locale={locale} label={T.netSentiment} />
             </div>
           </section>
           <div className="grid grid-cols-2 gap-5 lg:grid-cols-1">
@@ -173,6 +175,10 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
           <DriverList comparable={cmp} title={T.frustrations} items={intel.negative} tone="neg" ar={ar} hrefFor={(k) => q({ topic: k, sentiment: "NEGATIVE" })} empty={T.empty} sub={T.ofNegative} newLabel={T.isNew} />
           <DriverList comparable={cmp} title={T.loves} items={intel.positive} tone="pos" ar={ar} hrefFor={(k) => q({ topic: k, sentiment: "POSITIVE" })} empty={T.empty} sub={T.ofPositive} newLabel={T.isNew} />
         </div>
+
+        <Card title={T.whenPost}>
+          <PostingHeatmapCard grid={heat} locale={locale} labels={{ less: T.heatLess, more: T.heatMore, idle: T.heatIdle, posts: T.heatPosts }} />
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <Card title={T.complaints} bodyClassName="p-0 pb-2">
@@ -239,7 +245,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               </ul>
             </Card>
             <Card title={T.dialects}>
-              <Waffle className="max-w-[360px]" label={T.dialects} parts={intel.dialects.map((d) => ({ value: d.count, color: DIALECT_COLORS[d.dialect], name: t.dialects[d.dialect] }))} />
+              <ShareRings centerLabel={T.dialects} max={4} items={intel.dialects.map((d) => ({ label: t.dialects[d.dialect], value: Math.round((d.count / Math.max(1, totalDialect)) * 100), color: DIALECT_COLORS[d.dialect] }))} />
               <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2">
                 {intel.dialects.slice(0, 6).map((d) => (
                   <li key={d.dialect}>

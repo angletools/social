@@ -18,6 +18,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Vendored Bklit UI chart source (MIT); kept as upstream ships it.
+      "src/components/charts/**",
     ],
   },
 ];

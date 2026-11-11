@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-export const cn = (...v: ClassValue[]) => clsx(v);
+export const cn = (...v: ClassValue[]) => twMerge(clsx(v));
 
 export function formatNumber(n: number, locale: string) {
   return new Intl.NumberFormat(locale === "ar" ? "ar-SA-u-nu-latn" : "en-US", {
