@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, FileText, LayoutDashboard, MessagesSquare, Radar, Settings, Sparkles } from "lucide-react";
+import { Bell, Clapperboard, FileText, Inbox, Languages, LayoutDashboard, MessagesSquare, Radar, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/", key: "overview", icon: LayoutDashboard },
+  { href: "/inbox", key: "inbox", icon: Inbox },
   { href: "/monitors", key: "monitors", icon: Radar },
   { href: "/mentions", key: "mentions", icon: MessagesSquare },
+  { href: "/dialect", key: "dialect", icon: Languages },
+  { href: "/studio", key: "studio", icon: Clapperboard },
   { href: "/assistant", key: "assistant", icon: Sparkles },
   { href: "/alerts", key: "alerts", icon: Bell },
   { href: "/reports", key: "reports", icon: FileText },
@@ -34,7 +37,7 @@ export function NavLinks({ labels, badges = {}, onNavigate }: { labels: Record<s
             <Icon className="h-[18px] w-[18px]" />
             <span className="flex-1">{labels[key]}</span>
             {badges[key] ? (
-              <span className={cn("rounded-full px-1.5 text-xs font-semibold", active ? "bg-white/20" : "bg-red-500 text-white")}>{badges[key]}</span>
+              <span dir="ltr" className={cn("rounded-full px-1.5 text-xs font-semibold", active ? "bg-white/20" : "bg-red-500 text-white")}>{badges[key] > 99 ? "99+" : badges[key]}</span>
             ) : null}
           </Link>
         );

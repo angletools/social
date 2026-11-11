@@ -65,7 +65,7 @@ export async function syncMonitor(monitorId: string): Promise<number> {
       const data: Prisma.MentionCreateManyInput[] = posts.map((p) => {
         const demo = "enrichment" in p ? p.enrichment : null;
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { enrichment: _e, ...post } = p as DemoPost;
+        const { enrichment: _e, durationSec: _d, ...post } = p as DemoPost;
         return {
           ...post,
           organizationId: m.organizationId,
@@ -79,6 +79,10 @@ export async function syncMonitor(monitorId: string): Promise<number> {
             isRisk: demo.isRisk,
             riskReason: demo.riskReason,
             emotion: demo.emotion,
+            dialect: demo.dialect,
+            intent: demo.intent,
+            sarcasm: demo.sarcasm,
+            slang: demo.slang,
             enrichedAt: new Date(),
           }),
         };

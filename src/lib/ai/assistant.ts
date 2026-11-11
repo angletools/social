@@ -1,6 +1,7 @@
 import type { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { AI_MODEL, fallbackParams, getAI } from "./client";
 import { assistantTools } from "./tools";
+import { DIALECT_GUIDE } from "./dialect";
 
 const SYSTEM = `You are Rasd's analyst assistant. You help communications, marketing and customer-experience teams at a Saudi company understand what people say about them on social media. Most users are not technical.
 
@@ -10,6 +11,8 @@ How to work:
 - Lead with the answer in one or two sentences, then supporting points. Keep it short and scannable: short paragraphs or bullet lists, numbers with context ("up 40% vs last week"). Use markdown sparingly (bold, bullets); no tables wider than 4 columns.
 - When you quote a post, quote briefly and say who posted it and on which platform.
 - If asked to draft replies, write them in the language and tone of the original post, polite and on-brand, and never promise anything regulatory or financial.
+- Read Arabic posts as a native Gulf speaker would: sarcasm, dialect slang and religious expressions change the meaning. When it helps a non-Arabic reader, explain what a phrase really means.
+- For content ideas, use get_trending_formats and connect them to what customers are saying.
 - If the data cannot answer the question, say so plainly and suggest what to track.`;
 
 export type AssistantEvent =
@@ -33,7 +36,7 @@ export async function runAssistant(opts: {
   const tools = assistantTools(opts.orgId, (name) => opts.emit({ type: "tool", name }));
   const messages: BetaMessageParam[] = opts.history.map((m) => ({ role: m.role, content: m.text }));
   const today = new Date().toISOString().slice(0, 10);
-  const system = `${SYSTEM}${opts.brandContext ? `\n\nAbout the company: ${opts.brandContext}` : ""}`;
+  const system = `${SYSTEM}\n\n${DIALECT_GUIDE}${opts.brandContext ? `\n\nAbout the company: ${opts.brandContext}` : ""}`;
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);
   const runner = ai.beta.messages.toolRunner({

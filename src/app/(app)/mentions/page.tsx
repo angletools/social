@@ -45,6 +45,8 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
         sentiments={(["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((s) => ({ value: s, label: t.sentiment[s] }))}
         statuses={Object.entries(t.mentions.status).map(([value, label]) => ({ value, label }))}
         ranges={Object.entries(t.common.range).map(([value, label]) => ({ value, label }))}
+        dialects={Object.entries(t.dialects).map(([value, label]) => ({ value, label }))}
+        intents={Object.entries(t.intents).map(([value, label]) => ({ value, label }))}
         topicLabel={filters.topic ? (topic ? (locale === "ar" ? topic.ar : topic.en) : filters.topic) : undefined}
         labels={{
           search: t.mentions.searchPlaceholder,
@@ -54,6 +56,9 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
           onlyRisks: t.mentions.onlyRisks,
           export: t.common.export,
           all: t.common.all,
+          allDialects: t.engage.allDialects,
+          allIntents: t.engage.allIntents,
+          onlySarcasm: t.engage.onlySarcasm,
         }}
       />
       <div className="space-y-3">

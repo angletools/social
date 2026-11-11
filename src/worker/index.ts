@@ -9,6 +9,8 @@ import { syncMonitor } from "../lib/ingest/sync";
 import { enrichPending } from "../lib/ai/enrich";
 import { evaluateAlerts } from "../lib/alerts";
 import { generateReport } from "../lib/ai/report";
+import { scanWatch } from "../lib/trends/scan";
+import { generateDraft } from "../lib/ai/studio";
 
 async function main() {
   const boss = new PgBoss({ connectionString: process.env.DATABASE_URL! });
@@ -59,6 +61,32 @@ async function main() {
       await db.report.update({
         where: { id: job.data.reportId },
         data: { status: "FAILED", error: String((e as Error).message).slice(0, 500) },
+      });
+      throw e;
+    }
+  });
+
+  // Daily at 05:00 Riyadh (02:00 UTC): scan every niche for viral formats.
+  await boss.schedule(QUEUES.trendDaily, "0 2 * * *");
+  await boss.work(QUEUES.trendDaily, async () => {
+    const watches = await db.trendWatch.findMany({ where: { enabled: true }, select: { id: true } });
+    for (const w of watches) await boss.send(QUEUES.trendScan, { watchId: w.id }, { singletonKey: w.id, singletonSeconds: 600 });
+  });
+
+  await boss.work<{ watchId: string }>(QUEUES.trendScan, async ([job]) => {
+    const r = await scanWatch(job.data.watchId);
+    console.log(`[worker] trend scan ${job.data.watchId}: ${r.posts} posts, ${r.formats} formats`);
+  });
+
+  await boss.work<{ draftId: string; instruction?: string }>(QUEUES.draft, async ([job]) => {
+    try {
+      await generateDraft(job.data.draftId, job.data.instruction);
+    } catch (e) {
+      const d = await db.contentDraft.findUnique({ where: { id: job.data.draftId } });
+      await db.contentDraft.update({
+        where: { id: job.data.draftId },
+        // A failed revision keeps the previous version usable.
+        data: { status: d?.content ? "DRAFT" : "FAILED", error: String((e as Error).message).slice(0, 500) },
       });
       throw e;
     }

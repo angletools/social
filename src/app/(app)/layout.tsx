@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { timeAgo } from "@/lib/utils";
 import { dataSource } from "@/lib/ingest/sync";
+import { INBOX_INTENTS } from "@/lib/analytics";
 import { logout } from "@/app/actions";
 import { NavLinks } from "@/components/shell/nav-links";
 import { LangToggle } from "@/components/shell/lang-toggle";
@@ -32,9 +33,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     take: 20,
   });
   const unread = notes.filter((n) => !n.readAt).length;
+  const awaiting = await db.mention.count({
+    where: {
+      organizationId: user.organizationId,
+      relevant: true,
+      repliedAt: null,
+      status: { not: "ARCHIVED" },
+      publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
+      OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
+    },
+  });
   const brand = <Brand name={t.app.name} org={user.organization.name} />;
   const labels = t.nav as unknown as Record<string, string>;
-  const badges = { alerts: unread };
+  const badges = { alerts: unread, inbox: awaiting };
 
   return (
     <div className="flex min-h-screen">

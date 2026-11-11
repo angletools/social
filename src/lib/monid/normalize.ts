@@ -16,6 +16,7 @@ export type NormalizedPost = {
   views: number;
   lang: string | null;
   mediaUrl: string | null;
+  durationSec: number | null;
 };
 
 type Obj = Record<string, unknown>;
@@ -90,5 +91,15 @@ export function normalizeItem(platform: Platform, raw: unknown): NormalizedPost 
     views: num(first(raw, ["viewCount", "views", "playCount", "videoViewCount", "videoPlayCount", "impressionCount"])),
     lang: str(first(raw, ["lang", "language", "textLanguage"])),
     mediaUrl: str(first(raw, ["displayUrl", "thumbnailUrl", "videoMeta.coverUrl", "media.0.url", "extendedEntities.media.0.media_url_https", "thumbnail"])),
+    durationSec: parseDuration(first(raw, ["videoMeta.duration", "videoDuration", "duration", "durationSeconds"])),
   };
+}
+
+/** Accepts seconds or "m:ss" / "h:mm:ss". */
+function parseDuration(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  if (typeof v === "number") return Math.round(v);
+  const parts = String(v).split(":").map(Number);
+  if (parts.some((n) => Number.isNaN(n))) return null;
+  return Math.round(parts.reduce((a, n) => a * 60 + n, 0));
 }

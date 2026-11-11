@@ -15,6 +15,30 @@ A bilingual (Arabic / English) social listening platform built for non-technical
 | **Settings** | Organization profile, plus a brand description that gives the AI context. Shows plan, usage and limits; Monid and Claude connection status (with Monid balance); team members with roles (Owner / Admin / Analyst / Viewer); and an activity log. |
 | **Bilingual** | Full Arabic (RTL) and English UI with per-user language and IBM Plex Sans Arabic bundled in the app. Posts render with automatic text direction. |
 
+### Dialect-native suite
+
+Generic AI tools misread Gulf Arabic. Rasd's classifier follows a regional language guide (`src/lib/ai/dialect.ts`) and an editable per-client glossary.
+
+| Area | What it does |
+|---|---|
+| **Dialect & intent on every post** | Each post is tagged with its dialect (Saudi, Gulf, Egyptian, Levantine, Iraqi, Maghrebi, Standard Arabic, Arabizi, English) and its intent (complaint, question, praise, wants to sign up, **may leave us**, suggestion). Sarcasm detection catches lines like «ما شاء الله عليكم 🙂 … مبدعين», which generic tools count as praise. Slang is pulled out with English glosses. |
+| **Translate & explain** | One click shows an English translation plus what a native reader hears (tone, slang, religious or cultural expressions), for colleagues or HQ who don't read Arabic. Cached per post. |
+| **Engagement inbox** | Queue of posts that need a reply. Priority: people threatening to leave and risk posts first, then reach, then recency. AI drafts 3 replies in the commenter's own dialect (Saudi white dialect, light Egyptian…) that follow the brand voice and compliance rules (never asks for an OTP in public, never promises returns). It also flags posts that need a specialist. Copy & open post, mark as replied, and track median response time. |
+| **Dialect insights page** | Dialect mix, net sentiment per dialect, sarcasm caught, why people post (intent), trending slang with meanings, and the **glossary editor**, where you teach the AI product nicknames and local slang. The glossary is used in every classification, translation, reply and script. |
+| **Compliance rules** | Per-organization rules (e.g. CMA marketing rules), applied to every AI reply and script. |
+| **Measured quality** | `evals/dialect-set.json` holds 30 hand-labelled regional posts. `npm run eval:dialect` scores dialect, sentiment, intent and sarcasm accuracy against the live model. Add your customers' real posts to it. |
+
+### Content Studio (Trend-to-Post)
+
+| Area | What it does |
+|---|---|
+| **Niches** | Each niche has hashtags, keywords and creators to watch. It's scanned daily at 05:00 Riyadh time (and on demand) through Monid for top TikTok, Instagram Reels, YouTube Shorts and X video posts. |
+| **Virality scoring** | Posts are ranked by how far they outperformed the creator's usual reach (views ÷ followers), blended with engagement rate and velocity, not by raw views. That surfaces *formats* that work, not famous accounts (`src/lib/trends/score.ts`). |
+| **Trending formats** | AI groups viral posts into reusable formats such as "salary day vs. end of month" or "3 mistakes countdown". Each format gets a hook pattern, why it works, a beat structure (Arabic & English), example posts, a score and momentum (new / rising / peaking / fading). The team is notified when formats start rising. |
+| **Brand voice** | Learned from 5–20 sample posts or from your own account monitor, or written by hand: summary, dialect, traits, always/never rules, banned words, CTA and emoji style, examples. |
+| **Drafts** | Pick a format, a brief, a goal, a platform, a dialect and a length, and AI writes: 3 hook options, a beat-by-beat script (spoken lines in dialect, on-screen text, visuals), a shot list for the crew, an edit plan (music, pacing, transitions, captions, SFX), caption, hashtags and CTA. It adds a **compliance check** (pass / needs review / must fix) and a **brand-voice match score**. Everything can be edited inline. You can also refine with one click ("punchier hook", "more Saudi dialect", "shorter") and keep a version history. Workflow: draft → review → approved (admin) → published. |
+| **Rough cut** | In-browser editor: drop clips or photos on each shot to preview the timeline in 9:16 with on-screen text and voice-over subtitles. You can export a **.webm video** with the clips' audio. Captions export as **.srt**, the shot list as **.csv**. Files never leave the browser. |
+
 ## Architecture
 
 ```
@@ -29,7 +53,9 @@ Next.js 15 (App Router, server components + server actions)
       ├─ analytics.ts       SQL aggregations (Postgres)
       ├─ alerts.ts          rule evaluation + notifications
       └─ auth.ts            DB sessions (httpOnly cookie, hashed tokens), roles, audit log
-Worker (src/worker)         pg-boss jobs: scheduler → sync → enrich → alerts; reports
+      ├─ trends/            virality scoring, trend scans, demo trends
+Worker (src/worker)         pg-boss jobs: scheduler → sync → enrich → alerts; reports;
+                            daily trend scans; studio draft writing
 PostgreSQL                  data + job queue (no Redis needed)
 ```
 
@@ -60,9 +86,9 @@ Or with Docker: `docker compose up -d --build`.
   npm run monid:discover                                  # list candidate endpoints per platform
   npm run monid:discover -- "tiktok hashtag" "apify#clockworks/tiktok-scraper"   # + inspect input schema
   ```
-  Override any mapping without code changes: `MONID_ENDPOINT_<PLATFORM>_<TYPE>="provider#endpoint"`.
+  Override any mapping without code changes: `MONID_ENDPOINT_<PLATFORM>_<TYPE>="provider#endpoint"`. Trend scans use `MONID_ENDPOINT_<PLATFORM>_TREND`.
 
-- **No `ANTHROPIC_API_KEY`** → posts get a basic keyword-based sentiment; the assistant, briefs and reports are turned off.
+- **No `ANTHROPIC_API_KEY`** → posts get keyword-based sentiment and dialect detection only. The assistant, briefs, reports, reply drafting, translation, voice learning, format detection and script writing are turned off. The demo seed includes pre-written formats, a brand voice and a full sample script, so the Studio can still be shown.
 
 ### AI cost
 
@@ -78,4 +104,4 @@ Classification runs in batches of 25 posts at low effort. By default every AI fe
 
 ## Scripts
 
-`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `db:migrate`, `db:seed`, `monid:discover`.
+`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `db:migrate`, `db:seed`, `monid:discover`, `eval:dialect`.

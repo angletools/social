@@ -14,14 +14,31 @@ if (!client) {
 
 const queries = process.argv[2]
   ? [process.argv[2]]
-  : ["twitter x search tweets", "instagram hashtag posts", "instagram profile posts", "tiktok search videos", "youtube search videos", "facebook page posts", "linkedin post search"];
+  : [
+      "twitter x search tweets",
+      "instagram hashtag posts",
+      "instagram profile posts",
+      "tiktok search videos",
+      "youtube search videos",
+      "facebook page posts",
+      "linkedin post search",
+    ];
 
-for (const q of queries) {
-  const res = await client.discover(q, 5);
-  console.log(`\n## ${q}`);
-  console.log(JSON.stringify(res, null, 2).slice(0, 4000));
+async function main() {
+  for (const q of queries) {
+    const res = await client!.discover(q, 5);
+    console.log(`\n## ${q}`);
+    console.log(JSON.stringify(res, null, 2).slice(0, 4000));
+  }
+  if (process.argv[3]) {
+    const [provider, endpoint] = process.argv[3].split("#");
+    console.log(
+      JSON.stringify(await client!.inspect(provider, endpoint), null, 2),
+    );
+  }
 }
-if (process.argv[3]) {
-  const [provider, endpoint] = process.argv[3].split("#");
-  console.log(JSON.stringify(await client.inspect(provider, endpoint), null, 2));
-}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

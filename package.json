@@ -10,10 +10,11 @@
     "worker": "tsx --env-file-if-exists=.env src/worker/index.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true vitest run",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
-    "monid:discover": "tsx --env-file-if-exists=.env scripts/monid-discover.ts"
+    "monid:discover": "tsx --env-file-if-exists=.env scripts/monid-discover.ts",
+    "eval:dialect": "tsx --env-file-if-exists=.env scripts/eval-dialect.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

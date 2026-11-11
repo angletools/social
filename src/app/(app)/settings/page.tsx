@@ -67,8 +67,17 @@ export default async function SettingsPage() {
           <OrgForm
             name={org.name}
             brandContext={org.brandContext ?? ""}
+            complianceRules={org.complianceRules ?? ""}
             disabled={!isAdmin}
-            labels={{ name: t.settings.orgName, context: t.settings.brandContext, placeholder: t.settings.brandContextPlaceholder, save: t.common.save, saved: t.settings.saved }}
+            labels={{
+              name: t.settings.orgName,
+              context: t.settings.brandContext,
+              placeholder: t.settings.brandContextPlaceholder,
+              compliance: t.settings.compliance,
+              compliancePlaceholder: t.settings.compliancePlaceholder,
+              save: t.common.save,
+              saved: t.settings.saved,
+            }}
           />
         </Card>
         <div className="space-y-6">

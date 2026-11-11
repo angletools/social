@@ -139,3 +139,53 @@ export function sourceFor(platform: Platform, type: MonitorType): SourceSpec | n
 export function supportedPlatforms(type: MonitorType): Platform[] {
   return (Object.keys(DEFAULTS) as Platform[]).filter((p) => DEFAULTS[p]?.[type]);
 }
+
+/**
+ * Trend discovery sources: popular short-form posts for a niche's hashtags,
+ * keywords and creators. Same override mechanism: MONID_ENDPOINT_<PLATFORM>_TREND.
+ */
+export type TrendWatchInput = { seeds: string[]; accounts: string[]; limit: number };
+
+const TREND_DEFAULTS: Partial<Record<Platform, { provider: string; endpoint: string; build: (w: TrendWatchInput) => Record<string, unknown> }>> = {
+  TIKTOK: {
+    provider: "apify",
+    endpoint: "clockworks/tiktok-scraper",
+    build: (w) => ({
+      hashtags: w.seeds.filter((s) => !/\s/.test(s)).map(clean),
+      searchQueries: w.seeds.filter((s) => /\s/.test(s)),
+      profiles: w.accounts.map(clean),
+      resultsPerPage: w.limit,
+    }),
+  },
+  INSTAGRAM: {
+    provider: "apify",
+    endpoint: "apify/instagram-hashtag-scraper",
+    build: (w) => ({ hashtags: w.seeds.map((s) => clean(s).replace(/\s+/g, "")), resultsLimit: w.limit, resultsType: "reels" }),
+  },
+  YOUTUBE: {
+    provider: "apify",
+    endpoint: "streamers/youtube-scraper",
+    build: (w) => ({ searchQueries: w.seeds.map((s) => `${clean(s)} #shorts`), maxResults: 0, maxResultsShorts: w.limit, sortingOrder: "views" }),
+  },
+  X: {
+    provider: "apify",
+    endpoint: "apidojo/tweet-scraper",
+    build: (w) => ({
+      searchTerms: [`(${w.seeds.map((s) => (/\s/.test(s) ? `"${clean(s)}"` : clean(s))).join(" OR ")}) min_faves:200 filter:videos`],
+      maxItems: w.limit,
+      sort: "Top",
+    }),
+  },
+};
+
+export function trendSourceFor(platform: Platform) {
+  const spec = TREND_DEFAULTS[platform] ?? null;
+  const override = process.env[`MONID_ENDPOINT_${platform}_TREND`];
+  if (override && spec) {
+    const [provider, endpoint] = override.split("#");
+    if (provider && endpoint) return { ...spec, provider, endpoint };
+  }
+  return spec;
+}
+
+export const TREND_PLATFORMS = Object.keys(TREND_DEFAULTS) as Platform[];

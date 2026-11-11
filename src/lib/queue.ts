@@ -6,6 +6,9 @@ export const QUEUES = {
   enrich: "enrich-org",
   alerts: "evaluate-alerts",
   report: "generate-report",
+  trendDaily: "trend-daily",
+  trendScan: "trend-scan",
+  draft: "studio-draft",
 } as const;
 
 const g = globalThis as unknown as { __boss?: Promise<PgBoss> };

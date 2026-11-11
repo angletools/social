@@ -4,7 +4,19 @@ import { useActionState, useEffect, useRef, useTransition } from "react";
 import type { Role } from "@prisma/client";
 import { addMember, updateMember, updateOrganization } from "@/app/actions";
 
-export function OrgForm({ name, brandContext, labels, disabled }: { name: string; brandContext: string; disabled: boolean; labels: { name: string; context: string; placeholder: string; save: string; saved: string } }) {
+export function OrgForm({
+  name,
+  brandContext,
+  complianceRules,
+  labels,
+  disabled,
+}: {
+  name: string;
+  brandContext: string;
+  complianceRules: string;
+  disabled: boolean;
+  labels: { name: string; context: string; placeholder: string; compliance: string; compliancePlaceholder: string; save: string; saved: string };
+}) {
   const [state, action, pending] = useActionState(updateOrganization, null);
   return (
     <form action={action} className="space-y-4">
@@ -15,6 +27,10 @@ export function OrgForm({ name, brandContext, labels, disabled }: { name: string
       <div>
         <label className="label">{labels.context}</label>
         <textarea name="brandContext" defaultValue={brandContext} className="input min-h-28" placeholder={labels.placeholder} disabled={disabled} dir="auto" />
+      </div>
+      <div>
+        <label className="label">{labels.compliance}</label>
+        <textarea name="complianceRules" defaultValue={complianceRules} className="input min-h-28" placeholder={labels.compliancePlaceholder} disabled={disabled} dir="auto" />
       </div>
       {!disabled && (
         <div className="flex items-center gap-3">

@@ -12,6 +12,8 @@ export function FilterBar({
   sentiments,
   statuses,
   ranges,
+  dialects,
+  intents,
   labels,
   topicLabel,
 }: {
@@ -20,7 +22,12 @@ export function FilterBar({
   sentiments: Opt[];
   statuses: Opt[];
   ranges: Opt[];
-  labels: { search: string; allMonitors: string; allPlatforms: string; allSentiment: string; onlyRisks: string; export: string; all: string };
+  dialects: Opt[];
+  intents: Opt[];
+  labels: {
+    search: string; allMonitors: string; allPlatforms: string; allSentiment: string; onlyRisks: string; export: string; all: string;
+    allDialects: string; allIntents: string; onlySarcasm: string;
+  };
   topicLabel?: string;
 }) {
   const router = useRouter();
@@ -59,6 +66,8 @@ export function FilterBar({
       {select("monitor", monitors, labels.allMonitors)}
       {select("platform", platforms, labels.allPlatforms)}
       {select("sentiment", sentiments, labels.allSentiment)}
+      {select("dialect", dialects, labels.allDialects)}
+      {select("intent", intents, labels.allIntents)}
       {select("status", statuses, labels.all)}
       <select className="input w-auto py-2" value={sp.get("days") ?? "30"} onChange={(e) => set("days", e.target.value)}>
         {ranges.map((o) => (
@@ -68,6 +77,10 @@ export function FilterBar({
       <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
         <input type="checkbox" className="accent-red-600" checked={sp.get("risk") === "1"} onChange={(e) => set("risk", e.target.checked ? "1" : "")} />
         {labels.onlyRisks}
+      </label>
+      <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+        <input type="checkbox" className="accent-fuchsia-600" checked={sp.get("sarcasm") === "1"} onChange={(e) => set("sarcasm", e.target.checked ? "1" : "")} />
+        🙃 {labels.onlySarcasm}
       </label>
       {topicLabel && (
         <button type="button" onClick={() => set("topic", "")} className="flex items-center gap-1 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">

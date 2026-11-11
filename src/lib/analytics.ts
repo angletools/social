@@ -1,4 +1,4 @@
-import { Prisma, type Platform, type Sentiment } from "@prisma/client";
+import { Prisma, type Dialect, type Intent, type Platform, type Sentiment } from "@prisma/client";
 import { db } from "./db";
 
 export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform };
@@ -185,6 +185,9 @@ export type MentionFilters = {
   q?: string;
   status?: string;
   topic?: string;
+  dialect?: Dialect;
+  intent?: Intent;
+  sarcasm?: boolean;
 };
 
 export function mentionWhere(f: MentionFilters): Prisma.MentionWhereInput {
@@ -197,6 +200,9 @@ export function mentionWhere(f: MentionFilters): Prisma.MentionWhereInput {
     ...(f.sentiment && { sentiment: f.sentiment }),
     ...(f.risk && { isRisk: true }),
     ...(f.topic && { topics: { has: f.topic } }),
+    ...(f.dialect && { dialect: f.dialect }),
+    ...(f.intent && { intent: f.intent }),
+    ...(f.sarcasm && { sarcasm: true }),
     ...(f.status && ["NEW", "REVIEWED", "FLAGGED", "ARCHIVED"].includes(f.status)
       ? { status: f.status as never }
       : { status: { not: "ARCHIVED" as const } }),
@@ -208,4 +214,78 @@ export function mentionWhere(f: MentionFilters): Prisma.MentionWhereInput {
       ],
     }),
   };
+}
+
+// ---------- Dialect intelligence ----------
+
+export async function getDialectBreakdown(s: Scope) {
+  const rows = await db.$queryRaw<{ dialect: Dialect; n: bigint; pos: bigint; neg: bigint; sarc: bigint }[]>`
+    SELECT m.dialect, count(*) AS n,
+           count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
+           count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
+           count(*) FILTER (WHERE m.sarcasm) AS sarc
+    FROM "Mention" m WHERE ${cond(s)} AND m.dialect IS NOT NULL
+    GROUP BY 1 ORDER BY 2 DESC`;
+  return rows.map((r) => {
+    const n = Number(r.n);
+    return {
+      dialect: r.dialect,
+      count: n,
+      positive: Number(r.pos),
+      negative: Number(r.neg),
+      sarcasm: Number(r.sarc),
+      netSentiment: n ? Math.round(((Number(r.pos) - Number(r.neg)) / n) * 100) : 0,
+    };
+  });
+}
+
+export async function getIntentBreakdown(s: Scope) {
+  const rows = await db.$queryRaw<{ intent: Intent; n: bigint }[]>`
+    SELECT m.intent, count(*) AS n FROM "Mention" m WHERE ${cond(s)} AND m.intent IS NOT NULL GROUP BY 1 ORDER BY 2 DESC`;
+  return rows.map((r) => ({ intent: r.intent, count: Number(r.n) }));
+}
+
+/** Most frequent dialect slang terms in the period, with a gloss and sentiment mix. */
+export async function getTopSlang(s: Scope, limit = 12) {
+  const rows = await db.$queryRaw<{ term: string; gloss: string; n: bigint; pos: bigint; neg: bigint; dialect: Dialect | null }[]>`
+    SELECT x->>'term' AS term, max(x->>'gloss') AS gloss, count(*) AS n,
+           count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
+           count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
+           mode() WITHIN GROUP (ORDER BY m.dialect) AS dialect
+    FROM "Mention" m CROSS JOIN LATERAL jsonb_array_elements(coalesce(m.slang, '[]'::jsonb)) AS x
+    WHERE ${cond(s)}
+    GROUP BY 1 ORDER BY n DESC LIMIT ${limit}`;
+  return rows.map((r) => ({ term: r.term, gloss: r.gloss, count: Number(r.n), positive: Number(r.pos), negative: Number(r.neg), dialect: r.dialect }));
+}
+
+export const INBOX_INTENTS: Intent[] = ["CHURN_RISK", "COMPLAINT", "QUESTION", "PURCHASE_INTENT"];
+
+export async function getInboxStats(orgId: string) {
+  const since = new Date(Date.now() - 7 * 86400_000);
+  const dayStart = new Date(Date.now() - 86400_000);
+  const [awaiting, repliedToday, [rt]] = await Promise.all([
+    db.mention.count({
+      where: { organizationId: orgId, relevant: true, repliedAt: null, status: { not: "ARCHIVED" }, publishedAt: { gte: since }, OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }] },
+    }),
+    db.mention.count({ where: { organizationId: orgId, repliedAt: { gte: dayStart } } }),
+    db.$queryRaw<{ avg: number | null; p50: number | null }[]>`
+      SELECT avg(extract(epoch FROM ("repliedAt" - "publishedAt")) / 60) AS avg,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM ("repliedAt" - "publishedAt")) / 60) AS p50
+      FROM "Mention" WHERE "organizationId" = ${orgId} AND "repliedAt" >= ${new Date(Date.now() - 30 * 86400_000)}`,
+  ]);
+  return {
+    awaiting,
+    repliedToday,
+    avgResponseMinutes: rt?.avg === null || rt?.avg === undefined ? null : Math.round(Number(rt.avg)),
+    medianResponseMinutes: rt?.p50 === null || rt?.p50 === undefined ? null : Math.round(Number(rt.p50)),
+  };
+}
+
+/** Priority for the engagement inbox: churn & risk first, then reach, then recency. */
+export function inboxPriority(m: { intent: Intent | null; isRisk: boolean; authorFollowers: number | null; publishedAt: Date; sentiment: Sentiment | null }) {
+  const intentW = { CHURN_RISK: 40, COMPLAINT: 25, PURCHASE_INTENT: 20, QUESTION: 15, SUGGESTION: 5, PRAISE: 2, OTHER: 0 }[m.intent ?? "OTHER"];
+  const reach = Math.log10((m.authorFollowers ?? 0) + 10) * 6; // 6..~40
+  const ageH = (Date.now() - m.publishedAt.getTime()) / 3600_000;
+  const fresh = Math.max(0, 20 - ageH); // decays over the first 20h
+  return intentW + (m.isRisk ? 30 : 0) + (m.sentiment === "NEGATIVE" ? 5 : 0) + reach + fresh;
 }

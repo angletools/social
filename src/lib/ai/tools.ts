@@ -1,8 +1,21 @@
 import { z } from "zod";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { Platform, Sentiment } from "@prisma/client";
+import type { Dialect, Intent, Platform, Sentiment } from "@prisma/client";
 import { db } from "../db";
-import { getKpis, getShareOfVoice, getTimeseries, getTopAuthors, getTopTopics, mentionWhere } from "../analytics";
+import {
+  getDialectBreakdown,
+  getIntentBreakdown,
+  getKpis,
+  getShareOfVoice,
+  getTimeseries,
+  getTopAuthors,
+  getTopSlang,
+  getTopTopics,
+  mentionWhere,
+} from "../analytics";
+
+const DIALECTS = ["SAUDI", "KHALEEJI", "EGYPTIAN", "LEVANTINE", "IRAQI", "MAGHREBI", "MSA", "ARABIZI", "ENGLISH", "OTHER"] as const;
+const INTENTS = ["COMPLAINT", "QUESTION", "PRAISE", "PURCHASE_INTENT", "CHURN_RISK", "SUGGESTION", "OTHER"] as const;
 
 const PLATFORMS = ["X", "INSTAGRAM", "TIKTOK", "YOUTUBE", "FACEBOOK", "LINKEDIN"] as const;
 const days = z.number().int().min(1).max(365).describe("Look-back window in days, e.g. 1, 7, 30");
@@ -69,7 +82,7 @@ export function assistantTools(orgId: string, onTool?: (name: string) => void) {
     betaZodTool({
       name: "search_mentions",
       description:
-        "Read actual posts. Filter by text query, sentiment, platform, topic key, risk flag, monitor and period. Sort by recency or engagement. Returns up to 40 posts with author, followers, engagement, sentiment, topics and URL.",
+        "Read actual posts. Filter by text query, sentiment, platform, topic key, risk flag, dialect, intent (e.g. CHURN_RISK), sarcasm, monitor and period. Sort by recency or engagement. Returns up to 40 posts with author, followers, engagement, sentiment, topics and URL.",
       inputSchema: z.object({
         days: days.optional(),
         monitorId,
@@ -78,6 +91,9 @@ export function assistantTools(orgId: string, onTool?: (name: string) => void) {
         sentiment: z.enum(["POSITIVE", "NEUTRAL", "NEGATIVE"]).optional(),
         topic: z.string().optional().describe("Topic key from get_top_topics"),
         risksOnly: z.boolean().optional(),
+        dialect: z.enum(DIALECTS).optional(),
+        intent: z.enum(INTENTS).optional(),
+        sarcasmOnly: z.boolean().optional(),
         sort: z.enum(["recent", "engagement", "reach"]).optional(),
         limit: z.number().int().min(1).max(40).optional(),
       }),
@@ -91,6 +107,9 @@ export function assistantTools(orgId: string, onTool?: (name: string) => void) {
           sentiment?: Sentiment;
           topic?: string;
           risksOnly?: boolean;
+          dialect?: Dialect;
+          intent?: Intent;
+          sarcasmOnly?: boolean;
           sort?: "recent" | "engagement" | "reach";
           limit?: number;
         }) => {
@@ -104,6 +123,9 @@ export function assistantTools(orgId: string, onTool?: (name: string) => void) {
               topic: i.topic,
               risk: i.risksOnly,
               q: i.query,
+              dialect: i.dialect,
+              intent: i.intent,
+              sarcasm: i.sarcasmOnly,
             }),
             orderBy:
               i.sort === "engagement" ? { likes: "desc" } : i.sort === "reach" ? { authorFollowers: { sort: "desc", nulls: "last" } } : { publishedAt: "desc" },
@@ -111,11 +133,41 @@ export function assistantTools(orgId: string, onTool?: (name: string) => void) {
             select: {
               id: true, platform: true, text: true, url: true, publishedAt: true, authorHandle: true, authorName: true,
               authorFollowers: true, likes: true, comments: true, shares: true, views: true, sentiment: true,
-              topics: true, isRisk: true, riskReason: true, monitor: { select: { name: true } },
+              topics: true, isRisk: true, riskReason: true, dialect: true, intent: true, sarcasm: true, slang: true,
+              repliedAt: true, monitor: { select: { name: true } },
             },
           });
           return rows.map((r) => ({ ...r, text: r.text.slice(0, 600), monitor: r.monitor.name }));
         },
+      ),
+    }),
+    betaZodTool({
+      name: "get_dialect_insights",
+      description:
+        "Breakdown of mentions by Arabic dialect (Saudi, Gulf, Egyptian, Arabizi, MSA, English…) with sentiment and sarcasm counts, by intent (complaint, question, churn risk, purchase intent…), and the most frequent dialect slang terms with meanings.",
+      inputSchema: z.object({ days, monitorId }),
+      run: wrap("get_dialect_insights", async (i: { days: number; monitorId?: string }) => {
+        const scope = { orgId, ...i };
+        const [dialects, intents, slang] = await Promise.all([getDialectBreakdown(scope), getIntentBreakdown(scope), getTopSlang(scope, 15)]);
+        return { dialects, intents, slang };
+      }),
+    }),
+    betaZodTool({
+      name: "get_trending_formats",
+      description:
+        "Viral short-form video formats detected in the organization's niches (content studio), with momentum (NEW/RISING/PEAKING/FADING), hook pattern, why it works, structure and top example posts. Use for content ideas.",
+      inputSchema: z.object({ limit: z.number().int().min(1).max(20).optional() }),
+      run: wrap("get_trending_formats", async (i: { limit?: number }) =>
+        db.trendFormat.findMany({
+          where: { organizationId: orgId, dismissed: false },
+          orderBy: { score: "desc" },
+          take: i.limit ?? 8,
+          select: {
+            id: true, nameEn: true, nameAr: true, summaryEn: true, hookPattern: true, whyItWorks: true, structure: true,
+            momentum: true, score: true, postCount: true, totalViews: true,
+            posts: { orderBy: { viralityScore: "desc" }, take: 2, select: { text: true, views: true, outlierRatio: true, platform: true, url: true } },
+          },
+        }),
       ),
     }),
   ];

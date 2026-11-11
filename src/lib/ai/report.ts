@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
-import { getKpis, getPlatformBreakdown, getShareOfVoice, getTopAuthors, getTopTopics } from "../analytics";
+import { getDialectBreakdown, getIntentBreakdown, getKpis, getPlatformBreakdown, getShareOfVoice, getTopAuthors, getTopSlang, getTopTopics } from "../analytics";
 import { AI_MODEL, fallbackParams, getAI } from "./client";
 
 const ReportSchema = z.object({
@@ -9,7 +9,7 @@ const ReportSchema = z.object({
   summary: z.string().describe("Executive summary, 3-5 sentences"),
   sections: z
     .array(z.object({ title: z.string(), body: z.string() }))
-    .describe("3-5 sections, e.g. Sentiment, Key themes, Risks, Competitors, Influencers"),
+    .describe("3-6 sections, e.g. Sentiment, Key themes, Voice of the customer (dialects, intents, sarcasm), Risks, Competitors, Influencers"),
   recommendations: z.array(z.string()).describe("3-5 concrete, actionable recommendations"),
   notable: z.array(z.number()).describe("Item numbers of up to 5 posts worth showing management"),
 });
@@ -26,14 +26,17 @@ export async function generateReport(reportId: string) {
   const days = Math.max(1, Math.round((report.periodEnd.getTime() - report.periodStart.getTime()) / 86400_000));
   const scope = { orgId: report.organizationId, days, monitorId: report.monitorId ?? undefined };
 
-  const [kpis, topics, authors, platforms, sov] = await Promise.all([
+  const [kpis, topics, authors, platforms, sov, dialects, intents, slang] = await Promise.all([
     getKpis(scope),
     getTopTopics(scope, 12),
     getTopAuthors(scope, 8),
     getPlatformBreakdown(scope),
     report.monitorId ? Promise.resolve([]) : getShareOfVoice(scope),
+    getDialectBreakdown(scope),
+    getIntentBreakdown(scope),
+    getTopSlang(scope, 10),
   ]);
-  const stats = { days, kpis, topics, authors, platforms, shareOfVoice: sov };
+  const stats = { days, kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang };
 
   const baseWhere = {
     organizationId: report.organizationId,
