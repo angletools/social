@@ -50,7 +50,7 @@ export function TranslateButton({
               <ul className="space-y-1 text-xs text-ink/80">
                 {data.notes.map((n) => (
                   <li key={n.term}>
-                    <b dir="auto">{n.term}</b> — {n.explanation}
+                    <b dir="auto">{n.term}</b>: {n.explanation}
                   </li>
                 ))}
               </ul>

@@ -51,7 +51,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         {report.status === "FAILED" && (
           <p className="my-8 rounded-xl bg-neg/[0.06] px-4 py-3 text-sm text-neg">
             {ui.reports.failed}
-            {report.error ? ` — ${report.error}` : ""}
+            {report.error ? `: ${report.error}` : ""}
           </p>
         )}
 

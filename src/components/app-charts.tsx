@@ -236,7 +236,7 @@ export function PostingHeatmap({
   labels: { less: string; more: string; posts: (n: number) => string; idle: string };
 }) {
   const days = useMemo(() => {
-    const f = new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-ca-gregory" : "en-GB", { weekday: "short", timeZone: "UTC" });
+    const f = new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : "en-GB", { weekday: "short", timeZone: "UTC" });
     // 2023-01-01 was a Sunday.
     return Array.from({ length: 7 }, (_, d) => f.format(new Date(Date.UTC(2023, 0, 1 + d))));
   }, [locale]);

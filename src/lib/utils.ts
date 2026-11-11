@@ -28,7 +28,7 @@ export function hourIn(timeZone = DEFAULT_TZ, d = new Date()) {
 
 export function timeAgo(d: Date | string, locale: string) {
   const diff = (new Date(d).getTime() - Date.now()) / 1000;
-  const rtf = new Intl.RelativeTimeFormat(locale === "ar" ? "ar" : "en", { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(locale === "ar" ? "ar-u-nu-latn" : "en", { numeric: "auto" });
   const abs = Math.abs(diff);
   if (abs < 60) return rtf.format(Math.round(diff), "second");
   if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");

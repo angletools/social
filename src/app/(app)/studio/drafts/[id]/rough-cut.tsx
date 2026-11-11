@@ -41,7 +41,7 @@ function drawTextBlock(
   opts: { size: number; weight: number; bg: string; color: string; maxWidth: number },
 ) {
   if (!text.trim()) return;
-  ctx.font = `${opts.weight} ${opts.size}px Urbanist, "IBM Plex Sans Arabic", system-ui, sans-serif`;
+  ctx.font = `${opts.weight} ${opts.size}px Urbanist, "Vazirmatn Variable", system-ui, sans-serif`;
   ctx.direction = isArabic(text) ? "rtl" : "ltr";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -121,7 +121,7 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = "rgba(255,255,255,.55)";
-        ctx.font = `600 22px Urbanist, "IBM Plex Sans Arabic", system-ui, sans-serif`;
+        ctx.font = `600 22px Urbanist, "Vazirmatn Variable", system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.direction = "ltr";
         ctx.fillText(`SHOT ${beat.shot}${shot ? ` · ${shot.type.replace(/_/g, " ")}` : ""}`, W / 2, H * 0.5 - 70);
@@ -140,7 +140,7 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
   );
 
   useEffect(() => {
-    void document.fonts?.load(`700 40px "IBM Plex Sans Arabic"`).then(() => draw(timeRef.current, false));
+    void document.fonts?.load(`700 40px "Vazirmatn Variable"`).then(() => draw(timeRef.current, false));
   }, [draw]);
 
   useEffect(() => {

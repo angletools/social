@@ -57,7 +57,7 @@ export default async function LoginPage() {
                 <div className="text-xs">
                   <div className="font-semibold">{ar ? "سعود | استثمار" : "Saud · Investing"}</div>
                   <div className="flex items-center gap-1 text-faint">
-                    <PlatformIcon platform="X" size="xs" /> {ar ? "قبل ٥ دقائق" : "5 min ago"}
+                    <PlatformIcon platform="X" size="xs" /> {ar ? "قبل 5 دقائق" : "5 min ago"}
                   </div>
                 </div>
               </div>

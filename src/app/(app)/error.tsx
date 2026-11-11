@@ -11,13 +11,13 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
   }, [error]);
   let t: { title: string; body: string; retry: string; home: string } = {
     title: "Something went wrong",
-    body: "This page couldn't load. Your data is safe — try again, or go back to the overview.",
+    body: "This page couldn't load. Your data is safe. Try again, or go back to the overview.",
     retry: "Try again",
     home: "Back to overview",
   };
   try {
     const d = useClientDict();
-    t = d.locale === "ar" ? { title: "حدث خطأ ما", body: "تعذّر تحميل هذه الصفحة. بياناتك بأمان — حاول مرة أخرى أو ارجع إلى النظرة العامة.", retry: "حاول مرة أخرى", home: "العودة للنظرة العامة" } : t;
+    t = d.locale === "ar" ? { title: "حدث خطأ ما", body: "تعذّر تحميل هذه الصفحة. بياناتك بأمان. حاول مرة أخرى أو ارجع إلى النظرة العامة.", retry: "حاول مرة أخرى", home: "العودة للنظرة العامة" } : t;
   } catch {
     /* provider not mounted */
   }

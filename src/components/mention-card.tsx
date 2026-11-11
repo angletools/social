@@ -87,7 +87,7 @@ export function MentionCard({
           <ShieldAlert className="mt-px h-3.5 w-3.5 shrink-0" />
           <span>
             <b className="font-semibold">{t.mentions.risk}</b>
-            {m.riskReason ? ` — ${m.riskReason}` : ""}
+            {m.riskReason ? `: ${m.riskReason}` : ""}
           </span>
         </div>
       )}

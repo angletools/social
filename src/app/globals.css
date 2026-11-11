@@ -3,21 +3,17 @@
 @import "@fontsource/urbanist/500.css";
 @import "@fontsource/urbanist/600.css";
 @import "@fontsource/urbanist/700.css";
-@import "@fontsource/ibm-plex-sans-arabic/300.css";
-@import "@fontsource/ibm-plex-sans-arabic/400.css";
-@import "@fontsource/ibm-plex-sans-arabic/500.css";
-@import "@fontsource/ibm-plex-sans-arabic/600.css";
-@import "@fontsource/ibm-plex-sans-arabic/700.css";
+@import "@fontsource-variable/vazirmatn/wght.css";
 
 /*
  * angle social design tokens (v2).
  * Calm slate on a cool grey canvas. Flat surfaces, no borders or shadows
  * where the space between cards can do the work. Colour is kept for meaning.
- * Urbanist sets Latin text and numbers; IBM Plex Sans Arabic covers Arabic,
+ * Urbanist sets Latin text and numbers; Vazirmatn covers Arabic,
  * which Urbanist has no glyphs for. Dark values live below @theme.
  */
 @theme {
-  --font-sans: "Urbanist", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Urbanist", "Vazirmatn Variable", ui-sans-serif, system-ui, sans-serif;
 
   --color-canvas: #e9e8e4;
   --color-surface: #f3f2ef;
@@ -165,6 +161,29 @@ h1,
 h2,
 h3 {
   letter-spacing: -0.01em;
+}
+
+/*
+ * Arabic typesetting. Tracking breaks the joins between Arabic letters, so
+ * RTL pages never letter-space (this overrides tracking utilities too).
+ * Arabic also needs more leading than Latin. :where() keeps these at zero
+ * specificity so explicit leading-* utilities still win.
+ */
+[dir="rtl"],
+[dir="rtl"] * {
+  letter-spacing: 0 !important;
+}
+:where([dir="rtl"]) body {
+  line-height: 1.6;
+}
+:where([dir="rtl"]) :where(p, li, dd, blockquote) {
+  line-height: 1.75;
+}
+:where([dir="rtl"]) :where(h1, h2, h3) {
+  line-height: 1.35;
+}
+body {
+  font-synthesis: none;
 }
 
 ::selection {
