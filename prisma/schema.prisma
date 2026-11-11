@@ -1,0 +1,578 @@
+// Rasd — social listening platform data model.
+// Multi-tenant: every business row is scoped by organizationId.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum Platform {
+  X
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+  FACEBOOK
+  LINKEDIN
+}
+
+enum MonitorType {
+  KEYWORD // brand / product names, free text
+  HASHTAG
+  PROFILE // a specific account (own brand or competitor)
+  TOPIC // natural-language topic, filtered for relevance by AI
+}
+
+enum MonitorStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum Dialect {
+  SAUDI
+  KHALEEJI // Gulf outside KSA: Emirati, Kuwaiti, Qatari, Bahraini, Omani
+  EGYPTIAN
+  LEVANTINE
+  IRAQI
+  MAGHREBI
+  MSA // Modern Standard Arabic
+  ARABIZI // Arabic written in Latin letters / numbers (3, 7, 5)
+  ENGLISH
+  OTHER
+}
+
+enum Intent {
+  COMPLAINT
+  QUESTION
+  PRAISE
+  PURCHASE_INTENT
+  CHURN_RISK
+  SUGGESTION
+  OTHER
+}
+
+enum MentionStatus {
+  NEW
+  REVIEWED
+  FLAGGED
+  ARCHIVED
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum AlertKind {
+  NEGATIVE_SPIKE // share of negative mentions above threshold (%)
+  VOLUME_SPIKE // mentions in window above threshold (count)
+  KEYWORD // any new mention containing keyword
+  HIGH_REACH // a mention from an author with >= threshold followers
+  RISK // AI flagged a mention as a reputational / compliance risk
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum ReportStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
+model Organization {
+  id                 String             @id @default(cuid())
+  name               String
+  slug               String             @unique
+  plan               Plan               @default(GROWTH)
+  subscriptionStatus SubscriptionStatus @default(TRIALING)
+  currentPeriodEnd   DateTime?
+  monitorLimit       Int                @default(25)
+  seatLimit          Int                @default(10)
+  mentionQuota       Int                @default(100000) // mentions ingested per billing period
+  brandContext       String?            // short description of the company, given to the AI
+  complianceRules    String?            // rules every AI reply / script must follow (e.g. CMA marketing rules)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  users         User[]
+  monitors      Monitor[]
+  mentions      Mention[]
+  alertRules    AlertRule[]
+  notifications Notification[]
+  reports       Report[]
+  threads       AssistantThread[]
+  topics        Topic[]
+  auditLogs     AuditLog[]
+  lexicon       LexiconTerm[]
+  replyDrafts   ReplyDraft[]
+  voices        BrandVoice[]
+  trendWatches  TrendWatch[]
+  trendPosts    TrendPost[]
+  trendFormats  TrendFormat[]
+  drafts        ContentDraft[]
+}
+
+model User {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String    @unique
+  name           String
+  passwordHash   String
+  role           Role      @default(ANALYST)
+  locale         String    @default("ar")
+  active         Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  threads      AssistantThread[]
+  assigned     Mention[]         @relation("assignee")
+
+  @@index([organizationId])
+}
+
+model Session {
+  id        String   @id // sha256 of the cookie token
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Monitor {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  type           MonitorType
+  platforms      Platform[]
+  terms          String[] // keywords, hashtags (without #) or handles (without @)
+  excludeTerms   String[]
+  languages      String[] // e.g. ["ar","en"]; empty = all
+  description    String? // for TOPIC monitors: what counts as relevant
+  isCompetitor   Boolean       @default(false)
+  status         MonitorStatus @default(ACTIVE)
+  refreshMinutes Int           @default(60)
+  maxItemsPerRun Int           @default(50)
+  lastSyncAt     DateTime?
+  nextSyncAt     DateTime?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mentions     Mention[]
+  syncRuns     SyncRun[]
+  alertRules   AlertRule[]
+  reports      Report[]
+
+  @@index([organizationId])
+  @@index([status, nextSyncAt])
+}
+
+model Mention {
+  id              String        @id @default(cuid())
+  organizationId  String
+  monitorId       String
+  platform        Platform
+  externalId      String
+  url             String?
+  authorHandle    String?
+  authorName      String?
+  authorAvatar    String?
+  authorFollowers Int?
+  authorVerified  Boolean       @default(false)
+  text            String
+  lang            String?
+  publishedAt     DateTime
+  likes           Int           @default(0)
+  comments        Int           @default(0)
+  shares          Int           @default(0)
+  views           Int           @default(0)
+  mediaUrl        String?
+  raw             Json?
+
+  // AI enrichment
+  sentiment      Sentiment?
+  sentimentScore Float? // -1 .. 1
+  emotion        String?
+  topics         String[] // Topic.key values
+  isRisk         Boolean   @default(false)
+  riskReason     String?
+  relevant       Boolean   @default(true)
+  dialect        Dialect?
+  intent         Intent?
+  sarcasm        Boolean   @default(false)
+  slang          Json? // [{ term, gloss }] dialect terms found in the post
+  translation    String? // English translation + slang notes, generated on demand
+  enrichedAt     DateTime?
+  repliedAt      DateTime?
+
+  // Team workflow
+  status       MentionStatus @default(NEW)
+  assignedToId String?
+  note         String?
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor      Monitor      @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  assignedTo   User?        @relation("assignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  replies      ReplyDraft[]
+
+  @@unique([monitorId, platform, externalId])
+  @@index([organizationId, publishedAt])
+  @@index([monitorId, publishedAt])
+  @@index([organizationId, enrichedAt])
+  @@index([organizationId, intent, status])
+}
+
+// Canonical topic labels, bilingual, produced by the AI during enrichment.
+model Topic {
+  organizationId String
+  key            String // lowercase english slug, e.g. "app-outage"
+  labelEn        String
+  labelAr        String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, key])
+}
+
+model SyncRun {
+  id            String     @id @default(cuid())
+  monitorId     String
+  platform      Platform
+  source        String // "monid" | "demo"
+  status        SyncStatus @default(RUNNING)
+  providerRunId String?
+  itemsFetched  Int        @default(0)
+  itemsNew      Int        @default(0)
+  error         String?
+  startedAt     DateTime   @default(now())
+  finishedAt    DateTime?
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, startedAt])
+}
+
+model AlertRule {
+  id              String    @id @default(cuid())
+  organizationId  String
+  monitorId       String?
+  name            String
+  kind            AlertKind
+  threshold       Float     @default(0)
+  windowMinutes   Int       @default(60)
+  keyword         String?
+  notifyEmail     Boolean   @default(false)
+  emails          String[]
+  enabled         Boolean   @default(true)
+  cooldownMinutes Int       @default(180)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor       Monitor?       @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([organizationId])
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  organizationId String
+  ruleId         String?
+  severity       Severity  @default(INFO)
+  titleEn        String
+  titleAr        String
+  bodyEn         String
+  bodyAr         String
+  link           String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rule         AlertRule?   @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  organizationId String
+  monitorId      String?
+  kind           String       @default("report") // "report" | "brief"
+  title          String
+  locale         String       @default("ar")
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         ReportStatus @default(GENERATING)
+  stats          Json?
+  content        Json? // { headline, summary, sections: [{title, body}], recommendations: [] }
+  error          String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor      Monitor?     @relation(fields: [monitorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+model AssistantThread {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     AssistantMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AssistantMessage {
+  id        String   @id @default(cuid())
+  threadId  String
+  role      String // "user" | "assistant"
+  text      String // what the user sees
+  content   Json // full API content blocks, replayed to the model
+  createdAt DateTime @default(now())
+
+  thread AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  target         String?
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+// ---------- Dialect suite ----------
+
+// Org-specific glossary: slang, product nicknames, local expressions. Fed to every AI prompt.
+model LexiconTerm {
+  id             String     @id @default(cuid())
+  organizationId String
+  term           String
+  meaning        String
+  dialect        Dialect?
+  sentimentHint  Sentiment?
+  createdAt      DateTime   @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, term])
+}
+
+model ReplyDraft {
+  id             String    @id @default(cuid())
+  organizationId String
+  mentionId      String
+  text           String
+  approach       String?
+  dialect        Dialect?
+  status         String    @default("DRAFT") // DRAFT | APPROVED | POSTED | DISCARDED
+  createdById    String?
+  approvedById   String?
+  postedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mention      Mention      @relation(fields: [mentionId], references: [id], onDelete: Cascade)
+
+  @@index([mentionId])
+}
+
+// ---------- Trend-to-Post studio ----------
+
+model BrandVoice {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  isDefault      Boolean  @default(false)
+  summary        String // one paragraph describing the voice
+  dialect        Dialect  @default(SAUDI)
+  traits         String[] // e.g. "witty", "reassuring"
+  dos            String[]
+  donts          String[]
+  bannedWords    String[]
+  audience       String?
+  ctaStyle       String?
+  emojiPolicy    String?
+  examples       String[] // sample on-brand posts
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  drafts       ContentDraft[]
+
+  @@index([organizationId])
+}
+
+// A niche to scan daily for viral short-form formats.
+model TrendWatch {
+  id             String     @id @default(cuid())
+  organizationId String
+  name           String
+  platforms      Platform[]
+  seeds          String[] // hashtags / keywords
+  accounts       String[] // creators to watch
+  minViews       Int        @default(20000)
+  enabled        Boolean    @default(true)
+  lastScanAt     DateTime?
+  lastScanError  String?
+  createdAt      DateTime   @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts        TrendPost[]
+  formats      TrendFormat[]
+
+  @@index([organizationId])
+}
+
+model TrendPost {
+  id              String       @id @default(cuid())
+  organizationId  String
+  watchId         String
+  platform        Platform
+  externalId      String
+  url             String?
+  text            String
+  authorHandle    String?
+  authorFollowers Int?
+  publishedAt     DateTime
+  views           Int          @default(0)
+  likes           Int          @default(0)
+  comments        Int          @default(0)
+  shares          Int          @default(0)
+  thumbnailUrl    String?
+  durationSec     Int?
+  viralityScore   Float        @default(0)
+  outlierRatio    Float        @default(0) // views / follower count
+  formatId        String?
+  analyzedAt      DateTime?
+  createdAt       DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  watch        TrendWatch   @relation(fields: [watchId], references: [id], onDelete: Cascade)
+  format       TrendFormat? @relation(fields: [formatId], references: [id], onDelete: SetNull)
+
+  @@unique([watchId, platform, externalId])
+  @@index([organizationId, viralityScore])
+}
+
+// A repeatable viral format detected from many posts (e.g. "POV skit", "3 mistakes" list).
+model TrendFormat {
+  id             String     @id @default(cuid())
+  organizationId String
+  watchId        String?
+  nameEn         String
+  nameAr         String
+  summaryEn      String
+  summaryAr      String
+  hookPattern    String
+  hookPatternAr  String?
+  whyItWorks     String
+  whyItWorksAr   String?
+  structure      Json // [{ label, description, labelAr?, descriptionAr? }]
+  platforms      Platform[]
+  momentum       String     @default("NEW") // NEW | RISING | PEAKING | FADING
+  score          Float      @default(0)
+  postCount      Int        @default(0)
+  totalViews     Float      @default(0)
+  saved          Boolean    @default(false)
+  dismissed      Boolean    @default(false)
+  firstSeenAt    DateTime   @default(now())
+  lastSeenAt     DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  watch        TrendWatch?    @relation(fields: [watchId], references: [id], onDelete: SetNull)
+  posts        TrendPost[]
+  drafts       ContentDraft[]
+
+  @@index([organizationId, score])
+}
+
+model ContentDraft {
+  id             String   @id @default(cuid())
+  organizationId String
+  formatId       String?
+  voiceId        String?
+  title          String
+  platform       Platform @default(TIKTOK)
+  dialect        Dialect  @default(SAUDI)
+  goal           String // awareness | education | downloads | engagement | launch
+  brief          String // what the post is about
+  durationSec    Int      @default(30)
+  status         String   @default("GENERATING") // GENERATING | DRAFT | IN_REVIEW | APPROVED | PUBLISHED | FAILED
+  content        Json?
+  history        Json     @default("[]")
+  error          String?
+  createdById    String?
+  approvedById   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  format       TrendFormat? @relation(fields: [formatId], references: [id], onDelete: SetNull)
+  voice        BrandVoice?  @relation(fields: [voiceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, updatedAt])
+}
