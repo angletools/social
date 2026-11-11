@@ -133,6 +133,10 @@ model Organization {
   weeklyReportLocale     String   @default("ar")
   weeklyReportRecipients String[]
   weeklyReportLastSentAt DateTime?
+  // Workspace-wide delivery defaults. An alert rule's own webhook / emails override these.
+  slackWebhookUrl        String?
+  teamsWebhookUrl        String?
+  emailFrom              String? // sender address for alerts and the weekly report
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -583,8 +587,25 @@ model ContentDraft {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   format       TrendFormat? @relation(fields: [formatId], references: [id], onDelete: SetNull)
   voice        BrandVoice?  @relation(fields: [voiceId], references: [id], onDelete: SetNull)
+  versions     DraftVersion[]
 
   @@index([organizationId, updatedAt])
+}
+
+/// One saved state of a content draft: every AI write or rewrite, manual edit and restore.
+model DraftVersion {
+  id          String   @id @default(cuid())
+  draftId     String
+  n           Int // 1, 2, 3… per draft
+  kind        String // GENERATED | REWRITE | EDIT | RESTORE
+  instruction String? // the rewrite request, or the restored version number
+  content     Json
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  draft ContentDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, n])
 }
 
 // Key/value system state, e.g. the worker heartbeat.

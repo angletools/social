@@ -278,13 +278,22 @@ export async function deleteReport(id: string) {
 
 export async function updateOrganization(_: unknown, form: FormData): Promise<ActionResult> {
   const user = await requireRole("ADMIN");
-  const name = String(form.get("name") ?? "").trim().slice(0, 100);
-  const brandContext = String(form.get("brandContext") ?? "").trim().slice(0, 1500);
-  const complianceRules = String(form.get("complianceRules") ?? "").trim().slice(0, 3000);
-  if (!name) return { ok: false, error: "invalid" };
+  // Settings sections each post only their own fields; leave the others untouched.
+  const field = (k: string, max: number) => (form.has(k) ? String(form.get(k) ?? "").trim().slice(0, max) : undefined);
+  const name = field("name", 100);
+  const brandContext = field("brandContext", 1500);
+  const complianceRules = field("complianceRules", 3000);
+  const timezone = field("timezone", 64);
+  if (name === "") return { ok: false, error: "invalid" };
+  if (timezone !== undefined && !Intl.supportedValuesOf("timeZone").includes(timezone) && timezone !== "UTC") return { ok: false, error: "invalid" };
   await db.organization.update({
     where: { id: user.organizationId },
-    data: { name, brandContext: brandContext || null, complianceRules: complianceRules || null },
+    data: {
+      name,
+      timezone: timezone || undefined,
+      brandContext: brandContext === undefined ? undefined : brandContext || null,
+      complianceRules: complianceRules === undefined ? undefined : complianceRules || null,
+    },
   });
   await audit(user, "org.update");
   revalidatePath("/settings");
@@ -612,6 +621,8 @@ export async function saveDraftContent(id: string, content: unknown) {
   const c = content as { beats?: unknown[] };
   if (Array.isArray(c.beats)) c.beats = reflowBeats(c.beats as Parameters<typeof reflowBeats>[0]);
   await db.contentDraft.update({ where: { id }, data: { content: c as object } });
+  const { recordVersion } = await import("@/lib/drafts");
+  await recordVersion(id, "EDIT", c, { userId: user.id });
   revalidatePath(`/studio/drafts/${id}`);
   return { ok: true as const };
 }

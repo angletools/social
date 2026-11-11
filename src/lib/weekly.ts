@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { sendEmail } from "./email";
+import { senderFor } from "./workspace";
 import { generateReport, type ReportContent } from "./ai/report";
 
 /** Emails a finished report's headline, summary and recommendations with a link to the full report. */
@@ -26,7 +27,7 @@ export async function sendWeeklyEmail(reportId: string) {
     "",
     `${ar ? "التقرير الكامل" : "Full report"}: ${appUrl}/reports/${r.id}`,
   ];
-  return sendEmail(to, ar ? `التقرير الأسبوعي — ${r.organization.name}` : `Weekly report — ${r.organization.name}`, lines.filter((l) => l !== undefined).join("\n"));
+  return sendEmail(to, ar ? `التقرير الأسبوعي — ${r.organization.name}` : `Weekly report — ${r.organization.name}`, lines.filter((l) => l !== undefined).join("\n"), senderFor(r.organization));
 }
 
 /** Local weekday (0 = Sunday) and hour in a timezone. */

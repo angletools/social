@@ -247,6 +247,7 @@ async function seedDialectAndStudio(organizationId: string) {
         durationSec: 30,
         status: "IN_REVIEW",
         content,
+        versions: { create: { n: 1, kind: "GENERATED", content } },
       },
     });
   }
