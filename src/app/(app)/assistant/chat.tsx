@@ -350,7 +350,11 @@ function Markdown({ text }: { text: string }) {
         if (!b.text.trim()) return null;
         return (
           <div key={i} dir="auto" className="prose-chat text-[15.5px] leading-[1.85] [&_p]:mb-3.5 [&_strong]:font-semibold">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline decoration-line-strong underline-offset-4 hover:decoration-ink">{children}</a> }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                // "41%" or "+12" stays in reading order inside an Arabic sentence.
+                strong: ({ children }) =>
+                  typeof children === "string" && /^[+\-\u2212]?[\d.,]+%?$/.test(children.trim()) ? <strong className="ltr-nums">{children}</strong> : <strong>{children}</strong>,
+                a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline decoration-line-strong underline-offset-4 hover:decoration-ink">{children}</a> }}>
               {b.text}
             </ReactMarkdown>
           </div>

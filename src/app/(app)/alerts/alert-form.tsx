@@ -224,7 +224,7 @@ function SheetBody({
           value={display}
           placeholder={isWords ? t.wordsPh : undefined}
           inputMode={isWords ? "text" : "numeric"}
-          dir={isWords ? "auto" : "ltr"}
+          dir={isWords ? (raw ? "auto" : locale === "ar" ? "rtl" : "ltr") : "ltr"}
           aria-invalid={!!errors.value}
           aria-describedby={errors.value ? "alert-value-err" : undefined}
           onChange={(e) => {
