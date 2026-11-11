@@ -18,11 +18,9 @@ export default async function LoginPage() {
     <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
       <div className="flex flex-col bg-surface p-6 sm:p-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon.svg" alt="" className="h-8 w-8" />
-            <span className="text-[17px] font-semibold">{t.app.name}</span>
-          </div>
+          <span dir="ltr" className="text-[24px] font-semibold leading-none tracking-[-0.03em]" aria-label={t.app.name}>
+            angle<span className="text-[19px] font-normal tracking-normal text-faint"> /social</span>
+          </span>
           <LangToggle locale={locale} label={t.nav.language} />
         </div>
         <div className="mx-auto flex w-full max-w-[22rem] flex-1 flex-col justify-center py-14">
@@ -49,7 +47,7 @@ export default async function LoginPage() {
                 <div className="mt-2 text-xs text-pos ltr-nums">↗ +6 {t.overview.vsPrev}</div>
               </div>
               <div className="w-40">
-                <Sparkline values={[3, 5, 4, 8, 7, 11, 10, 14, 13, 18]} height={44} color="var(--color-pos)" />
+                <Sparkline values={[3, 5, 4, 8, 7, 11, 10, 14, 13, 18]} height={44} width={150} />
               </div>
             </div>
 

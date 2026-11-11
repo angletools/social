@@ -39,3 +39,20 @@ export function Avatar({ name, seed, size = 32, className }: { name: string; see
     </span>
   );
 }
+
+const VIVID = ["#e8590c", "#1c7ed6", "#9c0fe8", "#3b7a12", "#0b8a8a", "#c2255c", "#5f3dc4", "#5a5a5a"];
+
+/** Solid rounded-square avatar with white initials (inbox and conversation headers). */
+export function SolidAvatar({ name, seed, size = 36, className }: { name: string; seed?: string; size?: number; className?: string }) {
+  const clean = name.replace(/[@|·].*$/, "").trim() || name;
+  const first = [...clean][0] ?? "?";
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-flex shrink-0 select-none items-center justify-center font-semibold text-white", className)}
+      style={{ width: size, height: size, borderRadius: size >= 40 ? 12 : 10, background: VIVID[hash(seed ?? name) % VIVID.length], fontSize: size * 0.39 }}
+    >
+      {first.toUpperCase()}
+    </span>
+  );
+}

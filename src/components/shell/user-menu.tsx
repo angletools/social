@@ -18,6 +18,7 @@ export function UserMenu({
   labels,
   placement = "below",
   extra = null,
+  collapsed = false,
 }: {
   name: string;
   email: string;
@@ -28,6 +29,8 @@ export function UserMenu({
   placement?: "rail" | "below";
   /** Labels for the secondary pages; when given they are listed (phones, where there is no rail). */
   extra?: Record<string, string> | null;
+  /** In the sidebar: show only the avatar when folded. */
+  collapsed?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -38,14 +41,32 @@ export function UserMenu({
   }, []);
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center rounded-full" aria-label={name} aria-expanded={open}>
-        <Avatar name={name} seed={email} size={34} />
-      </button>
+      {placement === "rail" ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={name}
+          aria-expanded={open}
+          className={cn("flex w-full items-center gap-3 rounded-xl py-2 text-start hover:bg-[#111]", collapsed ? "justify-center px-0" : "px-2.5")}
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-[13px] font-semibold text-[#e6e6e6]">{[...name][0]?.toUpperCase()}</span>
+          {!collapsed && (
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-[14.5px] text-[#e6e6e6]">{name}</span>
+              <span className="block truncate text-[12.5px] text-[#7f7f7f]">{role}</span>
+            </span>
+          )}
+        </button>
+      ) : (
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center rounded-full" aria-label={name} aria-expanded={open}>
+          <Avatar name={name} seed={email} size={34} />
+        </button>
+      )}
       {open && (
         <div
           className={cn(
             "animate-rise absolute z-50 w-64 overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]",
-            placement === "rail" ? "start-full bottom-0 ms-4" : "end-0 top-11",
+            placement === "rail" ? (collapsed ? "start-full bottom-0 ms-4" : "start-0 bottom-full mb-2") : "end-0 top-11",
           )}
         >
           <div className="border-b border-line px-4 py-3">

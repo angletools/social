@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sparkline } from "./sparkline";
+import { DotBar } from "./dots";
 
 export function PageHeader({ title, subtitle, actions, eyebrow }: { title: string; subtitle?: string; actions?: React.ReactNode; eyebrow?: React.ReactNode }) {
   return (
@@ -116,7 +117,7 @@ export function KpiCard({
         <div className="whitespace-nowrap text-[21px] font-semibold leading-none tracking-tight ltr-nums sm:text-[28px]">{value}</div>
         {trend && trend.length > 1 && (
           <div className="hidden w-24 shrink-0 pb-0.5 sm:block">
-            <Sparkline values={trend} color={trendColor} height={30} />
+            <Sparkline values={trend} color={trendColor} height={30} width={96} />
           </div>
         )}
       </div>
@@ -181,10 +182,6 @@ export function StatusPill({ tone, children, pulse }: { tone: "neutral" | "good"
 }
 
 /** Thin horizontal meter used in ranked lists. */
-export function Meter({ value, max, color = "var(--color-brand-600)" }: { value: number; max: number; color?: string }) {
-  return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-sunken">
-      <div className="h-full rounded-full" style={{ width: `${Math.max(2, (value / Math.max(1, max)) * 100)}%`, background: color }} />
-    </div>
-  );
+export function Meter({ value, max, color = "var(--color-chart)", rows = 1 }: { value: number; max: number; color?: string; rows?: number }) {
+  return <DotBar segments={[{ value, color }]} max={Math.max(1, max)} rows={rows} />;
 }

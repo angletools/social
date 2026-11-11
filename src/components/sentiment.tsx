@@ -1,5 +1,6 @@
 import type { Sentiment } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { DotBar } from "./dots";
 
 const DOT: Record<Sentiment, string> = { POSITIVE: "bg-pos", NEUTRAL: "bg-neu", NEGATIVE: "bg-neg" };
 const TEXT: Record<Sentiment, string> = { POSITIVE: "text-pos", NEUTRAL: "text-muted", NEGATIVE: "text-neg" };
@@ -14,14 +15,17 @@ export function SentimentBadge({ sentiment, label }: { sentiment: Sentiment | nu
   );
 }
 
-/** Horizontal stacked bar of positive / neutral / negative shares. */
-export function SentimentBar({ pos, neu, neg, className }: { pos: number; neu: number; neg: number; className?: string }) {
-  const total = pos + neu + neg || 1;
+/** Positive / neutral / negative shares as a row of dots. */
+export function SentimentBar({ pos, neu, neg, className, rows = 1 }: { pos: number; neu: number; neg: number; className?: string; rows?: number }) {
   return (
-    <div className={cn("flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-sunken", className)}>
-      {pos > 0 && <div className="bg-pos" style={{ width: `${(pos / total) * 100}%` }} />}
-      {neu > 0 && <div className="bg-neu/70" style={{ width: `${(neu / total) * 100}%` }} />}
-      {neg > 0 && <div className="bg-neg" style={{ width: `${(neg / total) * 100}%` }} />}
-    </div>
+    <DotBar
+      className={className}
+      rows={rows}
+      segments={[
+        { value: pos, color: "var(--color-pos)" },
+        { value: neu, color: "var(--color-neu)" },
+        { value: neg, color: "var(--color-neg)" },
+      ]}
+    />
   );
 }

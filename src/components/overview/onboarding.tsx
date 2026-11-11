@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { Check, X } from "lucide-react";
 import { dismissOnboarding } from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { DotBar } from "@/components/dots";
 
 type Step = { key: string; title: string; body: string; href: string; done: boolean };
 
@@ -25,8 +26,8 @@ export function Onboarding({ steps, labels }: { steps: Step[]; labels: { title: 
           </button>
         </div>
       </div>
-      <div className="mx-5 mt-4 h-1 overflow-hidden rounded-full bg-sunken">
-        <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${(done / steps.length) * 100}%` }} />
+      <div className="mx-5 mt-4">
+        <DotBar segments={[{ value: done, color: "var(--color-chart)" }]} max={steps.length} rows={1} />
       </div>
       <ol className="mt-2 grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-5">
         {steps.map((s, i) => (

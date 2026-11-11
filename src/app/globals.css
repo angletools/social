@@ -10,7 +10,7 @@
 @import "@fontsource/ibm-plex-sans-arabic/700.css";
 
 /*
- * Rasd design tokens (v2).
+ * angle social design tokens (v2).
  * Calm slate on a cool grey canvas. Flat surfaces, no borders or shadows
  * where the space between cards can do the work. Colour is kept for meaning.
  * Urbanist sets Latin text and numbers; IBM Plex Sans Arabic covers Arabic,
@@ -19,26 +19,29 @@
 @theme {
   --font-sans: "Urbanist", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
 
-  --color-canvas: #eef0f3;
-  --color-surface: #ffffff;
-  --color-panel: #f7f8fa;
-  --color-sunken: #e8ebf0;
-  --color-ink: #1c2230;
+  --color-canvas: #e9e8e4;
+  --color-surface: #f3f2ef;
+  --color-panel: #e9e8e4;
+  --color-sunken: #dedcd6;
+  --color-ink: #161616;
   --color-on-ink: #ffffff;
-  --color-muted: #6b7385;
-  --color-faint: #9097a6;
-  --color-line: #e3e6eb;
-  --color-line-strong: #d3d8e0;
-  --color-rail: #4a5670;
-  --color-tip: #1f232b;
+  --color-muted: #6f6e69;
+  --color-faint: #9b9993;
+  --color-line: #d9d8d3;
+  --color-line-strong: #cfcdc7;
+  --color-selected: #e2e1e6;
+  --color-rail: #000000;
+  --color-tip: #26282d;
+  --color-chart: #e8775e;
+  --color-dot-track: #dedcd6;
 
-  --color-brand-50: #eef1f6;
-  --color-brand-100: #dfe5ef;
-  --color-brand-200: #c3cddd;
-  --color-brand-500: #5b6b8a;
-  --color-brand-600: #4a5670;
-  --color-brand-700: #3b4660;
-  --color-brand-900: #262e40;
+  --color-brand-50: #e4e3df;
+  --color-brand-100: #dcdad5;
+  --color-brand-200: #cfcdc7;
+  --color-brand-500: #6f6e69;
+  --color-brand-600: #3a3a38;
+  --color-brand-700: #2a2a28;
+  --color-brand-900: #161616;
 
   --color-sand-50: #f8f3ea;
   --color-sand-100: #efe4cf;
@@ -46,7 +49,7 @@
   --color-sand-700: #8a6424;
 
   --color-pos: #2f8f5b;
-  --color-neu: #a3a9b5;
+  --color-neu: #a9a7a1;
   --color-neg: #d4503f;
   --color-warn: #c98a1a;
   --color-info: #3d6aa8;
@@ -63,31 +66,34 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-canvas: #0f1115;
-  --color-surface: #181b21;
-  --color-panel: #13161b;
-  --color-sunken: #232833;
-  --color-ink: #e7e9ee;
-  --color-on-ink: #111318;
-  --color-muted: #9aa1af;
-  --color-faint: #6b7282;
-  --color-line: #252a33;
-  --color-line-strong: #333a46;
-  --color-rail: #171a21;
-  --color-tip: #2b303a;
-  --color-brand-50: #1a1f29;
-  --color-brand-100: #222a38;
-  --color-brand-200: #2e384a;
-  --color-brand-500: #8e9bb5;
-  --color-brand-600: #a3aec4;
-  --color-brand-700: #aab6cc;
-  --color-brand-900: #d5dbe6;
+  --color-canvas: #151514;
+  --color-surface: #1d1c1b;
+  --color-panel: #151514;
+  --color-sunken: #262523;
+  --color-ink: #ecebe7;
+  --color-on-ink: #151514;
+  --color-muted: #a3a19b;
+  --color-faint: #6f6d68;
+  --color-line: #2b2a28;
+  --color-line-strong: #36342f;
+  --color-selected: #24232a;
+  --color-rail: #000000;
+  --color-tip: #2e2f34;
+  --color-chart: #ee8a72;
+  --color-dot-track: #262523;
+  --color-brand-50: #222120;
+  --color-brand-100: #2a2927;
+  --color-brand-200: #36342f;
+  --color-brand-500: #a3a19b;
+  --color-brand-600: #cfcdc7;
+  --color-brand-700: #dcdad5;
+  --color-brand-900: #ecebe7;
   --color-sand-50: #231e15;
   --color-sand-100: #362d1d;
   --color-sand-500: #d3a75c;
   --color-sand-700: #e2bd7c;
   --color-pos: #5cc08a;
-  --color-neu: #646b7a;
+  --color-neu: #5f5d58;
   --color-neg: #ef7a6a;
   --color-warn: #e8b45a;
   --color-info: #86a9dc;
@@ -98,31 +104,34 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-canvas: #0f1115;
-    --color-surface: #181b21;
-    --color-panel: #13161b;
-    --color-sunken: #232833;
-    --color-ink: #e7e9ee;
-    --color-on-ink: #111318;
-    --color-muted: #9aa1af;
-    --color-faint: #6b7282;
-    --color-line: #252a33;
-    --color-line-strong: #333a46;
-    --color-rail: #171a21;
-    --color-tip: #2b303a;
-    --color-brand-50: #1a1f29;
-    --color-brand-100: #222a38;
-    --color-brand-200: #2e384a;
-    --color-brand-500: #8e9bb5;
-    --color-brand-600: #a3aec4;
-    --color-brand-700: #aab6cc;
-    --color-brand-900: #d5dbe6;
+    --color-canvas: #151514;
+    --color-surface: #1d1c1b;
+    --color-panel: #151514;
+    --color-sunken: #262523;
+    --color-ink: #ecebe7;
+    --color-on-ink: #151514;
+    --color-muted: #a3a19b;
+    --color-faint: #6f6d68;
+    --color-line: #2b2a28;
+    --color-line-strong: #36342f;
+    --color-selected: #24232a;
+    --color-rail: #000000;
+    --color-tip: #2e2f34;
+    --color-chart: #ee8a72;
+    --color-dot-track: #262523;
+    --color-brand-50: #222120;
+    --color-brand-100: #2a2927;
+    --color-brand-200: #36342f;
+    --color-brand-500: #a3a19b;
+    --color-brand-600: #cfcdc7;
+    --color-brand-700: #dcdad5;
+    --color-brand-900: #ecebe7;
     --color-sand-50: #231e15;
     --color-sand-100: #362d1d;
     --color-sand-500: #d3a75c;
     --color-sand-700: #e2bd7c;
     --color-pos: #5cc08a;
-    --color-neu: #646b7a;
+    --color-neu: #5f5d58;
     --color-neg: #ef7a6a;
     --color-warn: #e8b45a;
     --color-info: #86a9dc;
@@ -201,7 +210,7 @@ h3 {
 }
 
 @utility input {
-  @apply w-full rounded-[12px] border border-line bg-panel px-3 py-2 text-[13.5px] outline-none transition placeholder:text-faint focus:border-brand-500 focus:bg-surface focus:ring-[3px] focus:ring-brand-100 disabled:bg-sunken disabled:text-faint;
+  @apply w-full rounded-[12px] border border-line bg-surface px-3 py-2 text-[13.5px] outline-none transition placeholder:text-faint focus:border-brand-500 focus:bg-surface focus:ring-[3px] focus:ring-brand-100 disabled:bg-sunken disabled:text-faint;
 }
 @utility label {
   @apply mb-1.5 block text-[13px] font-medium text-ink;
@@ -285,8 +294,11 @@ main:has(> .full-bleed) {
   padding-top: 0;
 }
 @media (min-width: 768px) {
-  .app-col:has(> main > .full-bleed) {
+  .app-col:has(main > .full-bleed) {
     height: 100dvh;
+    overflow: hidden;
+  }
+  .sheet:has(> main > .full-bleed) {
     overflow: hidden;
   }
   main:has(> .full-bleed) {
@@ -294,4 +306,17 @@ main:has(> .full-bleed) {
     min-height: 0;
     display: flex;
   }
+}
+
+/* Dot-matrix bars: a colour gradient seen through a grid of round holes. */
+.dot-bar {
+  --dot-dir: to right;
+  background: var(--dot-fill);
+  -webkit-mask: radial-gradient(circle at center, #000 2px, transparent 2.45px) 0 0 / 6px 8px;
+  mask: radial-gradient(circle at center, #000 2px, transparent 2.45px) 0 0 / 6px 8px;
+}
+[dir="rtl"] .dot-bar {
+  --dot-dir: to left;
+  -webkit-mask-position: right top;
+  mask-position: right top;
 }

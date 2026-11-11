@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SolidAvatar } from "@/components/avatar";
 
-export type QueueItem = { id: string; name: string; when: string; text: string; tone: "neg" | "warn" | "info" | "pos" | "faint"; assignee: string | null };
+export type QueueItem = { id: string; name: string; seed: string; when: string; text: string; tone: "neg" | "warn" | "info" | "pos" | "faint"; assignee: string | null };
 
 const DOT: Record<QueueItem["tone"], string> = { neg: "bg-neg", warn: "bg-warn", info: "bg-info", pos: "bg-pos", faint: "bg-faint" };
 
@@ -56,7 +57,7 @@ export function Queue({
   return (
     <section
       aria-label={title}
-      className={cn("min-h-0 w-full shrink-0 flex-col bg-panel md:flex md:w-[360px] md:border-e md:border-line", hiddenOnPhone ? "hidden" : "flex")}
+      className={cn("min-h-0 w-full shrink-0 flex-col md:flex md:w-[360px] md:border-e md:border-sunken", hiddenOnPhone ? "hidden" : "flex")}
     >
       <div className="flex items-baseline justify-between px-6 pt-7 pb-4">
         <h1 className="text-[24px] font-semibold">{title}</h1>
@@ -92,13 +93,16 @@ export function Queue({
                   scroll={false}
                   href={`${base}m=${m.id}`}
                   aria-current={active ? "true" : undefined}
-                  className={cn("flex gap-3 rounded-xl px-3 py-3.5 transition-colors", active ? "bg-sunken" : "hover:bg-sunken/60")}
+                  className={cn("flex gap-3 rounded-xl px-3 py-3 transition-colors", active ? "bg-selected" : "hover:bg-selected/60")}
                 >
-                  <span className={cn("mt-[7px] h-2 w-2 shrink-0 rounded-full", DOT[m.tone])} aria-hidden />
+                  <SolidAvatar name={m.name} seed={m.seed} size={36} />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
+                    <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-[14.5px] font-medium">{m.name}</span>
-                      <span className="shrink-0 text-xs text-faint">{m.when}</span>
+                      <span className="flex shrink-0 items-center gap-[7px] text-xs text-faint">
+                        <span className={cn("h-[7px] w-[7px] rounded-full", DOT[m.tone])} aria-hidden />
+                        {m.when}
+                      </span>
                     </span>
                     <span dir="auto" className="mt-0.5 block truncate text-[13.5px] leading-relaxed text-muted">
                       {m.text}

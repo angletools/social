@@ -1,12 +1,18 @@
 import type { Dict } from "./en";
 
 const ar: Dict = {
-  app: { name: "رصد", tagline: "رصد وسائل التواصل ورؤى الذكاء الاصطناعي" },
+  app: { name: "angle social", tagline: "رصد وسائل التواصل ورؤى الذكاء الاصطناعي" },
   nav: {
+    collapse: "طي الشريط الجانبي",
+    expand: "توسيع الشريط الجانبي",
+    back: "رجوع",
+    forward: "تقدّم",
+    newMonitor: "مراقبة جديدة",
+    sidebar: "القائمة الرئيسية",
     overview: "الرئيسية",
     monitors: "المراقبات",
     mentions: "الإشارات",
-    assistant: "اسأل الذكاء",
+    assistant: "اسأل angle",
     alerts: "التنبيهات",
     reports: "التقارير",
     settings: "الإعدادات",
@@ -102,11 +108,11 @@ const ar: Dict = {
   },
   onboarding: {
     title: "ابدأ الإعداد",
-    subtitle: "خطوات قليلة ويصبح رصد جاهزًا لفريقك بالكامل.",
+    subtitle: "خطوات قليلة ويصبح angle social جاهزًا لفريقك بالكامل.",
     progress: "أُنجز {done} من {total}",
     dismiss: "إخفاء",
     steps: {
-      context: { title: "عرّف رصد بشركتك", body: "وصف قصير يساعد الذكاء الاصطناعي على فهم علامتك.", href: "/settings" },
+      context: { title: "عرّف angle social بشركتك", body: "وصف قصير يساعد الذكاء الاصطناعي على فهم علامتك.", href: "/settings" },
       monitor: { title: "تابع علامتك التجارية", body: "أضف اسم علامتك أو وسمًا أو منافسًا.", href: "/monitors/new" },
       alert: { title: "فعّل تنبيهًا", body: "اعرف بالمخاطر والارتفاعات لحظة حدوثها.", href: "/alerts" },
       team: { title: "ادعُ فريقك", body: "أضف زملاءك كمحللين أو مشاهدين.", href: "/settings#team" },
@@ -209,12 +215,12 @@ const ar: Dict = {
     latest: "أحدث الإشارات",
     followers: "متابع",
     emptyTitle: "لنُنشئ أول مراقبة لك",
-    emptyBody: "المراقبة تخبر رصد بما يجب الاستماع إليه — اسم علامتك، أو وسم، أو حساب منافس، أو موضوع معيّن.",
+    emptyBody: "المراقبة تخبر angle social بما يجب الاستماع إليه — اسم علامتك، أو وسم، أو حساب منافس، أو موضوع معيّن.",
     emptyCta: "إنشاء مراقبة",
   },
   monitors: {
     title: "المراقبات",
-    subtitle: "كل ما يستمع إليه رصد من أجلك",
+    subtitle: "كل ما يستمع إليه angle social من أجلك",
     new: "مراقبة جديدة",
     empty: "لا توجد مراقبات بعد.",
     type: "النوع",
@@ -277,7 +283,7 @@ const ar: Dict = {
   },
   mentions: {
     title: "الإشارات",
-    subtitle: "كل منشور وتعليق وجده رصد",
+    subtitle: "كل منشور وتعليق وجده angle social",
     searchPlaceholder: "ابحث في النص أو اسم الكاتب…",
     allMonitors: "كل المراقبات",
     allPlatforms: "كل المنصات",

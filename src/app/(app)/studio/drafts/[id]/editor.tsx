@@ -9,6 +9,7 @@ import type { DraftContent } from "@/lib/ai/studio";
 import { reflowBeats, toSrt } from "@/lib/trends/score";
 import { deleteDraft, refineDraft, saveDraftContent, setDraftStatus } from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { DotBar } from "@/components/dots";
 import { RoughCut, fileSlug } from "./rough-cut";
 
 type S = Dict["studio"];
@@ -351,8 +352,8 @@ export function DraftEditor({
                 {c.voice_match.score}
               </span>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-sunken">
-              <div className="h-2 rounded-full bg-brand-600" style={{ width: `${c.voice_match.score}%` }} />
+            <div className="mt-2">
+              <DotBar segments={[{ value: c.voice_match.score, color: "var(--color-chart)" }]} max={100} />
             </div>
             <p className="mt-2 text-xs text-muted" dir="auto">{c.voice_match.notes}</p>
           </section>

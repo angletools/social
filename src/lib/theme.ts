@@ -17,3 +17,4 @@ export function isDarkNow() {
   if (set) return set === "dark";
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
+export const SIDEBAR_COOKIE = "rasd_sidebar";

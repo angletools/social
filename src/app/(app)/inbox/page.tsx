@@ -9,7 +9,7 @@ import { aiEnabled } from "@/lib/ai/client";
 import type { Translation } from "@/lib/ai/engage";
 import { INBOX_INTENTS, inboxPriority } from "@/lib/analytics";
 import { PlatformIcon } from "@/components/platform";
-import { Avatar } from "@/components/avatar";
+import { SolidAvatar } from "@/components/avatar";
 import { ReplyComposer } from "./reply-composer";
 import { AssignSelect } from "./assign-select";
 import { Queue, type QueueItem } from "./queue";
@@ -72,6 +72,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const items: QueueItem[] = queue.map((m) => ({
     id: m.id,
     name: m.authorName ?? m.authorHandle ?? "—",
+    seed: m.authorHandle ?? m.authorName ?? m.id,
     when: timeAgo(m.publishedAt, locale),
     text: m.text,
     tone: tone(m),
@@ -98,14 +99,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         ]}
       />
 
-      <section className={cn("min-h-0 min-w-0 flex-1 flex-col bg-surface md:flex", selectedId ? "flex" : "hidden")}>
+      <section className={cn("min-h-0 min-w-0 flex-1 flex-col md:flex", selectedId ? "flex" : "hidden")}>
         {selected ? (
           <>
-            <header className="flex items-center gap-3.5 border-b border-line/60 px-5 py-4 md:px-10 md:py-5">
+            <header className="flex items-center gap-3.5 border-b border-sunken px-5 py-4 md:px-10 md:py-5">
               <Link href={base.slice(0, -1)} className="btn-ghost -ms-2 w-9 px-0 md:hidden" aria-label={t.common.back}>
                 <ArrowRight className="h-4 w-4 ltr:rotate-180" />
               </Link>
-              <Avatar name={name} seed={selected.authorHandle ?? name} size={40} />
+              <SolidAvatar name={name} seed={selected.authorHandle ?? selected.authorName ?? selected.id} size={44} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 text-[16px] font-semibold">
                   <span className="truncate">{name}</span>
@@ -163,7 +164,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                   <div className="space-y-2 pt-4">
                     <p className="text-xs text-faint">{t.inbox.previous}</p>
                     {posted.map((p) => (
-                      <p key={p.id} dir="auto" className="rounded-2xl bg-panel px-4 py-3 text-[14.5px] leading-relaxed">
+                      <p key={p.id} dir="auto" className="rounded-2xl bg-surface px-4 py-3 text-[14.5px] leading-relaxed">
                         {p.text} <span className="text-xs text-faint">· {p.postedAt ? timeAgo(p.postedAt, locale) : ""}</span>
                       </p>
                     ))}
@@ -173,7 +174,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             </div>
 
             {canAct && (
-              <div className="border-t border-line/60 px-5 pt-4 pb-6 md:px-10">
+              <div className="border-t border-sunken px-5 pt-4 pb-6 md:px-10">
                 <div className="max-w-[840px]">
                   <ReplyComposer
                     key={selected.id}

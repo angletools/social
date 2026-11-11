@@ -7,7 +7,7 @@ import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatNumber, timeAgo } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import { TREND_PLATFORMS } from "@/lib/monid/sources";
-import { HelpTip, PageHeader } from "@/components/ui";
+import { HelpTip, PageHeader, Meter } from "@/components/ui";
 import { PlatformIcon } from "@/components/platform";
 import { FormatActions, ScanButton, VoiceList, WatchForm, WatchRow, LearnVoiceForm, VoiceForm } from "./studio-client";
 
@@ -178,6 +178,7 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       {formats.map((f) => {
+        const maxScore = Math.max(1, ...formats.map((x) => x.score));
         const structure = f.structure as { label: string; description: string; labelAr?: string; descriptionAr?: string }[];
         const ar = locale === "ar";
         return (
@@ -204,6 +205,9 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
                   {f.postCount} {s.posts} · {formatNumber(f.totalViews, locale)} {s.views}
                 </div>
               </div>
+            </div>
+            <div className="mt-3">
+              <Meter value={f.score} max={maxScore} color={f.momentum === "FADING" ? "var(--color-faint)" : "var(--color-chart)"} />
             </div>
             <p className="mt-3 text-sm leading-relaxed text-ink/80">{locale === "ar" ? f.summaryAr : f.summaryEn}</p>
             <dl className="mt-4 space-y-2 text-sm">
@@ -298,7 +302,14 @@ async function PostsTab({ orgId, locale, t }: { orgId: string; locale: string; t
               </td>
               <td className="px-4 py-3 text-end ltr-nums">{formatNumber(p.views, locale)}</td>
               <td className={cn("px-4 py-3 text-end font-medium ltr-nums", p.outlierRatio >= 10 && "text-pos")}>{p.outlierRatio}×</td>
-              <td className="px-4 py-3 text-end ltr-nums">{p.viralityScore}</td>
+              <td className="px-4 py-3">
+                <div className="flex items-center justify-end gap-2.5">
+                  <div className="w-16">
+                    <Meter value={p.viralityScore} max={Math.max(1, ...posts.map((x) => x.viralityScore))} />
+                  </div>
+                  <span className="w-8 text-end ltr-nums">{p.viralityScore}</span>
+                </div>
+              </td>
             </tr>
           ))}
           {posts.length === 0 && (

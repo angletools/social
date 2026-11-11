@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { dictFor, getDict } from "@/lib/i18n";
 import { formatDate, formatNumber } from "@/lib/utils";
 import type { ReportContent } from "@/lib/ai/report";
-import { KpiCard } from "@/components/ui";
+import { KpiCard, Meter } from "@/components/ui";
 import { PlatformIcon } from "@/components/platform";
 import { SentimentBadge } from "@/components/sentiment";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -82,13 +82,17 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             {stats && stats.topics.length > 0 && (
               <section className="mt-8 break-inside-avoid">
                 <h2 className="mb-3 text-lg font-semibold">{t.overview.topTopics}</h2>
-                <div className="flex flex-wrap gap-2">
+                <ul className="space-y-3">
                   {stats.topics.map((tp) => (
-                    <span key={tp.key} className="rounded-full bg-sunken px-3 py-1 text-sm">
-                      {locale === "ar" ? tp.labelAr : tp.labelEn} <span className="text-muted ltr-nums">({tp.count})</span>
-                    </span>
+                    <li key={tp.key} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_3rem] items-center gap-4 text-sm">
+                      <span className="truncate">{locale === "ar" ? tp.labelAr : tp.labelEn}</span>
+                      <div style={{ width: `${Math.max(8, (tp.count / Math.max(1, ...stats.topics.map((x) => x.count))) * 100)}%` }}>
+                        <Meter value={tp.count} max={tp.count} />
+                      </div>
+                      <span className="text-end text-muted ltr-nums">{tp.count}</span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </section>
             )}
             <section className="mt-8 break-inside-avoid rounded-xl border border-line p-6">

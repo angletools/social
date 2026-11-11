@@ -20,7 +20,7 @@ import {
 import { Card, EmptyState, KpiCard, Meter } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
 import { ShareOfVoiceChart, VolumeChart } from "@/components/charts";
-import { Donut } from "@/components/donut";
+import { Waffle } from "@/components/dots";
 import { PLATFORM_COLORS, PlatformIcon } from "@/components/platform";
 import { SentimentBar } from "@/components/sentiment";
 import { Avatar } from "@/components/avatar";
@@ -258,27 +258,31 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             )}
           </Card>
           <Card title={t.sentiment.label} help={t.sentiment.help}>
-            <div className="grid items-center gap-6 sm:grid-cols-[180px_1fr]">
-              <Donut
-                center={`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`}
-                caption={t.sentiment.net}
-                data={[
+            <div className="space-y-5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[32px] font-semibold leading-none tracking-tight ltr-nums">{`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`}</span>
+                <span className="text-[13px] text-muted">{t.sentiment.net}</span>
+              </div>
+              <Waffle
+                className="max-w-[360px]"
+                label={t.sentiment.label}
+                parts={[
                   { name: t.sentiment.POSITIVE, value: kpis.positive, color: "var(--color-pos)" },
                   { name: t.sentiment.NEUTRAL, value: kpis.neutral, color: "var(--color-neu)" },
                   { name: t.sentiment.NEGATIVE, value: kpis.negative, color: "var(--color-neg)" },
                 ]}
               />
-              <ul className="space-y-3">
+              <ul className="grid grid-cols-3 gap-2">
                 {(["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((s) => {
                   const v = s === "POSITIVE" ? kpis.positive : s === "NEUTRAL" ? kpis.neutral : kpis.negative;
                   return (
                     <li key={s}>
-                      <Link prefetch={false} href={`/mentions?sentiment=${s}&days=${days}`} className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-canvas">
+                      <Link prefetch={false} href={`/mentions?sentiment=${s}&days=${days}`} className="block rounded-lg px-2 py-1.5 hover:bg-panel">
                         <span className="flex items-center gap-2 text-[13px]">
                           <span className={`h-2 w-2 rounded-full ${s === "POSITIVE" ? "bg-pos" : s === "NEUTRAL" ? "bg-neu" : "bg-neg"}`} />
                           {t.sentiment[s]}
                         </span>
-                        <span className="text-[13px] ltr-nums">
+                        <span className="mt-0.5 block text-[13px] ltr-nums">
                           <b className="font-semibold">{pct(v)}%</b> <span className="text-faint">· {formatNumber(v, locale)}</span>
                         </span>
                       </Link>

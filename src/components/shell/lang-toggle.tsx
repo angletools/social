@@ -10,7 +10,7 @@ export function LangToggle({ locale, label, compact }: { locale: "ar" | "en"; la
       type="button"
       disabled={pending}
       onClick={() => start(() => setLocale(locale === "ar" ? "en" : "ar"))}
-      className={compact ? "btn-ghost px-2.5" : "btn-secondary"}
+      className={compact ? "flex h-[38px] min-w-[38px] items-center justify-center rounded-[11px] px-2 text-[13px] text-[#bdbdbd] hover:bg-[#161616] hover:text-white" : "btn-secondary"}
       lang={locale === "ar" ? "en" : "ar"}
       title={label}
     >

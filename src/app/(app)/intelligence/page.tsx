@@ -10,12 +10,14 @@ import { RangeTabs } from "@/components/range-tabs";
 import { NetTrendChart } from "@/components/charts";
 import { SentimentBar } from "@/components/sentiment";
 import { DIALECT_COLORS } from "@/components/dialect-badges";
+import { DotBar, Waffle } from "@/components/dots";
 import { Glossary } from "./glossary";
 import { RefreshBrief } from "./refresh-brief";
 
 export const metadata = { title: "Intelligence" };
 
 const TONE = { POSITIVE: "bg-pos", NEGATIVE: "bg-neg", MIXED: "bg-warn" } as const;
+const TONE_VAR: Record<string, string> = { POSITIVE: "var(--color-pos)", NEGATIVE: "var(--color-neg)", MIXED: "var(--color-warn)" };
 
 export default async function IntelligencePage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await requireUser();
@@ -237,11 +239,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               </ul>
             </Card>
             <Card title={T.dialects}>
-              <div className="flex h-2 w-full gap-px overflow-hidden rounded-full bg-sunken">
-                {intel.dialects.map((d) => (
-                  <div key={d.dialect} style={{ width: `${(d.count / Math.max(1, totalDialect)) * 100}%`, background: DIALECT_COLORS[d.dialect] }} />
-                ))}
-              </div>
+              <Waffle className="max-w-[360px]" label={T.dialects} parts={intel.dialects.map((d) => ({ value: d.count, color: DIALECT_COLORS[d.dialect], name: t.dialects[d.dialect] }))} />
               <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2">
                 {intel.dialects.slice(0, 6).map((d) => (
                   <li key={d.dialect}>
@@ -290,9 +288,9 @@ function ThemeItem({ th, ar, href, labels, max }: { th: BriefTheme; ar: boolean;
           </p>
         )}
       </div>
-      <span className="col-start-2 h-1.5 overflow-hidden rounded-full bg-sunken sm:col-start-auto">
-        <span className={cn("block h-full rounded-full", TONE[th.sentiment] ?? "bg-neu")} style={{ width: `${Math.max(6, (th.sharePct / Math.max(1, max)) * 100)}%` }} />
-      </span>
+      <div className="col-start-2 sm:col-start-auto">
+        <DotBar segments={[{ value: th.sharePct, color: TONE_VAR[th.sentiment] ?? "var(--color-neu)" }]} max={Math.max(1, max)} />
+      </div>
       <span className="hidden text-end text-[14px] font-semibold ltr-nums sm:block">{th.sharePct}%</span>
     </div>
   );

@@ -1,4 +1,4 @@
-# Rasd · رصد
+# angle /social
 
 A bilingual (Arabic / English) social listening platform built for non-technical teams. It monitors brands, hashtags, accounts and topics across X, Instagram, TikTok, YouTube, Facebook and LinkedIn. Claude classifies every post (sentiment, topics, risk), answers questions about the data in chat, and writes management reports.
 
@@ -17,7 +17,7 @@ A bilingual (Arabic / English) social listening platform built for non-technical
 
 ### Dialect-native suite
 
-Generic AI tools misread Gulf Arabic. Rasd's classifier follows a regional language guide (`src/lib/ai/dialect.ts`) and an editable per-client glossary.
+Generic AI tools misread Gulf Arabic. angle social's classifier follows a regional language guide (`src/lib/ai/dialect.ts`) and an editable per-client glossary.
 
 | Area | What it does |
 |---|---|

@@ -121,7 +121,7 @@ export async function evaluateAlerts(organizationId: string) {
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
       await sendEmail(
         rule.emails,
-        `[Rasd] ${hit.titleEn}`,
+        `[angle social] ${hit.titleEn}`,
         `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`,
       ).catch((e) => console.error("alert email failed", e));
     }

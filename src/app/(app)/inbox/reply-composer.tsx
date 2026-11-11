@@ -94,7 +94,7 @@ export function ReplyComposer({
                 onClick={() => pick(d)}
                 className={cn(
                   "flex w-full gap-3 rounded-xl px-3 py-2.5 text-start text-[14.5px] leading-relaxed transition-colors",
-                  on ? "bg-sunken text-ink" : "text-muted hover:bg-sunken/60 hover:text-ink",
+                  on ? "bg-selected text-ink" : "text-muted hover:bg-selected/60 hover:text-ink",
                 )}
               >
                 <span className={cn("mt-[5px] h-4 w-4 shrink-0 rounded-full", on ? "border-[5px] border-ink" : "border-[1.5px] border-faint")} aria-hidden />

@@ -1,3 +1,4 @@
+import { DotBar } from "@/components/dots";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -32,9 +33,7 @@ function Usage({ label, used, limit, locale }: { label: string; used: number; li
           {formatNumber(used, locale)} / {formatNumber(limit, locale)}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-sunken">
-        <div className={`h-full rounded-full ${pct > 90 ? "bg-neg" : pct > 70 ? "bg-warn" : "bg-brand-600"}`} style={{ width: `${pct}%` }} />
-      </div>
+      <DotBar segments={[{ value: pct, color: pct > 90 ? "var(--color-neg)" : pct > 70 ? "var(--color-warn)" : "var(--color-chart)" }]} max={100} />
     </div>
   );
 }
