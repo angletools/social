@@ -85,7 +85,7 @@ export function FeedbackHost({ labels }: { labels: { confirm: string; cancel: st
       </div>
       {req && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/30 p-4 backdrop-blur-[2px]" onMouseDown={() => close(false)}>
-          <div role="alertdialog" aria-modal className="animate-rise w-full max-w-sm rounded-2xl bg-surface p-6 shadow-[var(--shadow-pop)]" onMouseDown={(e) => e.stopPropagation()}>
+          <div role="alertdialog" aria-modal className="animate-pop w-full max-w-sm rounded-2xl bg-surface p-6 shadow-[var(--shadow-pop)]" onMouseDown={(e) => e.stopPropagation()}>
             <p className="text-[15px] font-semibold leading-snug">{req.message}</p>
             {req.detail && <p className="mt-2 text-[13px] leading-relaxed text-muted">{req.detail}</p>}
             <div className="mt-6 flex justify-end gap-2">

@@ -100,7 +100,7 @@ export function Tip({ label, shortcut, show = true }: { label: string; shortcut?
 
 const row = (collapsed: boolean, active = false) =>
   cn(
-    "group relative flex h-[46px] items-center gap-3.5 rounded-xl text-[16px] transition-colors outline-offset-0",
+    "group relative flex h-[46px] items-center gap-3.5 rounded-xl text-[16px] outline-offset-0 select-none",
     collapsed ? "justify-center px-0" : "px-3.5",
     active ? "bg-[#1c1c1c] text-white" : "text-[#d6d6d6] hover:bg-[#111] hover:text-white",
   );
@@ -198,7 +198,7 @@ export function Sidebar({
     <aside
       aria-label={labels.sidebar}
       className={cn(
-        "no-print sticky top-0 z-40 hidden h-screen shrink-0 flex-col gap-0.5 bg-black px-3.5 pt-3.5 pb-[18px] text-[#ececec] transition-[width] duration-200 md:flex",
+        "no-print sticky top-0 z-40 hidden h-dvh shrink-0 flex-col gap-0.5 bg-black px-3.5 pt-3.5 pb-[18px] text-[#ececec] md:flex",
         collapsed ? "w-[84px]" : "w-[264px]",
       )}
     >

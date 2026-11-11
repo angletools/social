@@ -65,8 +65,12 @@ export function UserMenu({
       {open && (
         <div
           className={cn(
-            "animate-rise absolute z-50 w-64 overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]",
-            placement === "rail" ? (collapsed ? "start-full bottom-0 ms-4" : "start-0 bottom-full mb-2") : "end-0 top-11",
+            "animate-pop absolute z-50 w-64 overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]",
+            placement === "rail"
+              ? collapsed
+                ? "start-full bottom-0 ms-4 ltr:origin-bottom-left rtl:origin-bottom-right"
+                : "start-0 bottom-full mb-2 ltr:origin-bottom-left rtl:origin-bottom-right"
+              : "end-0 top-11 ltr:origin-top-right rtl:origin-top-left",
           )}
         >
           <div className="border-b border-line px-4 py-3">

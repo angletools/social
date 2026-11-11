@@ -35,12 +35,12 @@ export function Notifications({ items, labels }: { items: NotificationItem[]; la
 
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="relative flex h-[38px] w-[38px] items-center justify-center rounded-[11px] text-[#bdbdbd] transition-colors hover:bg-[#161616] hover:text-white" aria-label={labels.title} aria-expanded={open}>
+      <button type="button" onClick={() => setOpen((v) => !v)} className="relative flex h-[38px] w-[38px] items-center justify-center rounded-[11px] text-[#bdbdbd] transition-[background-color,color,transform] duration-150 ease-(--ease-out) hover:bg-[#161616] hover:text-white active:scale-[0.96]" aria-label={labels.title} aria-expanded={open}>
         <Bell className="h-[19px] w-[19px]" strokeWidth={1.5} />
         {unread > 0 && <span className="absolute end-2 top-2 h-2 w-2 rounded-full bg-chart ring-2 ring-black" />}
       </button>
       {open && (
-        <div className="animate-rise absolute end-0 top-11 z-40 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]">
+        <div className="animate-pop absolute end-0 top-11 z-40 ltr:origin-top-right rtl:origin-top-left w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-[13.5px] font-semibold">{labels.title}</span>
             {unread > 0 && (

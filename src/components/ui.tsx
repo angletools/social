@@ -56,7 +56,7 @@ export function Card({
 export function HelpTip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex" tabIndex={0} aria-label={text}>
-      <CircleHelp className="h-3.5 w-3.5 text-faint transition group-hover:text-muted" />
+      <CircleHelp className="h-3.5 w-3.5 text-faint transition-colors group-hover:text-muted" />
       <span className="pointer-events-none absolute start-1/2 top-6 z-30 hidden w-64 -translate-x-1/2 rounded-xl bg-ink px-3 py-2.5 text-xs font-normal leading-relaxed text-on-ink shadow-[var(--shadow-pop)] group-hover:block group-focus:block rtl:translate-x-1/2">
         {text}
       </span>
@@ -130,7 +130,7 @@ export function KpiCard({
     </>
   );
   return href ? (
-    <Link href={href} className="card block p-4 transition hover:border-line-strong sm:p-5">
+    <Link href={href} className="card block p-4 transition-colors hover:bg-panel sm:p-5">
       {body}
     </Link>
   ) : (
