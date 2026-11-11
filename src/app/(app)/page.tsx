@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Radar } from "lucide-react";
+import { Radar } from "lucide-react";
 import type { Platform } from "@prisma/client";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
-import { formatDate, formatNumber, hourIn, ltr, signed, timeAgo } from "@/lib/utils";
+import { cn, formatDate, formatNumber, hourIn, timeAgo, timeShort } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import {
   INBOX_INTENTS,
@@ -17,26 +17,33 @@ import {
   inboxPriority,
   parseDays,
 } from "@/lib/analytics";
-import { Card, EmptyState, KpiCard, Meter } from "@/components/ui";
-import { RangeTabs } from "@/components/range-tabs";
-import { SentimentGauge, ShareOfVoiceChart, VolumeChart } from "@/components/app-charts";
+import { getChurnSignals, getTrendingFormat } from "@/lib/home";
+import { arrowPct, bucketize, extremes, signedInt, slotLabel } from "@/lib/insight";
+import { EmptyState } from "@/components/ui";
+import { MentionsChart } from "@/components/app-charts";
 import { sovColors } from "@/components/chart-colors";
-import { PLATFORM_COLORS, PlatformIcon } from "@/components/platform";
-import { SentimentBar } from "@/components/sentiment";
+import { PlatformIcon } from "@/components/platform";
+import { DotBar } from "@/components/dots";
 import { Avatar } from "@/components/avatar";
 import { Onboarding } from "@/components/overview/onboarding";
+import { DotSpark, LegendRow, LineSpark, NotchGauge, Panel, PanelHead, RangeSegmented, Rings, richFmt } from "@/components/insight-ui";
+import { RangeSelect } from "@/components/range-select";
 import { BriefCard } from "./brief-card";
 import type { ReportContent } from "@/lib/ai/report";
+
+const MOMENTUM_TONE: Record<string, string> = { RISING: "text-pos", NEW: "text-info", PEAKING: "text-warn", FADING: "text-faint" };
+const MOMENTUM_COLOR: Record<string, string> = { RISING: "var(--color-pos)", NEW: "var(--color-info)", PEAKING: "var(--color-warn)", FADING: "var(--color-faint)" };
 
 export default async function OverviewPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await requireUser();
   const { t, locale } = await getDict();
+  const H = t.home2;
   const sp = await searchParams;
   const days = parseDays(sp.days);
   const orgId = user.organizationId;
   const org = user.organization;
   const tz = org.timezone;
-  const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
+  const ar = locale === "ar";
 
   const hour = hourIn(tz);
   const greeting = hour < 12 ? t.nav.greeting.morning : hour < 17 ? t.nav.greeting.afternoon : t.nav.greeting.evening;
@@ -58,35 +65,38 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const showOnboarding = !org.onboardingDoneAt && steps.some((s) => !s.done) && hasRole(user, "ADMIN");
 
   const header = (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-      <div>
-        <div className="text-sm text-faint">{formatDate(new Date(), locale, { dateStyle: "full" }, tz)}</div>
-        <h1 className="mt-1 text-[28px] font-semibold leading-tight md:text-[30px]">{`${greeting}${locale === "ar" ? "، " : ", "}${firstName}`}</h1>
+    <header className="flex items-end justify-between gap-5">
+      <div className="min-w-0">
+        <div className="text-[13px] text-faint md:text-sm">{formatDate(new Date(), locale, { dateStyle: undefined, weekday: "long", day: "numeric", month: "long" }, tz)}</div>
+        <h1 className="mt-0.5 text-[26px] font-semibold leading-tight md:mt-1 md:text-[30px]">{`${greeting}${ar ? "، " : ", "}${firstName}`}</h1>
       </div>
-      {monitorCount > 0 && <RangeTabs days={days} labels={t.common.range} basePath="/" />}
-    </div>
+      {monitorCount > 0 && (
+        <div className="hidden shrink-0 md:block">
+          <RangeSegmented days={days} labels={t.common.range} basePath="/" label={H.period2} />
+        </div>
+      )}
+    </header>
   );
 
   if (monitorCount === 0) {
     return (
-      <>
+      <div className="flex flex-col gap-8">
         {header}
-        <div className="space-y-8">
-          {showOnboarding && <Onboarding steps={steps} labels={t.onboarding} />}
-          <EmptyState icon={<Radar className="h-5 w-5" />} title={t.overview.emptyTitle} body={t.overview.emptyBody} cta={{ href: "/monitors/new", label: t.overview.emptyCta }} />
-        </div>
-      </>
+        {showOnboarding && <Onboarding steps={steps} labels={t.onboarding} />}
+        <EmptyState icon={<Radar className="h-5 w-5" />} title={t.overview.emptyTitle} body={t.overview.emptyBody} cta={{ href: "/monitors/new", label: t.overview.emptyCta }} />
+      </div>
     );
   }
 
   const scope = { orgId, days, tz };
-  const [kpis, series, platforms, topics, sov, authors, attentionPool, brief, waiting] = await Promise.all([
+  const unit = days <= 7 ? "hour" : "day";
+  const [kpis, series, platforms, topics, sov, authors, attentionPool, brief, waiting, churn, trend] = await Promise.all([
     getKpis(scope),
-    getTimeseries(scope),
+    getTimeseries(scope, { unit }),
     getPlatformBreakdown(scope),
-    getTopTopics(scope, 7),
+    getTopTopics(scope, 5),
     getShareOfVoice(scope),
-    getTopAuthors(scope, 6),
+    getTopAuthors(scope, 5),
     db.mention.findMany({
       where: {
         organizationId: orgId,
@@ -110,244 +120,358 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
       },
     }),
+    getChurnSignals(scope),
+    getTrendingFormat(orgId),
   ]);
   const attention = attentionPool
     .map((m) => ({ m, p: inboxPriority(m) }))
     .sort((a, b) => b.p - a.p)
-    .slice(0, 4)
+    .slice(0, 3)
     .map((x) => x.m);
   const briefContent = brief?.content as ReportContent | null;
-  const maxTopic = Math.max(1, ...topics.map((x) => x.count));
-  const sentTotal = kpis.positive + kpis.neutral + kpis.negative;
-  const pct = (n: number) => (sentTotal ? Math.round((n / sentTotal) * 100) : 0);
   const pts = series.points;
+  const comparable = kpis.previousMentions > 0;
+  const ext = extremes(pts);
   const sovColor = sovColors(sov);
+  const rangeLabel = t.common.range[String(days) as keyof typeof t.common.range];
+  const label = (x: { labelAr: string; labelEn: string }) => (ar ? x.labelAr : x.labelEn);
+
+  // The one sentence: how much conversation moved, and what it is mostly about.
+  const d = kpis.deltas.mentions;
+  const change = !comparable || Math.abs(d) < 3 ? t.overview.steady : fmt(d > 0 ? t.overview.up : t.overview.down, { n: formatNumber(Math.abs(d), locale) });
+  const topTopic = topics[0] ? label(topics[0]) : null;
+  const topicText = topTopic && !ar && /^[A-Z][a-z]/.test(topTopic) ? topTopic[0].toLowerCase() + topTopic.slice(1) : topTopic;
+  const fallback = richFmt(topicText ? H.brief : H.briefNoTopic, {
+    change: <span className="font-semibold text-ink">{change}</span>,
+    topic: topicText,
+  });
+  const waitingLine =
+    waiting > 0
+      ? richFmt(t.overview.waitingLine, {
+          n: (
+            <Link href="/inbox" className="font-semibold text-ink underline decoration-1 underline-offset-[5px]">
+              {fmt(t.overview.people, { n: formatNumber(waiting, locale) })}
+            </Link>
+          ),
+        })
+      : null;
+
+  // Delta colours carry meaning: more conversation while sentiment is negative is not good news.
+  const tone = (v: number, good: "up" | "down") => (v === 0 ? "text-faint" : (v > 0) === (good === "up") ? "text-pos" : "text-neg");
+  const spark = (key: "total" | "engagement" | "reach" | "risks") => bucketize(pts.map((p) => p[key]), 12);
+  const kpiTiles = [
+    { key: "m", label: t.overview.mentions, value: kpis.mentions, delta: d, tone: d > 0 && kpis.netSentiment < 0 ? "text-neg" : d > 0 ? "text-pos" : "text-faint", spark: spark("total"), href: `/mentions?days=${days}` },
+    { key: "e", label: t.overview.engagement, value: kpis.engagement, delta: kpis.deltas.engagement, tone: tone(kpis.deltas.engagement, "up"), spark: spark("engagement"), href: `/mentions?days=${days}` },
+    { key: "r", label: t.overview.reach, value: kpis.reach, delta: kpis.deltas.reach, tone: tone(kpis.deltas.reach, "up"), spark: spark("reach"), href: `/mentions?days=${days}` },
+    { key: "k", label: t.overview.risks, value: kpis.risks, delta: kpis.deltas.risks, tone: tone(kpis.deltas.risks, "down"), spark: spark("risks"), href: `/mentions?risk=1&days=${days}` },
+  ];
+
+  // Arabic compact numbers ("71.4 مليون") are wide: drop the sparklines for the whole row rather than squeeze one.
+  const sparkFits = kpiTiles.every((k) => formatNumber(k.value, locale).length <= 6);
+  const netDelta = kpis.deltas.netSentiment;
+  const gaugeSub = comparable ? fmt(H.ptsPeriod, { n: signedInt(netDelta), period: H.period[String(days) as keyof typeof H.period] }) : undefined;
+  const churnDelta = churn.prev > 0 ? churn.count - churn.prev : null;
+  const maxTopic = Math.max(1, ...topics.map((x) => x.count));
+  const maxPlatform = Math.max(1, ...platforms.map((p) => p.count));
+  const surfaces = (ps: Platform[]) => ps.map((p) => t.studio2.surfaces[p]).join(ar ? "، " : ", ");
 
   return (
-    <>
+    <div className="flex flex-col gap-3.5 md:gap-8">
       {header}
-      <div className="space-y-6">
-        {showOnboarding && <Onboarding steps={steps} labels={t.onboarding} />}
+      {showOnboarding && <Onboarding steps={steps} labels={t.onboarding} />}
 
-        <BriefCard
-          aiOn={aiEnabled()}
-          fallback={
-            <>
-              {fmt(t.overview.autoBrief, {
-                change:
-                  Math.abs(kpis.deltas.mentions) < 3
-                    ? t.overview.steady
-                    : fmt(kpis.deltas.mentions > 0 ? t.overview.up : t.overview.down, { n: formatNumber(Math.abs(kpis.deltas.mentions), locale) }),
-                net: ltr(signed(kpis.netSentiment)),
-              })}{" "}
-              {waiting > 0 && (
-                <Link href="/inbox" className="font-medium text-ink underline decoration-1 underline-offset-[6px]">
-                  {fmt(t.overview.waitingLine, { n: fmt(t.overview.people, { n: formatNumber(waiting, locale) }) })}
+      <BriefCard
+        aiOn={aiEnabled()}
+        fallback={fallback}
+        after={waitingLine}
+        brief={brief ? { status: brief.status, headline: briefContent?.headline, summary: briefContent?.summary, when: timeAgo(brief.createdAt, locale) } : null}
+        labels={{ title: t.overview.generateBrief, generate: t.overview.refreshBrief, generating: t.reports.generating, failed: t.reports.failed }}
+      />
+
+      {/* On phones the rows dissolve (display: contents) and `order` sets the phone sequence. */}
+      <div className="flex flex-wrap gap-3 md:flex-col md:flex-nowrap md:gap-8">
+        <section aria-label={t.overview.mentions} className="order-5 grid w-full grid-cols-2 gap-3 md:order-none md:gap-5 lg:grid-cols-4">
+          {kpiTiles.map((k) => (
+            <Link
+              key={k.key}
+              href={k.href}
+              prefetch={false}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 rounded-[20px] bg-surface px-[18px] py-4 transition-colors duration-150 hover:bg-surface/70 md:px-6 md:py-5"
+            >
+              <span className="col-span-2 truncate text-[13.5px] text-muted md:text-[14px]">{k.label}</span>
+              <span className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+                <KpiValue text={formatNumber(k.value, locale)} />
+                {comparable && <span className={cn("text-[12.5px] font-semibold ltr-nums md:text-[13px]", k.tone)}>{arrowPct(k.delta)}</span>}
+              </span>
+              {sparkFits && <LineSpark values={k.spark} className="hidden xl:block" />}
+            </Link>
+          ))}
+        </section>
+
+        <div className="contents md:grid md:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] md:gap-5">
+          <Panel className="order-1 flex w-full flex-col md:order-none md:w-auto">
+            <div className="hidden items-baseline justify-between md:flex">
+              <h2 className="text-[15px] text-muted">{t.overview.volume}</h2>
+              <span className="text-[13px] text-faint">{rangeLabel}</span>
+            </div>
+            <div className="flex items-baseline gap-2 md:hidden">
+              <span className="text-[34px] font-semibold leading-none tracking-[-0.02em] ltr-nums">{formatNumber(kpis.mentions, locale)}</span>
+              {comparable && <span className={cn("text-[13px] font-semibold ltr-nums", kpiTiles[0].tone)}>{arrowPct(d)}</span>}
+              <RangeSelect days={days} labels={t.common.range} basePath="/" label={H.period2} className="ms-auto" />
+            </div>
+            <div className="mb-4 mt-2.5 hidden md:block">
+              <MentionsChart
+                points={pts}
+                unit={series.unit}
+                locale={locale}
+                height={196}
+                ariaLabel={`${t.overview.volume}, ${rangeLabel}`}
+                labels={{ total: t.overview.mentions, positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }}
+              />
+            </div>
+            <div className="mt-1.5 md:hidden">
+              <MentionsChart
+                points={pts}
+                unit={series.unit}
+                locale={locale}
+                height={92}
+                compact
+                ariaLabel={`${t.overview.volume}, ${rangeLabel}`}
+                labels={{ total: t.overview.mentions, positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }}
+              />
+            </div>
+            {ext && (
+              <div className="mt-auto hidden flex-wrap gap-x-8 gap-y-1 border-t border-line pt-4 text-[13.5px] text-muted md:flex">
+                <span>
+                  {H.busiest} <span className="font-semibold text-ink">{slotLabel(ext.busiest.t, series.unit, locale)}</span> · <span className="ltr-nums">{fmt(H.mentionsN, { n: formatNumber(ext.busiest.total, locale) })}</span>
+                </span>
+                <span>
+                  {H.quietest} <span className="font-semibold text-ink">{slotLabel(ext.quietest.t, series.unit, locale)}</span>
+                </span>
+              </div>
+            )}
+          </Panel>
+
+          <Panel aria-label={H.needsYou} className="order-4 flex w-full flex-col py-2 md:order-none md:w-auto md:py-6">
+            <PanelHead
+              className="hidden md:flex"
+              title={H.needsYou}
+              aside={
+                <Link href="/inbox" className="text-[13.5px] text-brand-600 transition-colors hover:text-ink">
+                  {H.openInbox}
                 </Link>
-              )}
-            </>
-          }
-          brief={brief ? { status: brief.status, headline: briefContent?.headline, summary: briefContent?.summary, when: timeAgo(brief.createdAt, locale) } : null}
-          labels={{
-            title: t.overview.generateBrief,
-            generate: t.overview.refreshBrief,
-            generating: t.reports.generating,
-            failed: t.reports.failed,
-          }}
-        />
-
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <KpiCard
-            label={t.overview.mentions}
-            value={formatNumber(kpis.mentions, locale)}
-            delta={kpis.deltas.mentions}
-            trend={pts.map((p) => p.total)}
-            href={`/mentions?days=${days}`}
-          />
-          <KpiCard
-            label={t.sentiment.net}
-            value={signed(kpis.netSentiment)}
-            delta={kpis.deltas.netSentiment}
-            deltaSuffix=""
-            trend={pts.map((p) => p.net)}
-            trendColor={kpis.netSentiment >= 0 ? "var(--color-pos)" : "var(--color-neg)"}
-          />
-          <KpiCard
-            label={t.overview.engagement}
-            value={formatNumber(kpis.engagement, locale)}
-            delta={kpis.deltas.engagement}
-            trend={pts.map((p) => p.engagement)}
-            trendColor="var(--color-sand-500)"
-          />
-          <KpiCard
-            label={t.overview.risks}
-            value={formatNumber(kpis.risks, locale)}
-            delta={kpis.deltas.risks}
-            invert
-            trend={pts.map((p) => p.risks)}
-            trendColor="var(--color-neg)"
-            href={`/mentions?risk=1&days=${days}`}
-          />
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card title={t.overview.volume} className="lg:col-span-2">
-            <VolumeChart height={392} points={pts} unit={series.unit} locale={locale} labels={{ total: t.overview.mentions, positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
-          </Card>
-          <Card
-            title={t.inbox.title}
-            bodyClassName="p-0 pt-2"
-            actions={
-              <Link href="/inbox" className="btn-ghost btn-sm">
-                {t.common.viewAll} <Arrow className="h-3.5 w-3.5" />
-              </Link>
-            }
-          >
+              }
+            />
             {attention.length === 0 ? (
-              <p className="px-6 pb-6 pt-4 text-[13px] text-muted">{t.inbox.empty}</p>
+              <p className="py-3 text-[14px] text-muted md:pt-4">{H.allClear}</p>
             ) : (
-              <ul className="px-2 pb-2">
-                {attention.map((m) => (
-                  <li key={m.id}>
-                    <Link prefetch={false} href={`/inbox?m=${m.id}`} className="flex gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-panel">
-                      <span className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${m.isRisk || m.intent === "CHURN_RISK" ? "bg-neg" : m.intent === "COMPLAINT" ? "bg-warn" : m.intent === "QUESTION" ? "bg-info" : "bg-faint"}`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2 text-[14px]">
-                          <span className="truncate font-medium">{m.authorName ?? m.authorHandle}</span>
-                          <span className="shrink-0 text-xs text-faint">{timeAgo(m.publishedAt, locale)}</span>
-                        </div>
-                        <p dir="auto" className="mt-0.5 line-clamp-2 text-[13.5px] leading-relaxed text-muted">
+              <ul className="md:mt-3">
+                {attention.map((m, i) => (
+                  <li key={m.id} className={cn(i > 0 && "border-t border-line")}>
+                    <Link prefetch={false} href={`/inbox?m=${m.id}`} className="group flex gap-3 py-3 md:py-3.5">
+                      <span className={cn("mt-[7px] h-2 w-2 shrink-0 rounded-full md:mt-2", m.isRisk || m.intent === "CHURN_RISK" ? "bg-neg" : m.intent === "COMPLAINT" ? "bg-warn" : m.intent === "QUESTION" ? "bg-info" : "bg-faint")} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-3 text-[14px] font-medium md:text-[14.5px]">
+                          <span dir="auto" className="truncate group-hover:underline group-hover:decoration-line group-hover:underline-offset-4">
+                            {m.authorName ?? m.authorHandle}
+                          </span>
+                          <span className="shrink-0 text-[12px] font-normal text-faint md:text-[12.5px]">{timeShort(m.publishedAt, locale)}</span>
+                        </span>
+                        <span dir="auto" className="mt-0.5 block truncate text-[13px] leading-relaxed text-muted md:mt-1 md:text-[14px]">
                           {m.text}
-                        </p>
-                      </div>
+                        </span>
+                      </span>
                     </Link>
                   </li>
                 ))}
               </ul>
             )}
-          </Card>
+          </Panel>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
-          <Card
-            title={t.overview.topTopics}
-            actions={
-              <Link href="/mentions" className="btn-ghost btn-sm">
-                {t.common.viewAll} <Arrow className="h-3.5 w-3.5" />
-              </Link>
-            }
+        <div className="contents md:grid md:grid-cols-3 md:gap-5">
+          <Link
+            href={`/intelligence?days=${days}`}
+            prefetch={false}
+            className="order-2 flex w-[calc(50%-6px)] flex-col gap-2.5 rounded-[20px] bg-surface px-[18px] py-4 transition-colors duration-150 hover:bg-surface/70 md:order-none md:w-auto md:gap-3.5 md:p-6"
           >
+            <span className="text-[13.5px] text-muted md:text-[15px]">
+              <span className="md:hidden">{H.sentiment}</span>
+              <span className="hidden md:inline">{t.sentiment.net}</span>
+            </span>
+            <div className="md:hidden">
+              <NotchGauge net={kpis.netSentiment} compact mirror={ar} label={fmt(H.scaleLabel, { net: signedInt(kpis.netSentiment) })} />
+            </div>
+            <div className="hidden md:block">
+              <NotchGauge
+                net={kpis.netSentiment}
+                mirror={ar}
+                sub={gaugeSub}
+                subTone={netDelta > 0 ? "pos" : netDelta < 0 ? "neg" : "faint"}
+                ends={["−100", "+100"]}
+                label={fmt(H.scaleLabel, { net: signedInt(kpis.netSentiment) })}
+              />
+            </div>
+          </Link>
+
+          <Link
+            href={`/mentions?intent=CHURN_RISK&days=${days}`}
+            prefetch={false}
+            className="order-3 flex w-[calc(50%-6px)] flex-col gap-2.5 rounded-[20px] bg-surface px-[18px] py-4 md:hidden"
+          >
+            <span className="text-[13.5px] text-muted">{H.churn}</span>
+            <span className="flex items-baseline gap-2">
+              <span className="text-[26px] font-semibold leading-none ltr-nums">{formatNumber(churn.count, locale)}</span>
+              {churnDelta !== null && churnDelta !== 0 && <span className={cn("text-[12.5px] font-semibold ltr-nums", churnDelta > 0 ? "text-neg" : "text-pos")}>{signedInt(churnDelta)}</span>}
+            </span>
+            {churn.tracksCompetitors && churn.namedCompetitor > 0 && <span className="text-[12.5px] text-faint">{fmt(H.namedCompetitor, { n: formatNumber(churn.namedCompetitor, locale) })}</span>}
+          </Link>
+
+          <Panel className="order-6 flex w-full flex-col gap-3.5 md:order-none md:w-auto">
+            <PanelHead title={t.overview.shareOfVoice} />
+            {sov.length === 0 ? (
+              <p className="text-[13px] text-muted">{t.common.noData}</p>
+            ) : (
+              <div className="flex flex-1 items-center gap-5 md:gap-[22px]">
+                <Rings label={t.overview.shareOfVoice} items={sov.slice(0, 4).map((s, i) => ({ label: s.name, value: s.share, color: sovColor[i] }))} />
+                <ul className="flex min-w-0 flex-1 flex-col gap-3 text-[14px]">
+                  {sov.slice(0, 4).map((s, i) => (
+                    <li key={s.monitorId}>
+                      <LegendRow color={sovColor[i]} label={s.name} value={`${Math.round(s.share)}%`} strong={!s.isCompetitor} href={`/monitors/${s.monitorId}?days=${days}`} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Panel>
+
+          {trend ? (
+            <Link
+              href={`/studio?f=${trend.id}`}
+              prefetch={false}
+              className="order-7 flex w-full flex-col gap-2.5 rounded-[20px] bg-surface p-5 transition-colors duration-150 hover:bg-surface/70 md:order-none md:w-auto md:p-6"
+            >
+              <span className="flex items-baseline justify-between gap-3 text-[15px] text-muted">
+                <span>{H.trending}</span>
+                <span className={cn("text-[13.5px] font-semibold", MOMENTUM_TONE[trend.momentum])}>{t.studio.momentum[trend.momentum as keyof typeof t.studio.momentum]}</span>
+              </span>
+              <span dir="auto" className="text-[19px] font-semibold leading-[1.35]">
+                {ar ? trend.nameAr : trend.nameEn}
+              </span>
+              <div className="mt-auto pt-2">
+                <DotSpark id={`trend-${trend.id}`} values={trend.views} width={300} height={60} color={trend.momentum === "FADING" ? MOMENTUM_COLOR.FADING : "var(--color-chart)"} />
+              </div>
+              <span className="text-[13.5px] text-faint">{fmt(H.viewsOn, { views: formatNumber(trend.totalViews, locale), platforms: surfaces(trend.platforms) })}</span>
+            </Link>
+          ) : (
+            <Panel className="order-7 flex w-full flex-col gap-2.5 md:order-none md:w-auto">
+              <PanelHead title={H.trending} />
+              <p className="text-[14px] leading-relaxed text-muted">{H.noTrend}</p>
+              <Link href="/studio" className="mt-auto text-[13.5px] text-brand-600 hover:text-ink">
+                {H.openStudio}
+              </Link>
+            </Panel>
+          )}
+        </div>
+
+        <div className="contents md:grid md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)] md:gap-5">
+          <Panel className="order-8 flex w-full flex-col gap-4 md:order-none md:w-auto">
+            <PanelHead
+              title={t.overview.topTopics}
+              aside={
+                <Link href={`/mentions?days=${days}`} className="text-[13.5px] text-ink transition-colors hover:text-muted">
+                  {t.common.viewAll}
+                </Link>
+              }
+            />
             {topics.length === 0 ? (
               <p className="text-[13px] text-muted">{t.common.noData}</p>
             ) : (
-              <ul className="space-y-4">
-                {topics.map((tp) => (
-                  <li key={tp.key}>
-                    <Link prefetch={false} href={`/mentions?topic=${tp.key}&days=${days}`} className="group grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5">
-                      <span className="truncate text-[13.5px] font-medium group-hover:text-brand-700">{locale === "ar" ? tp.labelAr : tp.labelEn}</span>
-                      <span className="text-xs text-muted ltr-nums">
-                        {formatNumber(tp.count, locale)}
-                        {tp.negative > 0 && (
-                          <span className="ms-3 inline-flex items-center gap-1.5 text-neg" title={t.sentiment.NEGATIVE}>
-                            <span className="h-1.5 w-1.5 rounded-full bg-neg" aria-hidden />
-                            {Math.round((tp.negative / tp.count) * 100)}%
-                          </span>
-                        )}
-                      </span>
-                      <div className="col-span-2" style={{ width: `${Math.max(10, (tp.count / maxTopic) * 100)}%` }}>
-                        <SentimentBar pos={tp.positive} neg={tp.negative} neu={tp.count - tp.positive - tp.negative} />
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-          <Card title={t.sentiment.label} help={t.sentiment.help} bodyClassName="flex flex-col justify-center gap-8">
-            <div className="mx-auto w-full max-w-[300px]">
-              <SentimentGauge net={kpis.netSentiment} label={t.sentiment.net} />
-            </div>
-            <ul className="grid grid-cols-3 gap-2">
-                {(["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((s) => {
-                  const v = s === "POSITIVE" ? kpis.positive : s === "NEUTRAL" ? kpis.neutral : kpis.negative;
+              <ul className="flex flex-col gap-3.5">
+                {topics.map((tp) => {
+                  const negPct = tp.count ? Math.round((tp.negative / tp.count) * 100) : 0;
                   return (
-                    <li key={s}>
-                      <Link prefetch={false} href={`/mentions?sentiment=${s}&days=${days}`} className="flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-center transition-colors hover:bg-panel">
-                        <span className="flex items-center gap-2 text-[13px]">
-                          <span className={`h-2 w-2 rounded-full ${s === "POSITIVE" ? "bg-pos" : s === "NEUTRAL" ? "bg-neu" : "bg-neg"}`} />
-                          {t.sentiment[s]}
+                    <li key={tp.key}>
+                      <Link prefetch={false} href={`/mentions?topic=${tp.key}&days=${days}`} className="group flex flex-col gap-[7px]">
+                        <span className="flex items-baseline justify-between gap-3 text-[14px]">
+                          <span className="truncate group-hover:text-muted">{label(tp)}</span>
+                          <span className="shrink-0 text-muted ltr-nums">
+                            {formatNumber(tp.count, locale)}
+                            <span className={cn("ms-2.5", negPct > 50 ? "text-neg" : "text-faint")}>{fmt(H.neg, { n: negPct })}</span>
+                          </span>
                         </span>
-                        <span className="text-[13px] ltr-nums">
-                          <b className="font-semibold">{pct(v)}%</b> <span className="text-faint">· {formatNumber(v, locale)}</span>
-                        </span>
+                        <DotBar
+                          max={maxTopic}
+                          segments={[
+                            { value: tp.count - tp.negative, color: "var(--color-pos)" },
+                            { value: tp.negative, color: "var(--color-neg)" },
+                          ]}
+                        />
                       </Link>
                     </li>
                   );
                 })}
-            </ul>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card title={t.overview.shareOfVoice} help={t.overview.shareOfVoiceHelp} className="lg:col-span-1">
-            {sov.length === 0 ? (
-              <p className="text-[13px] text-muted">{t.common.noData}</p>
-            ) : (
-              <>
-                <ShareOfVoiceChart totalLabel={t.overview.shareOfVoice} data={sov.map((s) => ({ name: s.name, share: s.share, isCompetitor: s.isCompetitor }))} />
-                <ul className="mt-5 grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 gap-y-2.5 text-[13.5px]">
-                  {sov.map((s, i) => (
-                    <li key={s.monitorId} className="contents">
-                      <span className="h-2 w-2 rounded-full" style={{ background: sovColor[i] }} aria-hidden />
-                      <span className={`min-w-0 truncate ${s.isCompetitor ? "text-muted" : "font-semibold"}`}>{s.name}</span>
-                      <span className="text-end text-muted ltr-nums">{s.share}%</span>
-                      <span className={`min-w-9 text-end font-medium ltr-nums ${s.netSentiment >= 0 ? "text-pos" : "text-neg"}`} title={t.sentiment.net}>
-                        {signed(s.netSentiment)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
+              </ul>
             )}
-          </Card>
-          <Card title={t.overview.byPlatform}>
-            <ul className="space-y-3.5">
+          </Panel>
+
+          <Panel className="order-9 flex w-full flex-col gap-4 md:order-none md:w-auto">
+            <PanelHead title={t.overview.byPlatform} />
+            <ul className="flex flex-col gap-4">
               {platforms.map((p) => (
-                <li key={p.platform} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5">
-                  <PlatformIcon platform={p.platform as Platform} size="sm" />
-                  <span className="text-[13px]">{t.platforms[p.platform]}</span>
-                  <span className="text-xs text-muted ltr-nums">{formatNumber(p.count, locale)}</span>
-                  <div className="col-span-3">
-                    <Meter value={p.count} max={platforms[0]?.count ?? 1} color={PLATFORM_COLORS[p.platform as Platform]} />
-                  </div>
+                <li key={p.platform}>
+                  <Link prefetch={false} href={`/mentions?platform=${p.platform}&days=${days}`} className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5">
+                    <PlatformIcon platform={p.platform as Platform} size="md" className="justify-self-center [&_svg]:fill-ink" />
+                    <span className="truncate text-[14px]">{t.platforms[p.platform as Platform]}</span>
+                    <span className="text-end text-[13.5px] text-muted ltr-nums">{formatNumber(p.count, locale)}</span>
+                    <div className="col-start-2 col-end-4">
+                      <DotBar max={maxPlatform} segments={[{ value: p.count, color: "var(--color-chart)" }]} />
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
-          </Card>
-          <Card title={t.overview.topAuthors} bodyClassName="p-0 pt-1">
+          </Panel>
+
+          <Panel className="order-10 flex w-full flex-col gap-3 md:order-none md:w-auto">
+            <PanelHead title={t.overview.topAuthors} />
             <ul>
-              {authors.map((a) => (
-                <li key={a.handle}>
-                  <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(a.handle)}&days=${days}`} className="flex items-center gap-3 px-6 py-2.5 transition-colors hover:bg-panel">
-                    <Avatar name={a.name ?? a.handle} seed={a.handle} size={30} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 truncate text-[13px] font-medium">
-                        {a.name ?? a.handle} <PlatformIcon platform={a.platform} size="xs" />
-                      </div>
-                      <div className="text-xs text-faint">
-                        <span className="ltr-nums">{formatNumber(a.followers, locale)}</span> {a.followers === 1 ? t.inbox.follower : t.overview.followers} · <span className="ltr-nums">{a.mentions}</span>
-                      </div>
-                    </div>
+              {authors.map((a, i) => (
+                <li key={a.handle} className={cn(i > 0 && "border-t border-line")}>
+                  <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(a.handle)}&days=${days}`} className="group flex items-center gap-3 py-2.5">
+                    <Avatar name={a.name ?? a.handle} seed={a.handle} size={32} />
+                    <span className="flex min-w-0 flex-1 flex-col gap-px">
+                      <span dir="auto" className="truncate text-[14px] font-medium group-hover:underline group-hover:decoration-line group-hover:underline-offset-4">
+                        {a.name ?? a.handle}
+                      </span>
+                      <span className="truncate text-[12.5px] text-faint ltr-nums">
+                        {fmt(H.followersPosts, { followers: formatNumber(a.followers, locale), posts: formatNumber(a.mentions, locale) })}
+                      </span>
+                    </span>
                     {a.avgSentiment !== null && (
-                      <span className={`h-2 w-2 rounded-full ${a.avgSentiment > 0.15 ? "bg-pos" : a.avgSentiment < -0.15 ? "bg-neg" : "bg-neu"}`} />
+                      <span
+                        className={cn("h-2 w-2 shrink-0 rounded-full", a.avgSentiment > 0.15 ? "bg-pos" : a.avgSentiment < -0.15 ? "bg-neg" : "bg-faint")}
+                        title={a.avgSentiment > 0.15 ? t.sentiment.POSITIVE : a.avgSentiment < -0.15 ? t.sentiment.NEGATIVE : t.sentiment.NEUTRAL}
+                      />
                     )}
                   </Link>
                 </li>
               ))}
             </ul>
-          </Card>
+          </Panel>
         </div>
       </div>
-    </>
+    </div>
+  );
+}
+
+/** A KPI number; a spelled-out unit ("71.4 مليون") is set smaller so the figure leads. */
+function KpiValue({ text }: { text: string }) {
+  const m = /^([\d.,]+)\s+(\D+)$/.exec(text);
+  return (
+    <span className="text-[24px] font-semibold leading-none tracking-[-0.02em] md:text-[28px]">
+      <span className="ltr-nums">{m ? m[1] : text}</span>
+      {m && <span className="ms-1 text-[15px] font-medium text-muted md:text-[16px]">{m[2]}</span>}
+    </span>
   );
 }

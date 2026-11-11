@@ -19,14 +19,14 @@ import {
 import { PlatformIcon } from "@/components/platform";
 import { cn } from "@/lib/utils";
 
-export function ScanButton({ ids, label }: { ids: string[]; label: string; done?: string }) {
+export function ScanButton({ ids, label, quiet }: { ids: string[]; label: string; done?: string; quiet?: boolean }) {
   const [pending, start] = useTransition();
   const { toasts } = useClientDict();
   return (
     <>
       <button
         type="button"
-        className="btn-secondary"
+        className={quiet ? "inline-flex items-center gap-1.5 text-muted transition-colors hover:text-ink disabled:opacity-60" : "btn-secondary"}
         disabled={pending}
         onClick={() =>
           start(async () => {
@@ -35,7 +35,7 @@ export function ScanButton({ ids, label }: { ids: string[]; label: string; done?
           })
         }
       >
-        <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} /> {label}
+        <RefreshCw className={cn(quiet ? "h-3.5 w-3.5" : "h-4 w-4", pending && "animate-spin")} /> {label}
       </button>
     </>
   );

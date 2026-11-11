@@ -284,3 +284,167 @@ export function PostingHeatmap({
     </HeatmapInteractionProvider>
   );
 }
+
+/* ---------- Home and Intelligence (canvas v2) ---------- */
+
+/** Vertical line at each local midnight, with the weekday centred in its day. */
+function DayGrid({ points, locale, labels = true }: { points: { t: string }[]; locale: string; labels?: boolean }) {
+  const { xScale, innerHeight, innerWidth } = useChart();
+  const f = new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : "en-GB", { weekday: "short", timeZone: "UTC" });
+  const starts = points.map((p) => new Date(`${p.t}Z`)).filter((d) => d.getUTCHours() === 0);
+  const edges = starts.map((d) => xScale(d));
+  return (
+    <g aria-hidden>
+      {edges.map((x, i) => (
+        <line key={i} x1={x} x2={x} y1={0} y2={innerHeight} stroke="var(--color-line)" />
+      ))}
+      {labels &&
+        starts.map((d, i) => {
+          const a = edges[i];
+          const b = edges[i + 1] ?? innerWidth;
+          if (b - a < 28) return null;
+          return (
+            <text key={i} x={(a + b) / 2} y={innerHeight + 16} textAnchor="middle" fontSize={11.5} fill="var(--color-faint)">
+              {f.format(d)}
+            </text>
+          );
+        })}
+    </g>
+  );
+}
+
+/** Dashed guide and ring on one point of the series (busiest hour, an event). */
+function PointMarker({ index, valueKey, label, top = 0 }: { index: number; valueKey: string; label?: string; top?: number }) {
+  const { xScale, yScale, data, innerHeight, innerWidth } = useChart();
+  const d = data[index] as Record<string, unknown> | undefined;
+  if (!d) return null;
+  const x = xScale(d.date as Date);
+  const y = yScale(Number(d[valueKey]));
+  return (
+    <g aria-hidden>
+      <line x1={x} x2={x} y1={label ? top + 6 : 0} y2={label ? y : innerHeight} stroke="var(--color-faint)" strokeDasharray="2 4" />
+      <circle cx={x} cy={y} r={5} strokeWidth={2} fill="var(--color-surface)" stroke="var(--color-ink)" />
+      {label && (
+        <text
+          x={x}
+          y={top - 2}
+          textAnchor={x < 60 ? "start" : x > innerWidth - 60 ? "end" : "middle"}
+          dx={x < 60 ? -6 : x > innerWidth - 60 ? 6 : 0}
+          fontSize={12}
+          fill="var(--color-muted)"
+          style={{ unicodeBidi: "plaintext" }}
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
+/**
+ * Mentions over time (Home): dotted area and a thin line, a day grid with
+ * weekday labels on hourly multi-day ranges, and the busiest bucket marked.
+ */
+export function MentionsChart({
+  points,
+  unit,
+  locale,
+  labels,
+  height = 220,
+  compact = false,
+  ariaLabel,
+}: {
+  points: Point[];
+  unit: string;
+  locale: string;
+  labels: { positive: string; neutral: string; negative: string; total: string };
+  height?: number;
+  compact?: boolean;
+  ariaLabel?: string;
+}) {
+  const id = usePatternId("mx");
+  const data = useMemo(() => points.map((p) => ({ ...p, date: new Date(`${p.t}Z`) })), [points]);
+  const ticks = useMemo(() => points.map((p) => fmtTick(p.t, unit, locale)), [points, unit, locale]);
+  const titles = useMemo(() => points.map((p) => fmtTitle(p.t, unit, locale)), [points, unit, locale]);
+  const peak = useMemo(() => points.reduce((best, p, i) => (p.total > (points[best]?.total ?? -1) ? i : best), 0), [points]);
+  const n = nf(locale);
+  if (data.length < 2) return null;
+  const dayGrid = unit === "hour" && points.length > 30;
+  return (
+    <div dir="ltr" role="img" aria-label={ariaLabel}>
+      <AreaChart
+        data={data}
+        aspectRatio="auto"
+        style={{ height }}
+        margin={{ top: compact ? 6 : 10, right: 0, bottom: compact ? 2 : 24, left: 0 }}
+        animationDuration={REVEAL_MS}
+      >
+        <PatternPreset id={id} preset="circles-dense" color="var(--chart-1)" />
+        {dayGrid && !compact && <DayGrid points={points} locale={locale} />}
+        <PatternArea dataKey="total" fill={`url(#${id})`} fadeBottom={90} />
+        <Area dataKey="total" fillOpacity={0} strokeWidth={1.6} stroke="var(--chart-1)" />
+        {!compact && points[peak]?.total > 0 && <PointMarker index={peak} valueKey="total" />}
+        {!compact && !dayGrid && <XAxis labels={ticks} numTicks={6} />}
+        <ChartTooltip
+          dateLabels={titles}
+          showDatePill={false}
+          dotColor="var(--chart-1)"
+          rows={(p) => [
+            { color: "var(--chart-1)", label: labels.total, value: n.format(Number(p.total)) },
+            { color: "var(--color-pos)", label: labels.positive, value: n.format(Number(p.positive)) },
+            { color: "var(--color-neu)", label: labels.neutral, value: n.format(Number(p.neutral)) },
+            { color: "var(--color-neg)", label: labels.negative, value: n.format(Number(p.negative)) },
+          ]}
+        />
+      </AreaChart>
+    </div>
+  );
+}
+
+/** Dashed zero line across the plot (drawn whenever 0 is inside the domain). */
+function ZeroGuide() {
+  const { yScale, innerWidth } = useChart();
+  const [lo, hi] = yScale.domain();
+  if (!(lo <= 0 && hi >= 0)) return null;
+  const y = yScale(0);
+  return <line x1={0} x2={innerWidth} y1={y} y2={y} stroke="var(--color-faint)" strokeDasharray="2 6" aria-hidden />;
+}
+
+/** Net sentiment over time (Intelligence), with an optional event marker. */
+export function NetEventChart({
+  points,
+  unit,
+  locale,
+  label,
+  event,
+  height = 250,
+}: {
+  points: { t: string; net: number; total: number }[];
+  unit: string;
+  locale: string;
+  label: string;
+  event?: { index: number; label: string } | null;
+  height?: number | string;
+}) {
+  const id = usePatternId("ne");
+  const data = useMemo(() => points.map((p) => ({ net: p.net, t: p.t, date: new Date(`${p.t}Z`) })), [points]);
+  const titles = useMemo(() => data.map((p) => fmtTitle(p.t, unit, locale)), [data, unit, locale]);
+  if (data.length < 2) return null;
+  return (
+    <div dir="ltr" role="img" aria-label={label}>
+      <AreaChart data={data} aspectRatio="auto" style={{ height }} margin={{ top: 30, right: 0, bottom: 8, left: 0 }} animationDuration={REVEAL_MS}>
+        <PatternPreset id={id} preset="circles-dense" color="var(--chart-1)" />
+        <ZeroGuide />
+        <PatternArea dataKey="net" fill={`url(#${id})`} fadeBottom={90} />
+        <Area dataKey="net" fillOpacity={0} strokeWidth={1.8} stroke="var(--chart-1)" />
+        {event && <PointMarker index={event.index} valueKey="net" label={event.label} top={-12} />}
+        <ChartTooltip
+          dateLabels={titles}
+          showDatePill={false}
+          dotColor="var(--chart-1)"
+          rows={(p) => [{ color: "var(--chart-1)", label, value: `${Number(p.net) > 0 ? "+" : Number(p.net) < 0 ? "−" : ""}${Math.abs(Number(p.net))}` }]}
+        />
+      </AreaChart>
+    </div>
+  );
+}
