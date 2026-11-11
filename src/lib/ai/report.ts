@@ -2,6 +2,7 @@ import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
 import { getDialectBreakdown, getIntentBreakdown, getKpis, getPlatformBreakdown, getShareOfVoice, getTopAuthors, getTopSlang, getTopTopics } from "../analytics";
+import { getReportSeries } from "../report-series";
 import { AI_MODEL, fallbackParams, getAI } from "./client";
 
 const ReportSchema = z.object({
@@ -10,23 +11,40 @@ const ReportSchema = z.object({
   sections: z
     .array(z.object({ title: z.string(), body: z.string() }))
     .describe("3-6 sections, e.g. Sentiment, Key themes, Voice of the customer (dialects, intents, sarcasm), Risks, Competitors, Influencers"),
-  recommendations: z.array(z.string()).describe("3-5 concrete, actionable recommendations"),
+  recommendations: z
+    .array(z.string())
+    .describe("3-5 concrete, actionable recommendations. Each starts with a short imperative title sentence, then one or two sentences of detail, e.g. 'Own the crash in public. Pin one post on X with the cause and the fix date.'"),
   notable: z.array(z.number()).describe("Item numbers of up to 5 posts worth showing management"),
 });
 
 export type ReportContent = z.infer<typeof ReportSchema> & { notablePosts?: NotablePost[] };
-type NotablePost = { platform: string; author: string | null; text: string; url: string | null; sentiment: string | null };
+export type NotablePost = {
+  platform: string;
+  author: string | null;
+  text: string;
+  url: string | null;
+  sentiment: string | null;
+  // Added with the v2 report layout; older reports don't have these.
+  id?: string;
+  name?: string | null;
+  followers?: number | null;
+  likes?: number;
+  comments?: number;
+  views?: number;
+  publishedAt?: string;
+};
 
 const SYSTEM = `You write social-listening reports for the management of a Saudi company. Readers are executives who want clear conclusions, not data dumps.
+If kpis.comparable is false, the previous period has too little data: do not quote percentage changes or "up/down vs before" for it; describe the current period on its own.
 Write with confidence and precision, grounded only in the statistics and posts provided. Quote numbers with comparisons. Call out risks plainly. No filler, no hedging, no markdown headings inside fields (plain sentences; bullet-like lines are fine in section bodies).`;
 
-/** Builds the stats + post sample for a period, then has the model write the report. */
-export async function generateReport(reportId: string) {
+/** The statistics and the post sample a report is written from. */
+export async function collectReportData(reportId: string) {
   const report = await db.report.findUniqueOrThrow({ where: { id: reportId }, include: { organization: true, monitor: true } });
   const days = Math.max(1, Math.round((report.periodEnd.getTime() - report.periodStart.getTime()) / 86400_000));
   const scope = { orgId: report.organizationId, days, monitorId: report.monitorId ?? undefined };
 
-  const [kpis, topics, authors, platforms, sov, dialects, intents, slang] = await Promise.all([
+  const [kpis, topics, authors, platforms, sov, dialects, intents, slang, series] = await Promise.all([
     getKpis(scope),
     getTopTopics(scope, 12),
     getTopAuthors(scope, 8),
@@ -35,8 +53,9 @@ export async function generateReport(reportId: string) {
     getDialectBreakdown(scope),
     getIntentBreakdown(scope),
     getTopSlang(scope, 10),
+    getReportSeries({ orgId: report.organizationId, monitorId: report.monitorId, start: report.periodStart, end: report.periodEnd, tz: report.organization.timezone }),
   ]);
-  const stats = { days, kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang };
+  const stats = { days, kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang, series };
 
   const baseWhere = {
     organizationId: report.organizationId,
@@ -45,8 +64,8 @@ export async function generateReport(reportId: string) {
     ...(report.monitorId && { monitorId: report.monitorId }),
   };
   const select = {
-    platform: true, text: true, url: true, authorHandle: true, authorFollowers: true, likes: true,
-    comments: true, shares: true, sentiment: true, isRisk: true, riskReason: true, monitor: { select: { name: true } },
+    id: true, platform: true, text: true, url: true, authorHandle: true, authorName: true, authorFollowers: true, likes: true,
+    comments: true, shares: true, views: true, publishedAt: true, sentiment: true, isRisk: true, riskReason: true, monitor: { select: { name: true } },
   } as const;
   const [engaged, negative, risks] = await Promise.all([
     db.mention.findMany({ where: baseWhere, orderBy: { likes: "desc" }, take: 40, select }),
@@ -60,6 +79,29 @@ export async function generateReport(reportId: string) {
     seen.add(k);
     return true;
   });
+  return { report, stats, sample };
+}
+
+type SamplePost = Awaited<ReturnType<typeof collectReportData>>["sample"][number];
+
+export const toNotablePost = (p: SamplePost): NotablePost => ({
+  id: p.id,
+  platform: p.platform,
+  author: p.authorHandle,
+  name: p.authorName,
+  followers: p.authorFollowers,
+  likes: p.likes,
+  comments: p.comments,
+  views: p.views,
+  publishedAt: p.publishedAt.toISOString(),
+  text: p.text.slice(0, 400),
+  url: p.url,
+  sentiment: p.sentiment,
+});
+
+/** Builds the stats + post sample for a period, then has the model write the report. */
+export async function generateReport(reportId: string) {
+  const { report, stats, sample } = await collectReportData(reportId);
 
   const ai = getAI();
   if (!ai) {
@@ -118,7 +160,7 @@ ${posts}
       .map((n) => sample[n - 1])
       .filter(Boolean)
       .slice(0, 5)
-      .map((p) => ({ platform: p.platform, author: p.authorHandle, text: p.text.slice(0, 400), url: p.url, sentiment: p.sentiment })),
+      .map(toNotablePost),
   };
   await db.report.update({
     where: { id: reportId },

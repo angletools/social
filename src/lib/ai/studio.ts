@@ -2,6 +2,7 @@ import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
 import { reflowBeats } from "../trends/score";
+import { recordVersion } from "../drafts";
 import { AI_MODEL, fallbackParams, getAI } from "./client";
 import { WRITING_GUIDE, lexiconPrompt } from "./dialect";
 
@@ -145,4 +146,5 @@ Post topic / brief: ${d.brief}`;
       history: d.content ? ([{ at: new Date().toISOString(), instruction: instruction ?? null, content: d.content }, ...history].slice(0, 10) as object) : (history as object),
     },
   });
+  await recordVersion(d.id, d.content ? "REWRITE" : "GENERATED", content, { instruction: instruction ?? null });
 }

@@ -65,12 +65,19 @@ async function kpiRow(s: Scope, previous: boolean) {
   };
 }
 
+/** Whether a previous window holds enough data for a % change to be meaningful. */
+export const isComparable = (current: number, previous: number) => previous >= Math.max(20, current * 0.25);
+
 export async function getKpis(s: Scope) {
   const [current, previous] = await Promise.all([kpiRow(s, false), kpiRow(s, true)]);
   const delta = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : Math.round(((a - b) / b) * 100));
   return {
     ...current,
+    // Changes only mean something when the previous window has real data
+    // (not right after a monitor was created or demo data was loaded).
+    comparable: isComparable(current.mentions, previous.mentions),
     previousMentions: previous.mentions,
+    previousRisks: previous.risks,
     deltas: {
       mentions: delta(current.mentions, previous.mentions),
       engagement: delta(current.engagement, previous.engagement),
@@ -85,14 +92,15 @@ export async function getKpis(s: Scope) {
  * Mentions per hour (1-day range) or per day, bucketed in the organization's
  * timezone so "today" means today in Riyadh, not in UTC. Empty buckets are
  * included. `t` is the local wall-clock start of the bucket (no offset).
+ * `opts.unit` forces hourly buckets over a longer range (Home's 7-day chart).
  */
-export async function getTimeseries(s: Scope) {
-  const unit = s.days <= 1 ? "hour" : "day";
+export async function getTimeseries(s: Scope, opts: { unit?: "hour" | "day" } = {}) {
+  const unit = opts.unit ?? (s.days <= 1 ? "hour" : "day");
   const tz = safeTz(s.tz);
   const { start, end } = window(s);
   const local = (col: Prisma.Sql) => Prisma.sql`date_trunc(${unit}, (${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})`;
   const rows = await db.$queryRaw<
-    { t: string; pos: bigint; neg: bigint; neu: bigint; total: bigint; eng: bigint | null; risks: bigint }[]
+    { t: string; pos: bigint; neg: bigint; neu: bigint; total: bigint; eng: bigint | null; reach: bigint | null; risks: bigint }[]
   >`
     WITH buckets AS (
       SELECT generate_series(
@@ -107,6 +115,7 @@ export async function getTimeseries(s: Scope) {
            count(m.id) FILTER (WHERE m.sentiment = 'NEUTRAL' OR (m.id IS NOT NULL AND m.sentiment IS NULL)) AS neu,
            count(m.id) AS total,
            sum(m.likes + m.comments + m.shares) AS eng,
+           sum(coalesce(m."authorFollowers", 0)) AS reach,
            count(m.id) FILTER (WHERE m."isRisk") AS risks
     FROM buckets
     LEFT JOIN "Mention" m ON ${local(Prisma.sql`m."publishedAt"`)} = buckets.b AND ${cond(s)}
@@ -124,6 +133,7 @@ export async function getTimeseries(s: Scope) {
         neutral: Number(r.neu),
         total,
         engagement: Number(r.eng ?? 0),
+        reach: Number(r.reach ?? 0),
         risks: Number(r.risks),
         net: total ? Math.round(((pos - neg) / total) * 100) : 0,
       };

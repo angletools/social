@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { aiEnabled } from "@/lib/ai/client";
 import { runAssistant, type AssistantEvent } from "@/lib/ai/assistant";
+import { citedIds, followupsOf, type CitedPost, type ToolStep } from "@/lib/assistant-format";
 
 export const maxDuration = 300;
 
@@ -10,6 +11,18 @@ const Body = z.object({ threadId: z.string().optional(), message: z.string().tri
 
 // Simple per-user rate limit: 30 questions / 10 minutes.
 const hits = new Map<string, number[]>();
+
+type StreamEvent = AssistantEvent | { type: "posts"; posts: CitedPost[] } | { type: "followups"; items: string[] } | { type: "done"; threadId: string };
+
+/** Loads cited mentions, scoped to the organization so an id from elsewhere can't leak a post. */
+async function loadPosts(orgId: string, ids: string[]): Promise<CitedPost[]> {
+  if (!ids.length) return [];
+  const rows = await db.mention.findMany({
+    where: { organizationId: orgId, id: { in: ids } },
+    select: { id: true, platform: true, text: true, url: true, authorHandle: true, authorName: true, authorFollowers: true, publishedAt: true, sentiment: true },
+  });
+  return rows.map((r) => ({ ...r, text: r.text.slice(0, 600), publishedAt: r.publishedAt.toISOString() }));
+}
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -38,22 +51,65 @@ export async function POST(req: Request) {
     take: 20,
   });
   const threadId = thread.id;
+  const orgId = user.organizationId;
 
   const enc = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (e: AssistantEvent | { type: "done"; threadId: string }) =>
-        controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
+      let closed = false;
+      const send = (e: StreamEvent) => {
+        if (closed) return;
+        try {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
+        } catch {
+          closed = true; // the reader went away (Stop, or the page closed); keep saving the answer
+        }
+      };
+      // Cited posts are resolved as soon as their marker has streamed, so the card fills in
+      // while the rest of the answer is still being written.
+      const steps: ToolStep[] = [];
+      const posts = new Map<string, CitedPost>();
+      const asked = new Set<string>();
+      const pending: Promise<void>[] = [];
+      let text = "";
+      const resolveCitations = () => {
+        const fresh = citedIds(text).filter((id) => !asked.has(id));
+        if (!fresh.length) return;
+        fresh.forEach((id) => asked.add(id));
+        pending.push(
+          loadPosts(orgId, fresh).then((found) => {
+            found.forEach((p) => posts.set(p.id, p));
+            if (found.length) send({ type: "posts", posts: found });
+          }),
+        );
+      };
       try {
         const reply = await runAssistant({
-          orgId: user.organizationId,
+          orgId,
           brandContext: user.organization.brandContext,
           history: history.reverse().map((m) => ({ role: m.role as "user" | "assistant", text: m.text })),
-          emit: send,
+          emit: (e) => {
+            if (e.type === "text") {
+              text += e.text;
+              if (e.text.includes("]")) resolveCitations();
+            } else if (e.type === "tool") steps.push({ name: e.name, days: e.days, n: e.n });
+            send(e);
+          },
         });
+        text = reply || text;
+        resolveCitations();
+        await Promise.all(pending);
+        const followups = followupsOf(text);
+        if (followups.length) send({ type: "followups", items: followups });
         if (reply) {
           await db.assistantMessage.create({
-            data: { threadId, role: "assistant", text: reply, content: [{ type: "text", text: reply }] },
+            data: {
+              threadId,
+              role: "assistant",
+              text: reply,
+              content: [{ type: "text", text: reply }],
+              meta: { steps, posts: citedIds(reply).map((id) => posts.get(id)).filter(Boolean), followups } as object,
+            },
           });
         }
         await db.assistantThread.update({ where: { id: threadId }, data: { updatedAt: new Date() } });
@@ -63,8 +119,12 @@ export async function POST(req: Request) {
         send({ type: "error", message: "failed" });
         send({ type: "done", threadId });
       } finally {
-        controller.close();
+        if (!closed) controller.close();
+        closed = true;
       }
+    },
+    cancel() {
+      // The person pressed Stop or left the page; the turn just ends.
     },
   });
 

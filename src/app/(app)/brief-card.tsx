@@ -4,15 +4,20 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createBrief } from "@/app/actions";
 
-/** The one-sentence read of the day, set large at the top of Home. Falls back to a sentence built from the numbers. */
+/**
+ * The one-sentence read of the day at the top of Home. Falls back to a
+ * sentence built from the numbers; `after` (who is waiting) follows either.
+ */
 export function BriefCard({
   brief,
   fallback,
+  after,
   labels,
   aiOn,
 }: {
   brief: { status: string; headline?: string; summary?: string; when: string } | null;
   fallback: React.ReactNode;
+  after?: React.ReactNode;
   labels: { title: string; generate: string; generating: string; failed: string };
   aiOn: boolean;
 }) {
@@ -27,31 +32,33 @@ export function BriefCard({
     return () => clearInterval(id);
   }, [brief?.status, router]);
 
+  const showMeta = (ready && brief.when) || (brief?.status === "FAILED" && aiOn) || aiOn;
   return (
-    <section aria-label={labels.title} className="max-w-[900px]">
+    <section aria-label={labels.title} className="max-w-[880px]">
       {generating ? (
-        <div className="space-y-3 py-1">
+        <div className="space-y-3 py-1" aria-busy>
           <div className="skeleton h-6 w-3/4" />
           <div className="skeleton h-6 w-1/2" />
         </div>
-      ) : ready ? (
-        <>
-          <p className="text-[21px] font-medium leading-[1.6] md:text-[24px]">{brief.headline}</p>
-          {brief.summary && <p className="mt-2 text-[15.5px] leading-relaxed text-muted">{brief.summary}</p>}
-        </>
       ) : (
-        <p className="text-[20px] leading-[1.65] text-muted md:text-[22px]">{fallback}</p>
+        <p className="text-[17px] leading-[1.7] text-muted md:text-[22px] md:leading-[1.6]">
+          {ready ? <span className="text-ink">{brief.headline}</span> : fallback}
+          {after && <> {after}</>}
+        </p>
       )}
-      <div className="mt-3 flex items-center gap-3 text-[13px] text-faint">
-        {ready && brief.when && <span>{brief.when}</span>}
-        {brief?.status === "FAILED" && aiOn && <span>{labels.failed}</span>}
-        {aiOn && !generating && (
-          <button type="button" className="text-brand-700 hover:text-ink" onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
-            {ready ? labels.generate : labels.title}
-          </button>
-        )}
-        {generating && <span className="animate-pulse">{labels.generating}</span>}
-      </div>
+      {ready && brief.summary && <p className="mt-2 max-w-[760px] text-[15px] leading-relaxed text-muted">{brief.summary}</p>}
+      {showMeta && (
+        <div className="mt-2.5 flex items-center gap-3 text-[13px] text-faint">
+          {ready && brief.when && <span>{brief.when}</span>}
+          {brief?.status === "FAILED" && aiOn && <span>{labels.failed}</span>}
+          {aiOn && !generating && (
+            <button type="button" className="text-muted transition-colors hover:text-ink" onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
+              {ready ? labels.generate : labels.title}
+            </button>
+          )}
+          {generating && <span className="animate-pulse">{labels.generating}</span>}
+        </div>
+      )}
     </section>
   );
 }

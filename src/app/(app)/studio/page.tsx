@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bookmark, Eye, Flame, Plus, TrendingDown, TrendingUp, Sparkle, Mountain } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Platform } from "@prisma/client";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -7,33 +7,19 @@ import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatNumber, timeAgo } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import { TREND_PLATFORMS } from "@/lib/monid/sources";
-import { HelpTip, PageHeader, Meter } from "@/components/ui";
+import { HelpTip, Meter } from "@/components/ui";
 import { PlatformIcon } from "@/components/platform";
-import { FormatActions, ScanButton, VoiceList, WatchForm, WatchRow, LearnVoiceForm, VoiceForm } from "./studio-client";
+import { Segmented } from "@/components/insight-ui";
+import { viewsCurve } from "@/lib/insight";
+import { ScanButton, VoiceList, WatchForm, WatchRow, LearnVoiceForm, VoiceForm } from "./studio-client";
+import { FormatStudio, type FormatItem } from "./formats";
 
 const TABS = ["formats", "posts", "drafts", "voice", "watches"] as const;
 type Tab = (typeof TABS)[number];
 
 const MOMENTUM_ORDER: Record<string, number> = { RISING: 0, NEW: 1, PEAKING: 2, FADING: 3 };
 
-function MomentumBadge({ m, label }: { m: string; label: string }) {
-  const Icon = m === "RISING" ? TrendingUp : m === "FADING" ? TrendingDown : m === "NEW" ? Sparkle : Mountain;
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium",
-        m === "RISING" && "bg-pos/10 text-pos",
-        m === "NEW" && "bg-info/[0.08] text-info",
-        m === "PEAKING" && "bg-sand-50 text-sand-700",
-        m === "FADING" && "bg-sunken text-muted",
-      )}
-    >
-      <Icon className="h-3 w-3" /> {label}
-    </span>
-  );
-}
-
-export default async function StudioPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function StudioPage({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string }> }) {
   const user = await requireUser();
   const { t, locale } = await getDict();
   const sp = await searchParams;
@@ -46,34 +32,45 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   const watches = await db.trendWatch.findMany({ where: { organizationId: orgId }, orderBy: { createdAt: "asc" } });
   const lastScan = watches.map((w) => w.lastScanAt).filter(Boolean).sort((a, b) => b!.getTime() - a!.getTime())[0];
 
-  return (
-    <>
-      <PageHeader
-        title={s.title}
-        actions={
-          <>
-            {lastScan && <span className="text-xs text-muted">{s.lastScan}: {timeAgo(lastScan, locale)}</span>}
-            {canEdit && watches.length > 0 && <ScanButton ids={watches.map((w) => w.id)} label={s.scanNow} done={s.scanQueued} />}
-            {canEdit && (
-              <Link href="/studio/new" className="btn-primary">
-                <Plus className="h-4 w-4" /> {s.draft.new}
-              </Link>
-            )}
-          </>
-        }
-      />
-      <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-line">
-        {TABS.map((k) => (
-          <Link
-            key={k} prefetch={false} href={`/studio?tab=${k}`}
-            className={cn("whitespace-nowrap border-b-2 px-4 py-2.5 text-sm", tab === k ? "border-ink font-medium text-ink" : "border-transparent text-muted hover:text-ink")}
-          >
-            {s.tabs[k]}
-          </Link>
-        ))}
-      </nav>
+  const S2 = t.studio2;
+  const niche = watches.length === 1 ? fmt(S2.trendingIn, { niche: watches[0].name }) : S2.trendingAll;
+  const header = (
+    <div key="studio-header" className="flex flex-col gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-[28px] font-semibold leading-tight">{s.title}</h1>
+        <Segmented
+          label={s.title}
+          items={(["formats", "posts", "drafts"] as const).map((k) => ({ key: k, label: S2.views[k], href: k === "formats" ? "/studio" : `/studio?tab=${k}`, on: tab === k }))}
+        />
+      </header>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-[15px] text-muted">{tab === "voice" ? s.tabs.voice : tab === "watches" ? s.tabs.watches : niche}</p>
+        <nav aria-label={s.title} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13.5px]">
+          {lastScan && <span className="text-faint">{`${s.lastScan}: ${timeAgo(lastScan, locale)}`}</span>}
+          {canEdit && watches.length > 0 && <ScanButton ids={watches.map((w) => w.id)} label={s.scanNow} done={s.scanQueued} quiet />}
+          {(["watches", "voice"] as const).map((k) => (
+            <Link key={k} prefetch={false} href={`/studio?tab=${k}`} aria-current={tab === k ? "page" : undefined} className={cn("transition-colors hover:text-ink", tab === k ? "font-semibold text-ink" : "text-muted")}>
+              {k === "watches" ? S2.niches : S2.voice}
+            </Link>
+          ))}
+          {canEdit && tab !== "formats" && (
+            <Link href="/studio/new" className="btn-primary btn-sm">
+              <Plus className="h-3.5 w-3.5" /> {s.draft.new}
+            </Link>
+          )}
+        </nav>
+      </div>
+    </div>
+  );
 
-      {tab === "formats" && <FormatsTab orgId={orgId} locale={locale} t={t} canEdit={canEdit} hasWatches={watches.length > 0} />}
+  if (tab === "formats") {
+    return <FormatsTab orgId={orgId} locale={locale} t={t} canEdit={canEdit} hasWatches={watches.length > 0} header={header} initialId={sp.f} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-7">
+      {header}
+      <div>
       {tab === "posts" && <PostsTab orgId={orgId} locale={locale} t={t} />}
       {tab === "drafts" && <DraftsTab orgId={orgId} locale={locale} t={t} />}
       {tab === "voice" && (
@@ -147,120 +144,115 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
           )}
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }
 
-async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: string; locale: string; t: Awaited<ReturnType<typeof getDict>>["t"]; canEdit: boolean; hasWatches: boolean }) {
+async function FormatsTab({
+  orgId,
+  locale,
+  t,
+  canEdit,
+  hasWatches,
+  header,
+  initialId,
+}: {
+  orgId: string;
+  locale: string;
+  t: Awaited<ReturnType<typeof getDict>>["t"];
+  canEdit: boolean;
+  hasWatches: boolean;
+  header: React.ReactNode;
+  initialId?: string;
+}) {
   const s = t.studio;
-  const formats = (
-    await db.trendFormat.findMany({
+  const ar = locale === "ar";
+  const [rows, voice] = await Promise.all([
+    db.trendFormat.findMany({
       where: { organizationId: orgId, dismissed: false },
-      include: { posts: { orderBy: { viralityScore: "desc" }, take: 3 } },
+      include: { posts: { orderBy: { publishedAt: "asc" } } },
       take: 60,
-    })
-  ).sort((a, b) => Number(b.saved) - Number(a.saved) || MOMENTUM_ORDER[a.momentum] - MOMENTUM_ORDER[b.momentum] || b.score - a.score);
+    }),
+    db.brandVoice.findFirst({ where: { organizationId: orgId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }], select: { id: true, dialect: true } }),
+  ]);
+  const formats = rows.sort((a, b) => Number(b.saved) - Number(a.saved) || MOMENTUM_ORDER[a.momentum] - MOMENTUM_ORDER[b.momentum] || b.score - a.score);
 
   if (formats.length === 0) {
     return (
-      <div className="card p-10 text-center">
-        <p className="text-sm text-muted">{s.noFormats}</p>
-        {!aiEnabled() && <p className="mx-auto mt-3 max-w-lg text-xs text-sand-700">{s.needsAi}</p>}
-        {!hasWatches && canEdit && (
-          <Link href="/studio?tab=watches" className="btn-primary mt-5">
-            <Plus className="h-4 w-4" /> {s.watch.new}
-          </Link>
-        )}
+      <div className="flex flex-col gap-7">
+        {header}
+        <div className="rounded-[20px] bg-surface p-10 text-center">
+          <p className="text-sm text-muted">{s.noFormats}</p>
+          {!aiEnabled() && <p className="mx-auto mt-3 max-w-lg text-xs text-sand-700">{s.needsAi}</p>}
+          {!hasWatches && canEdit && (
+            <Link href="/studio?tab=watches" className="btn-primary mt-5">
+              <Plus className="h-4 w-4" /> {s.watch.new}
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
 
+  const items: FormatItem[] = formats.map((f) => {
+    const structure = (f.structure as { label: string; description: string; labelAr?: string; descriptionAr?: string }[]) ?? [];
+    return {
+      id: f.id,
+      name: ar ? f.nameAr : f.nameEn,
+      momentum: f.momentum,
+      momentumLabel: s.momentum[f.momentum as keyof typeof s.momentum] ?? f.momentum,
+      surfaces: (f.platforms as Platform[]).map((p) => t.studio2.surfaces[p]).join(" · "),
+      views: fmt(t.studio2.viewsN, { n: formatNumber(f.totalViews, locale) }),
+      summary: ar ? f.summaryAr : f.summaryEn,
+      why: ar ? (f.whyItWorksAr ?? f.whyItWorks) : f.whyItWorks,
+      hook: ar ? (f.hookPatternAr ?? f.hookPattern) : f.hookPattern,
+      spark: viewsCurve(f.posts, 24),
+      saved: f.saved,
+      platforms: f.platforms as Platform[],
+      structure: structure.map((b) => ({ label: ar ? (b.labelAr ?? b.label) : b.label, description: ar ? (b.descriptionAr ?? b.description) : b.description })),
+      posts: [...f.posts]
+        .sort((a, b) => b.viralityScore - a.viralityScore)
+        .slice(0, 3)
+        .map((p) => ({
+          id: p.id,
+          platform: p.platform,
+          text: p.text,
+          url: p.url,
+          meta: `@${p.authorHandle ?? ""} · ${formatNumber(p.views, locale)} ${s.views} · ${p.outlierRatio}× · ${timeAgo(p.publishedAt, locale)}`,
+        })),
+    };
+  });
+
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      {formats.map((f) => {
-        const maxScore = Math.max(1, ...formats.map((x) => x.score));
-        const structure = f.structure as { label: string; description: string; labelAr?: string; descriptionAr?: string }[];
-        const ar = locale === "ar";
-        return (
-          <article key={f.id} className="card flex flex-col p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                  <MomentumBadge m={f.momentum} label={s.momentum[f.momentum as keyof typeof s.momentum]} />
-                  {f.saved && <Bookmark className="h-4 w-4 fill-brand-600 text-brand-600" />}
-                  <span className="flex gap-1">
-                    {f.platforms.map((p) => (
-                      <PlatformIcon key={p} platform={p as Platform} size="sm" />
-                    ))}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold leading-snug">{locale === "ar" ? f.nameAr : f.nameEn}</h3>
-              </div>
-              <div className="shrink-0 text-end">
-                <div className="flex items-center gap-1 text-lg font-semibold ltr-nums">
-                  <Flame className="h-4 w-4 text-sand-500" />
-                  {f.score.toFixed(0)}
-                </div>
-                <div className="text-xs text-muted ltr-nums">
-                  {f.postCount} {s.posts} · {formatNumber(f.totalViews, locale)} {s.views}
-                </div>
-              </div>
-            </div>
-            <div className="mt-3">
-              <Meter value={f.score} max={maxScore} color={f.momentum === "FADING" ? "var(--color-faint)" : "var(--color-chart)"} />
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-ink/80">{locale === "ar" ? f.summaryAr : f.summaryEn}</p>
-            <dl className="mt-4 space-y-2 text-sm">
-              <div className="rounded-xl bg-canvas px-3 py-2">
-                <dt className="text-xs font-medium text-muted">{s.hookPattern}</dt>
-                <dd dir="auto" className="mt-0.5">{ar ? f.hookPatternAr ?? f.hookPattern : f.hookPattern}</dd>
-              </div>
-              <div className="rounded-xl bg-canvas px-3 py-2">
-                <dt className="text-xs font-medium text-muted">{s.whyItWorks}</dt>
-                <dd dir="auto" className="mt-0.5">{ar ? f.whyItWorksAr ?? f.whyItWorks : f.whyItWorks}</dd>
-              </div>
-            </dl>
-            <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-xs font-medium text-brand-700">{s.structure} · {s.examples}</summary>
-              <ol className="mt-2 space-y-1.5">
-                {structure.map((b, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-700">{i + 1}</span>
-                    <span dir="auto">
-                      <b>{ar ? b.labelAr ?? b.label : b.label}</b>: {ar ? b.descriptionAr ?? b.description : b.description}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              <ul className="mt-3 space-y-2">
-                {f.posts.map((p) => (
-                  <li key={p.id} className="flex items-start gap-2 rounded-xl border border-line p-2.5">
-                    <PlatformIcon platform={p.platform} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p dir="auto" className="line-clamp-2 text-xs">{p.text}</p>
-                      <p className="mt-1 text-[11px] text-muted ltr-nums">
-                        @{p.authorHandle} · <Eye className="inline h-3 w-3" /> {formatNumber(p.views, locale)} · {p.outlierRatio}× · {timeAgo(p.publishedAt, locale)}
-                      </p>
-                    </div>
-                    {p.url && (
-                      <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-700 hover:underline">↗</a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </details>
-            <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
-              {canEdit && (
-                <Link prefetch={false} href={`/studio/new?format=${f.id}`} className="btn-primary">
-                  {s.useFormat}
-                </Link>
-              )}
-              {canEdit && <FormatActions id={f.id} saved={f.saved} labels={{ save: s.save, saved: s.saved, hide: s.hide }} />}
-            </div>
-          </article>
-        );
-      })}
-    </div>
+    <FormatStudio
+      formats={items}
+      initialId={initialId}
+      header={header}
+      voice={voice}
+      canEdit={canEdit}
+      aiOn={aiEnabled()}
+      dialects={t.dialects}
+      labels={{
+        makePost: t.studio2.makePost,
+        about: t.studio2.about,
+        aboutPh: t.studio2.aboutPh,
+        dialect: t.studio2.dialect,
+        length: t.studio2.length,
+        write: t.studio2.write,
+        writing: t.studio2.writing,
+        moreOptions: t.studio2.moreOptions,
+        aiOff: s.draft.aiOff,
+        readOnly: t.studio2.readOnly,
+        structure: s.structure,
+        examples: s.examples,
+        pickFormat: t.studio2.pickFormat,
+        save: s.save,
+        saved: s.saved,
+        hide: s.hide,
+        failed: t.common.failed,
+      }}
+    />
   );
 }
 

@@ -111,7 +111,7 @@ export async function toggleMonitor(id: string) {
   const m = await ownMonitor(id, user.organizationId);
   await db.monitor.update({
     where: { id },
-    data: { status: m.status === "ACTIVE" ? "PAUSED" : "ACTIVE", nextSyncAt: new Date() },
+    data: { status: m.status === "ACTIVE" ? "PAUSED" : "ACTIVE", nextSyncAt: new Date(), pausedAt: m.status === "ACTIVE" ? new Date() : null },
   });
   await audit(user, m.status === "ACTIVE" ? "monitor.pause" : "monitor.resume", id);
   revalidatePath("/monitors");
@@ -145,44 +145,56 @@ export async function setMentionStatus(ids: string[], status: MentionStatus) {
 // ---------- alerts ----------
 
 const AlertInput = z.object({
-  name: z.string().trim().min(1).max(80),
-  kind: z.enum(["NEGATIVE_SPIKE", "VOLUME_SPIKE", "KEYWORD", "HIGH_REACH", "RISK"]),
+  name: z.string().trim().max(80).optional(),
+  defaultName: z.string().trim().max(80).optional(),
+  kind: z.enum(["NEGATIVE_SPIKE", "VOLUME_SPIKE", "KEYWORD", "HIGH_REACH", "RISK", "CHURN_RISK"]),
   monitorId: z.string().optional(),
-  threshold: z.coerce.number().min(0).default(0),
+  threshold: z.coerce.number().min(0).max(1_000_000_000).default(0),
   windowMinutes: z.coerce.number().int().min(15).max(10080).default(60),
-  keyword: z.string().trim().max(100).optional(),
-  emails: z.string().optional(),
+  keyword: z.string().trim().max(200).optional(),
+  emails: z.string().max(2000).optional(),
   webhookUrl: z.string().trim().max(500).optional(),
 });
+
+/** Splits a comma/space separated list of emails. Returns null when any entry isn't an email. */
+function parseEmails(raw: string | undefined) {
+  const list = (raw ?? "")
+    .split(/[,،;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.some((e) => !z.email().safeParse(e).success)) return null;
+  return [...new Set(list)].slice(0, 20);
+}
 
 export async function createAlert(_: unknown, form: FormData): Promise<ActionResult> {
   const user = await requireRole("ADMIN");
   const parsed = AlertInput.safeParse(Object.fromEntries([...form.entries()].filter(([, v]) => v !== "")));
   if (!parsed.success) return { ok: false, error: "invalid" };
   const d = parsed.data;
+  const name = d.name || d.defaultName;
+  if (!name) return { ok: false, error: "name" };
   if (d.monitorId) await ownMonitor(d.monitorId, user.organizationId);
-  if (d.kind === "KEYWORD" && !d.keyword) return { ok: false, error: "keyword" };
+  if (d.kind === "KEYWORD" && !d.keyword?.split(/[,،]/).some((w) => w.trim())) return { ok: false, error: "keyword" };
+  if (d.kind === "NEGATIVE_SPIKE" && d.threshold > 100) return { ok: false, error: "threshold" };
   const { isAllowedWebhook } = await import("@/lib/webhooks");
   if (d.webhookUrl && !isAllowedWebhook(d.webhookUrl)) return { ok: false, error: "webhook" };
-  const emails = (d.emails ?? "")
-    .split(/[,\s]+/)
-    .map((e) => e.trim())
-    .filter((e) => z.email().safeParse(e).success);
+  const emails = parseEmails(d.emails);
+  if (!emails) return { ok: false, error: "emails" };
   await db.alertRule.create({
     data: {
       organizationId: user.organizationId,
-      name: d.name,
+      name,
       kind: d.kind as AlertKind,
       monitorId: d.monitorId || null,
       threshold: d.threshold,
       windowMinutes: d.windowMinutes,
-      keyword: d.keyword,
+      keyword: d.kind === "KEYWORD" ? d.keyword : null,
       emails,
       notifyEmail: emails.length > 0,
       webhookUrl: d.webhookUrl || null,
     },
   });
-  await audit(user, "alert.create", undefined, { name: d.name });
+  await audit(user, "alert.create", undefined, { name });
   revalidatePath("/alerts");
   return { ok: true };
 }
@@ -217,7 +229,11 @@ export async function createReport(_: unknown, form: FormData): Promise<ActionRe
   const monitor = monitorId ? await ownMonitor(monitorId, user.organizationId) : null;
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
-  const title = `${monitor?.name ?? (locale === "ar" ? "كل المراقبات" : "All monitors")} · ${start.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`;
+  const range =
+    locale === "ar"
+      ? ({ 1: "آخر 24 ساعة", 7: "آخر 7 أيام", 30: "آخر 30 يومًا", 90: "آخر 90 يومًا" } as Record<number, string>)[days] ?? `آخر ${days} يوم`
+      : ({ 1: "last 24 hours" } as Record<number, string>)[days] ?? `last ${days} days`;
+  const title = `${monitor?.name ?? (locale === "ar" ? "كل المراقبات" : "All monitors")} · ${range}`;
   const r = await db.report.create({
     data: { organizationId: user.organizationId, monitorId, title, locale, periodStart: start, periodEnd: end, createdById: user.id },
   });
@@ -267,6 +283,21 @@ export async function refreshIntelligenceBrief(days: number): Promise<ActionResu
   return { ok: true, message: "done" };
 }
 
+/** Re-queues a report that failed to generate. */
+export async function retryReport(id: string): Promise<ActionResult> {
+  const user = await requireRole("ANALYST");
+  const r = await db.report.updateMany({
+    where: { id, organizationId: user.organizationId, status: "FAILED" },
+    data: { status: "GENERATING", error: null },
+  });
+  if (r.count === 0) return { ok: false, error: "not_found" };
+  await enqueue(QUEUES.report, { reportId: id });
+  await audit(user, "report.retry", id);
+  revalidatePath("/reports");
+  revalidatePath(`/reports/${id}`);
+  return { ok: true };
+}
+
 export async function deleteReport(id: string) {
   const user = await requireRole("ANALYST");
   await db.report.deleteMany({ where: { id, organizationId: user.organizationId } });
@@ -278,13 +309,22 @@ export async function deleteReport(id: string) {
 
 export async function updateOrganization(_: unknown, form: FormData): Promise<ActionResult> {
   const user = await requireRole("ADMIN");
-  const name = String(form.get("name") ?? "").trim().slice(0, 100);
-  const brandContext = String(form.get("brandContext") ?? "").trim().slice(0, 1500);
-  const complianceRules = String(form.get("complianceRules") ?? "").trim().slice(0, 3000);
-  if (!name) return { ok: false, error: "invalid" };
+  // Settings sections each post only their own fields; leave the others untouched.
+  const field = (k: string, max: number) => (form.has(k) ? String(form.get(k) ?? "").trim().slice(0, max) : undefined);
+  const name = field("name", 100);
+  const brandContext = field("brandContext", 1500);
+  const complianceRules = field("complianceRules", 3000);
+  const timezone = field("timezone", 64);
+  if (name === "") return { ok: false, error: "invalid" };
+  if (timezone !== undefined && !Intl.supportedValuesOf("timeZone").includes(timezone) && timezone !== "UTC") return { ok: false, error: "invalid" };
   await db.organization.update({
     where: { id: user.organizationId },
-    data: { name, brandContext: brandContext || null, complianceRules: complianceRules || null },
+    data: {
+      name,
+      timezone: timezone || undefined,
+      brandContext: brandContext === undefined ? undefined : brandContext || null,
+      complianceRules: complianceRules === undefined ? undefined : complianceRules || null,
+    },
   });
   await audit(user, "org.update");
   revalidatePath("/settings");
@@ -612,6 +652,8 @@ export async function saveDraftContent(id: string, content: unknown) {
   const c = content as { beats?: unknown[] };
   if (Array.isArray(c.beats)) c.beats = reflowBeats(c.beats as Parameters<typeof reflowBeats>[0]);
   await db.contentDraft.update({ where: { id }, data: { content: c as object } });
+  const { recordVersion } = await import("@/lib/drafts");
+  await recordVersion(id, "EDIT", c, { userId: user.id });
   revalidatePath(`/studio/drafts/${id}`);
   return { ok: true as const };
 }
@@ -692,6 +734,14 @@ export async function assignMention(mentionId: string, assigneeId: string | null
   return { ok: true as const, name: assignee?.name ?? null };
 }
 
+// ---------- assistant ----------
+
+export async function deleteAssistantThread(id: string) {
+  const user = await requireRole("VIEWER");
+  await db.assistantThread.deleteMany({ where: { id, userId: user.id } });
+  revalidatePath("/assistant");
+}
+
 // ---------- weekly report ----------
 
 export async function saveWeeklyReport(_: unknown, form: FormData): Promise<ActionResult> {
@@ -710,6 +760,7 @@ export async function saveWeeklyReport(_: unknown, form: FormData): Promise<Acti
   });
   await audit(user, "org.weekly_report", undefined, { enabled, recipients: recipients.length });
   revalidatePath("/settings");
+  revalidatePath("/reports");
   return { ok: true };
 }
 
