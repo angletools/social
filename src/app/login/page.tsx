@@ -1,87 +1,86 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getDict } from "@/lib/i18n";
-import { LangToggle } from "@/components/shell/lang-toggle";
-import { Avatar } from "@/components/avatar";
-import { PlatformIcon } from "@/components/platform";
-import { Sparkline } from "@/components/sparkline";
-import { LoginForm } from "./login-form";
+import { LoginForm, LoginLanguage } from "./login-form";
 
 export const metadata = { title: "Sign in" };
 
+const COLS = 60;
+const ROWS = 18;
+
+/** Decorative dot-matrix of a month of conversation: two readings a day, with a late spike. */
+function matrix() {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const dots: { x: number; y: number; on: boolean; a: number }[] = [];
+  for (let c = 0; c < COLS; c++) {
+    const t = c / (COLS - 1);
+    const base = 0.28 + 0.1 * Math.sin(t * 9) + 0.06 * Math.sin(t * 23);
+    const spike = 0.62 * Math.exp(-(((t - 0.86) / 0.035) ** 2)) + 0.22 * Math.exp(-(((t - 0.93) / 0.03) ** 2));
+    const lit = Math.max(1, Math.round(Math.min(1, base + spike + (rnd() - 0.5) * 0.08) * ROWS));
+    for (let r = 0; r < ROWS; r++) {
+      dots.push({ x: 5 + c * 10, y: 5 + r * 10, on: ROWS - r <= lit, a: 0.22 + 0.78 * (1 - r / (ROWS - 1)) });
+    }
+  }
+  return dots;
+}
+const DOTS = matrix();
+
 export default async function LoginPage() {
-  const { t, locale } = await getDict();
+  const { t, locale, dir } = await getDict();
   if (await getCurrentUser()) redirect("/");
   const ar = locale === "ar";
+  const day = 86400_000;
+  const tick = new Intl.DateTimeFormat(ar ? "ar-SA-u-nu-latn-ca-gregory" : "en-GB", { day: "numeric", month: ar ? "long" : "short" });
+  const ticks = [28, 21, 14, 7, 0].map((n) => tick.format(new Date(Date.now() - n * day)));
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
-      <div className="flex flex-col bg-surface p-6 sm:p-10">
-        <div className="flex items-center justify-between">
-          <span dir="ltr" className="text-[24px] font-semibold leading-none tracking-[-0.03em]" aria-label={t.app.name}>
-            angle<span className="text-[19px] font-normal tracking-normal text-faint"> /social</span>
+    <div dir={dir} className="grid min-h-dvh bg-black p-3 sm:p-4 lg:grid-cols-[640px_minmax(0,1fr)]">
+      <section className="flex min-h-[calc(100dvh-24px)] flex-col rounded-[22px] bg-canvas px-5 py-6 sm:min-h-[calc(100dvh-32px)] sm:rounded-[26px] sm:px-10 sm:py-8">
+        <header className="flex h-10 items-center justify-between gap-4">
+          <span dir="ltr" aria-label={t.app.name} className="text-[25px] leading-none font-semibold tracking-[-0.03em]">
+            angle<span className="text-[20px] font-normal tracking-normal text-faint"> /social</span>
           </span>
-          <LangToggle locale={locale} label={t.nav.language} />
+          <LoginLanguage locale={locale} />
+        </header>
+
+        <div className="flex flex-1 items-center justify-center py-12">
+          <div className="w-full max-w-[380px]">
+            <h1 className="text-[28px] leading-[1.3] font-semibold sm:text-[30px]">{t.login.title}</h1>
+            <p className="mt-2 text-[15px] leading-[1.75] text-muted">{t.login.subtitle}</p>
+            <LoginForm labels={{ ...t.login, ...t.loginPage }} />
+          </div>
         </div>
-        <div className="mx-auto flex w-full max-w-[22rem] flex-1 flex-col justify-center py-14">
-          <h1 className="text-[26px] font-semibold tracking-tight">{t.login.title}</h1>
-          <p className="mt-2 text-[14px] text-muted">{t.login.subtitle}</p>
-          <LoginForm labels={t.login} />
-        </div>
-        <p className="text-xs text-faint">© {new Date().getFullYear()} {t.app.name}</p>
-      </div>
 
-      <div className="relative hidden overflow-hidden border-s border-line bg-canvas lg:flex lg:flex-col lg:justify-center lg:px-16">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.5]"
-          style={{ backgroundImage: "radial-gradient(var(--color-line-strong) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
-        />
-        <div className="relative mx-auto w-full max-w-lg">
-          <p className="mb-10 max-w-md text-[22px] font-semibold leading-snug tracking-tight">{t.login.pitch}</p>
+        <footer className="text-[12.5px] text-faint">
+          <span dir="ltr">© {new Date().getFullYear()} {t.app.name}</span>
+        </footer>
+      </section>
 
-          <div className="space-y-3">
-            <div className="card flex items-center justify-between p-5 shadow-[var(--shadow-pop)]">
-              <div>
-                <div className="text-xs text-muted">{t.sentiment.net}</div>
-                <div className="mt-1 text-[28px] font-semibold leading-none ltr-nums">+18</div>
-                <div className="mt-2 text-xs text-pos ltr-nums">↗ +6 {t.overview.vsPrev}</div>
-              </div>
-              <div className="w-40">
-                <Sparkline values={[3, 5, 4, 8, 7, 11, 10, 14, 13, 18]} height={44} width={150} />
-              </div>
+      <section aria-hidden className="hidden items-center justify-center px-16 py-12 lg:flex">
+        <div className="flex w-full max-w-[600px] flex-col gap-14">
+          <p className={ar ? "max-w-[520px] text-[30px] leading-[1.75] font-medium text-[#f2f2f2]" : "max-w-[520px] text-[30px] leading-[1.45] font-medium tracking-[-0.01em] text-[#f2f2f2]"}>{t.login.pitch}</p>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-baseline justify-between gap-4 text-[13.5px] text-[#8a8a8a]">
+              <span>{t.loginPage.chartLabel}</span>
+              <span className="flex items-baseline gap-2.5">
+                <span dir="ltr" className="text-[20px] font-semibold text-[#f2f2f2] tnum">945</span>
+                <span dir="ltr" className="text-[13.5px] font-semibold text-[#ef7a6a]">↗ 13%</span>
+              </span>
             </div>
-
-            <div className="card p-4 shadow-[var(--shadow-pop)] ms-10">
-              <div className="flex items-center gap-2.5">
-                <Avatar name="Saud" seed="saud" size={30} />
-                <div className="text-xs">
-                  <div className="font-semibold">{ar ? "سعود | استثمار" : "Saud · Investing"}</div>
-                  <div className="flex items-center gap-1 text-faint">
-                    <PlatformIcon platform="X" size="xs" /> {ar ? "قبل 5 دقائق" : "5 min ago"}
-                  </div>
-                </div>
-              </div>
-              <p dir="rtl" className="mt-2.5 text-[14px] leading-relaxed">ما شاء الله عليكم 🙂 ثالث مرة هالأسبوع التطبيق يطلعني وقت التداول، مبدعين</p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-                <span className="flex items-center gap-1.5 font-medium text-neg">
-                  <span className="h-2 w-2 rounded-full bg-neg" />
-                  {t.sentiment.NEGATIVE}
-                </span>
-                <span className="inline-flex h-5 items-center rounded-md bg-plum/[0.08] px-1.5 text-[11.5px] font-medium text-plum">{t.engage.sarcasm}</span>
-                <span className="text-muted">{t.dialects.SAUDI}</span>
-              </div>
-            </div>
-
-            <div className="card p-4 shadow-[var(--shadow-pop)] me-10">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-sand-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-sand-700">AI</span>
-                <span className="text-xs font-medium">{t.inbox.draft}</span>
-              </div>
-              <p dir="rtl" className="mt-2 text-[14px] leading-relaxed text-ink/90">نعتذر لك عن الإزعاج 🙏 فريقنا يتابع المشكلة الحين، تواصل معنا على الخاص ونخدمك أول بأول.</p>
+            <svg viewBox="0 0 600 180" className="block h-auto w-full" style={{ direction: "ltr" }}>
+              {DOTS.map((d, i) => (
+                <circle key={i} cx={d.x} cy={d.y} r={2.6} fill={d.on ? `rgba(232,119,94,${d.a.toFixed(2)})` : "#161616"} />
+              ))}
+            </svg>
+            <div dir="ltr" className="flex justify-between text-[12px] text-[#5f5f5f] tnum">
+              {ticks.map((x) => (
+                <span key={x} dir="auto">{x}</span>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
