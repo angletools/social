@@ -1,83 +1,158 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Download, Search } from "lucide-react";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
-import { formatNumber } from "@/lib/utils";
 import { mentionWhere } from "@/lib/analytics";
-import { filtersFromParams } from "@/lib/filters";
-import { PageHeader } from "@/components/ui";
+import { filtersFromParams, normalizeViewParams, parseSort, QUICK_VIEWS, quickView, sortOrder, viewWhere } from "@/lib/filters";
 import { MentionCard } from "@/components/mention-card";
-import { FilterBar } from "./filter-bar";
+import { MentionsBrowser } from "./filter-bar";
 
 const PAGE_SIZE = 20;
 
 export default async function MentionsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await requireUser();
   const { t, locale } = await getDict();
+  const T = t.mentionsV2;
   const sp = await searchParams;
-  const filters = filtersFromParams(user.organizationId, sp, user.id);
-  const page = Math.max(1, Number(sp.page) || 1);
-  const where = mentionWhere(filters);
+  const legacy = normalizeViewParams(sp);
+  if (legacy) redirect(`/mentions${legacy.size ? `?${legacy}` : ""}`);
 
-  const [total, rows, monitors, topicRows] = await Promise.all([
-    db.mention.count({ where }),
-    db.mention.findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: { monitor: { select: { name: true } }, assignedTo: { select: { name: true, email: true } } },
-    }),
-    db.monitor.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true } }),
+  const view = quickView(sp);
+  const sort = parseSort(sp.sort);
+  const base = mentionWhere(filtersFromParams(user.organizationId, sp, user.id));
+  const where = { AND: [base, viewWhere(view, user.id)] };
+  const requested = Math.max(1, Math.floor(Number(sp.page)) || 1);
+
+  const [counts, monitors, topicRows, members] = await Promise.all([
+    Promise.all(QUICK_VIEWS.map((v) => db.mention.count({ where: { AND: [base, viewWhere(v, user.id)] } }))),
+    db.monitor.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true }, orderBy: { createdAt: "asc" } }),
     db.topic.findMany({ where: { organizationId: user.organizationId } }),
+    db.user.findMany({ where: { organizationId: user.organizationId, active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
-  const topicLabels = new Map(topicRows.map((r) => [r.key, { en: r.labelEn, ar: r.labelAr }]));
+  const total = counts[QUICK_VIEWS.indexOf(view)];
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const pageHref = (p: number) => `/mentions?${new URLSearchParams({ ...sp, page: String(p) })}`;
-  const topic = filters.topic ? topicLabels.get(filters.topic) : undefined;
+  const page = Math.min(requested, pages);
+  const rows = await db.mention.findMany({
+    where,
+    orderBy: sortOrder(sort),
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: { monitor: { select: { name: true } }, assignedTo: { select: { id: true, name: true, email: true } } },
+  });
+
+  const topicLabels = new Map(topicRows.map((r) => [r.key, { en: r.labelEn, ar: r.labelAr }]));
+  const topic = sp.topic ? topicLabels.get(sp.topic) : undefined;
+  const nf = new Intl.NumberFormat(locale === "ar" ? "ar-SA-u-nu-latn" : "en-US");
+  const plural = new Intl.PluralRules(locale === "ar" ? "ar" : "en").select(total) as keyof typeof T.noun;
+  const pageHref = (p: number) => {
+    const next = new URLSearchParams(sp);
+    if (p > 1) next.set("page", String(p));
+    else next.delete("page");
+    return `/mentions${next.size ? `?${next}` : ""}`;
+  };
+  const exportQs = new URLSearchParams(sp);
+  exportQs.delete("page");
+  const canAct = hasRole(user, "ANALYST");
+  // "Nothing is assigned to you" only when the view itself is empty, not when a filter emptied it.
+  const narrowed = ["q", "platform", "sentiment", "monitor", "dialect", "intent", "status", "sarcasm", "topic"].some((k) => sp[k]);
+  const empty = view === "mine" && !narrowed ? T.emptyMine : T.empty;
 
   return (
-    <>
-      <PageHeader title={t.mentions.title} subtitle={formatNumber(total, locale)} />
-      <FilterBar
+    <div className="mx-auto max-w-[1180px]">
+      <header className="flex items-center justify-between gap-5">
+        <h1 className="text-[24px] font-semibold leading-tight md:text-[28px]">{t.mentions.title}</h1>
+        <a href={`/api/export${exportQs.size ? `?${exportQs}` : ""}`} download className="btn-secondary h-10 px-4 text-[14px]">
+          <Download className="h-4 w-4" strokeWidth={1.7} /> {t.common.export}
+        </a>
+      </header>
+
+      <MentionsBrowser
+        tabs={QUICK_VIEWS.map((k, i) => ({ key: k, label: T.quick[k], count: nf.format(counts[i]) }))}
+        activeTab={view}
+        total={nf.format(total)}
+        noun={T.noun[plural] ?? T.noun.other}
         monitors={monitors.map((m) => ({ value: m.id, label: m.name }))}
-        platforms={Object.entries(t.platforms).map(([value, label]) => ({ value, label }))}
-        statuses={Object.entries(t.mentions.status).map(([value, label]) => ({ value, label }))}
-        ranges={Object.entries(t.common.range).map(([value, label]) => ({ value, label }))}
+        platforms={Object.entries(t.platforms).map(([value, label]) => ({ value, label: label.replace(/\s*\(.*\)$/, "") }))}
+        sentiments={(["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((value) => ({ value, label: t.sentiment[value] }))}
+        periods={Object.entries(T.periods).map(([value, label]) => ({ value, label }))}
         dialects={Object.entries(t.dialects).map(([value, label]) => ({ value, label }))}
         intents={Object.entries(t.intents).map(([value, label]) => ({ value, label }))}
-        quick={t.quick}
-        topicLabel={filters.topic ? (topic ? (locale === "ar" ? topic.ar : topic.en) : filters.topic) : undefined}
+        statuses={Object.entries(t.mentions.status).map(([value, label]) => ({ value, label }))}
+        sorts={Object.entries(T.sorts).map(([value, label]) => ({ value, label }))}
+        topicLabel={sp.topic ? (topic ? (locale === "ar" ? topic.ar : topic.en) : sp.topic) : undefined}
         labels={{
+          quickLabel: T.quickLabel,
           search: t.mentions.searchPlaceholder,
-          allMonitors: t.mentions.allMonitors,
+          searchLabel: T.search,
+          platform: T.platform,
           allPlatforms: t.mentions.allPlatforms,
-          allSentiment: t.mentions.allSentiment,
-          onlyRisks: t.mentions.onlyRisks,
-          export: t.common.export,
-          all: t.common.all,
-          allDialects: t.engage.allDialects,
-          allIntents: t.engage.allIntents,
-          onlySarcasm: t.engage.onlySarcasm,
+          sentiment: T.sentiment,
+          anySentiment: t.mentions.allSentiment,
+          period: T.period,
+          more: T.more,
+          monitor: T.monitor,
+          dialect: T.dialect,
+          intent: T.intent,
+          status: T.status,
+          topic: T.topic,
+          any: T.any,
+          all: T.all,
+          only: T.only,
+          sarcastic: T.sarcastic,
+          sarcasticOnly: T.sarcasticOnly,
+          clear: T.clear,
+          clearAll: T.clearAll,
+          removeFilter: T.removeFilter,
+          sort: T.sort,
         }}
-      />
-      <div className="space-y-3">
-        {rows.map((m) => (
-          <MentionCard key={m.id} m={m} t={t} locale={locale} topicLabels={topicLabels} canAct={hasRole(user, "ANALYST")} />
-        ))}
-        {rows.length === 0 && <div className="card px-6 py-16 text-center text-[13.5px] text-muted">{t.mentions.empty}</div>}
-      </div>
-      {pages > 1 && (
-        <nav className="mt-6 flex items-center justify-between text-sm">
-          <Link aria-disabled={page <= 1} href={pageHref(page - 1)} className={`btn-secondary ${page <= 1 ? "pointer-events-none opacity-40" : ""}`}>
-            {t.mentions.prev}
-          </Link>
-          <span className="text-[13px] text-muted">{fmt(t.mentions.pageOf, { page, pages })}</span>
-          <Link aria-disabled={page >= pages} href={pageHref(page + 1)} className={`btn-secondary ${page >= pages ? "pointer-events-none opacity-40" : ""}`}>
-            {t.mentions.nextPage}
-          </Link>
-        </nav>
-      )}
-    </>
+      >
+        {rows.length > 0 ? (
+          <>
+            <ul className="mt-3.5 flex flex-col gap-2.5">
+              {rows.map((m) => (
+                <li key={m.id}>
+                  <MentionCard m={m} t={t} locale={locale} topicLabels={topicLabels} canAct={canAct} members={members} />
+                </li>
+              ))}
+            </ul>
+            {pages > 1 && (
+              <nav aria-label={T.pages} className="mt-5 flex items-center justify-between gap-4">
+                <span className="text-[13.5px] text-faint tnum">{fmt(t.mentions.pageOf, { page: nf.format(page), pages: nf.format(pages) })}</span>
+                <div className="flex gap-2">
+                  <PageLink href={pageHref(page - 1)} disabled={page <= 1} label={t.mentions.prev} />
+                  <PageLink href={pageHref(page + 1)} disabled={page >= pages} label={t.mentions.nextPage} />
+                </div>
+              </nav>
+            )}
+          </>
+        ) : (
+          <div className="mt-3.5 flex flex-col items-center rounded-[20px] bg-surface px-6 py-[72px] text-center">
+            <span aria-hidden className="flex h-11 w-11 items-center justify-center rounded-xl bg-sunken">
+              <Search className="h-5 w-5 text-muted" strokeWidth={1.6} />
+            </span>
+            <h2 className="mt-[18px] text-[17px] font-semibold">{empty.title}</h2>
+            <p className="mt-1.5 max-w-[380px] text-[14.5px] leading-relaxed text-muted">{empty.body}</p>
+            <Link href="/mentions" prefetch={false} className="btn-secondary mt-5 h-10 px-4 text-[14px]">
+              {empty.cta}
+            </Link>
+          </div>
+        )}
+      </MentionsBrowser>
+    </div>
+  );
+}
+
+function PageLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
+  const cls = "inline-flex h-9 items-center rounded-[10px] border border-line px-3.5 text-[14px] transition-colors";
+  return disabled ? (
+    <span aria-disabled className={`${cls} text-faint`}>
+      {label}
+    </span>
+  ) : (
+    <Link href={href} prefetch={false} className={`${cls} font-medium text-ink hover:bg-sunken`}>
+      {label}
+    </Link>
   );
 }

@@ -92,6 +92,7 @@
   --color-warn: #c98a1a;
   --color-info: #3d6aa8;
   --color-plum: #8a4f86;
+  --color-orange: #c4683a; /* complaints (mentions, monitors) */
 
   --radius-card: 18px;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -138,6 +139,7 @@
   --color-warn: #e8b45a;
   --color-info: #86a9dc;
   --color-plum: #c38bbf;
+  --color-orange: #e39565;
   --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px -10px rgb(0 0 0 / 0.65);
   --avatar-ink: 45%;
 }
@@ -176,6 +178,7 @@
     --color-warn: #e8b45a;
     --color-info: #86a9dc;
     --color-plum: #c38bbf;
+    --color-orange: #e39565;
     --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px -10px rgb(0 0 0 / 0.65);
     --avatar-ink: 45%;
   }
