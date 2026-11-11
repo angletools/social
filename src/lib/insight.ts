@@ -167,7 +167,11 @@ export const signedInt = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Ma
 /** "↗ 13%" style delta glyph. */
 export const arrowPct = (n: number) => `${n > 0 ? "↗" : n < 0 ? "↘" : "→"} ${Math.abs(Math.round(n))}%`;
 
-/** Cumulative views of a format's posts over time, sampled at `n` even steps (linear between posts). */
+/**
+ * Cumulative views of a format's posts over time, sampled at `n` even steps
+ * (linear between posts). The slope carries the momentum: rising formats
+ * steepen at the end, fading ones flatten out.
+ */
 export function viewsCurve(posts: { views: number; publishedAt: Date }[], n = 20) {
   if (posts.length === 0) return [];
   const xs: number[] = [];
