@@ -1,7 +1,9 @@
 "use client";
 
+import { useClientDict } from "@/components/client-dict";
+import { confirmDialog, toast } from "@/components/feedback";
 import { useState, useTransition } from "react";
-import { CheckCircle2, CircleAlert, Clapperboard, Download, FileText, ListChecks, Loader2, Music, Sparkles, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, Clapperboard, Download, FileText, ListChecks, Loader2, Music, PenLine, Trash2, XCircle } from "lucide-react";
 import type { Dict } from "@/lib/i18n/en";
 import type { DraftContent } from "@/lib/ai/studio";
 import { reflowBeats, toSrt } from "@/lib/trends/score";
@@ -72,10 +74,10 @@ export function DraftEditor({
 }) {
   const [c, setC] = useState<DraftContent>(initial);
   const [dirty, setDirty] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [tab, setTab] = useState<"script" | "shots" | "edit" | "rough">("script");
   const [pending, start] = useTransition();
+  const { toasts } = useClientDict();
   const d = t.draft;
   const generating = status === "GENERATING";
   const locked = !canEdit || generating;
@@ -83,18 +85,28 @@ export function DraftEditor({
   const update = (fn: (x: DraftContent) => DraftContent) => {
     setC((x) => fn(structuredClone(x)));
     setDirty(true);
-    setSaved(false);
   };
   const save = () =>
     start(async () => {
       const res = await saveDraftContent(id, c);
       if (res.ok) {
         setDirty(false);
-        setSaved(true);
+        toast(d.editsSaved);
         setC((x) => ({ ...x, beats: reflowBeats(x.beats) }));
       }
     });
-  const refine = (text: string) => text.trim() && start(() => refineDraft(id, text.trim()));
+  const refine = (text: string) =>
+    text.trim() &&
+    start(async () => {
+      await refineDraft(id, text.trim());
+      setInstruction("");
+      toast(toasts.refining, "info");
+    });
+  const status_ = (s: "DRAFT" | "IN_REVIEW" | "APPROVED" | "PUBLISHED") =>
+    start(async () => {
+      await setDraftStatus(id, s);
+      toast(toasts.statusUpdated);
+    });
 
   const compliance = c.compliance;
   const ComplianceIcon = compliance.status === "PASS" ? CheckCircle2 : compliance.status === "FAIL" ? XCircle : CircleAlert;
@@ -107,28 +119,28 @@ export function DraftEditor({
         <span
           className={cn(
             "rounded-full px-3 py-1 text-xs font-medium",
-            generating && "animate-pulse bg-amber-50 text-amber-700",
-            status === "DRAFT" && "bg-slate-100",
-            status === "IN_REVIEW" && "bg-sky-50 text-sky-700",
-            status === "APPROVED" && "bg-green-50 text-green-700",
+            generating && "animate-pulse bg-sand-50 text-sand-700",
+            status === "DRAFT" && "bg-sunken",
+            status === "IN_REVIEW" && "bg-info/[0.07] text-info",
+            status === "APPROVED" && "bg-pos/[0.07] text-pos",
             status === "PUBLISHED" && "bg-brand-600 text-white",
           )}
         >
           {d.status[status as keyof typeof d.status] ?? status}
         </span>
-        {error && !generating && <span className="text-xs text-red-600" dir="ltr">{error}</span>}
+        {error && !generating && <span className="text-xs text-neg" dir="ltr">{error}</span>}
         <div className="ms-auto flex flex-wrap gap-2">
           {canEdit && status === "DRAFT" && (
-            <button type="button" className="btn-secondary" disabled={pending} onClick={() => start(() => setDraftStatus(id, "IN_REVIEW"))}>{d.submit}</button>
+            <button type="button" className="btn-secondary" disabled={pending} onClick={() => status_("IN_REVIEW")}>{d.submit}</button>
           )}
           {canApprove && status === "IN_REVIEW" && (
-            <button type="button" className="btn-primary" disabled={pending} onClick={() => start(() => setDraftStatus(id, "APPROVED"))}>{d.approve}</button>
+            <button type="button" className="btn-primary" disabled={pending} onClick={() => status_("APPROVED")}>{d.approve}</button>
           )}
           {canEdit && status === "APPROVED" && (
-            <button type="button" className="btn-primary" disabled={pending} onClick={() => start(() => setDraftStatus(id, "PUBLISHED"))}>{d.publish}</button>
+            <button type="button" className="btn-primary" disabled={pending} onClick={() => status_("PUBLISHED")}>{d.publish}</button>
           )}
           {canEdit && ["IN_REVIEW", "APPROVED"].includes(status) && (
-            <button type="button" className="btn-ghost" disabled={pending} onClick={() => start(() => setDraftStatus(id, "DRAFT"))}>{d.reopen}</button>
+            <button type="button" className="btn-ghost" disabled={pending} onClick={() => status_("DRAFT")}>{d.reopen}</button>
           )}
           <button type="button" className="btn-secondary" onClick={() => download(`${fileSlug(title)}.srt`, toSrt(beats), "application/x-subrip")}>
             <Download className="h-4 w-4" /> {d.srt}
@@ -147,7 +159,7 @@ export function DraftEditor({
             <Download className="h-4 w-4" /> {d.csv}
           </button>
           {canEdit && (
-            <button type="button" className="btn-danger px-3" disabled={pending} onClick={() => confirm(common.confirm) && start(() => deleteDraft(id))} aria-label={common.delete}>
+            <button type="button" className="btn-danger px-3" disabled={pending} onClick={async () => (await confirmDialog(common.confirm, { danger: true, confirmLabel: common.delete })) && start(() => deleteDraft(id))} aria-label={common.delete}>
               <Trash2 className="h-4 w-4" />
             </button>
           )}
@@ -168,7 +180,7 @@ export function DraftEditor({
               dir="auto"
             />
             <button type="button" className="btn-primary" disabled={generating || pending || !instruction.trim()} onClick={() => refine(instruction)}>
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {d.refine}
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />} {d.refine}
             </button>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -190,7 +202,7 @@ export function DraftEditor({
             <h2 className="mb-2 mt-5 text-xs font-medium text-muted">{d.hooks}</h2>
             <div className="grid gap-2 md:grid-cols-3">
               {c.hooks.map((h, i) => (
-                <div key={i} className={cn("rounded-xl border p-3", i === 0 ? "border-brand-500 bg-brand-50" : "border-line")}>
+                <div key={i} className={cn("rounded-xl border p-3", i === 0 ? "border-ink bg-surface shadow-[0_0_0_1px_var(--color-ink)]" : "border-line")}>
                   <Editable multiline value={h.text} disabled={locked} onChange={(v) => update((x) => { x.hooks[i].text = v; return x; })} className="text-sm font-medium" />
                   <p dir="auto" className="mt-1 px-1.5 text-xs text-brand-700">▣ {h.on_screen}</p>
                   <p className="mt-1 px-1.5 text-[11px] text-muted" dir="ltr">{h.why}</p>
@@ -210,7 +222,7 @@ export function DraftEditor({
                 type="button"
                 key={k}
                 onClick={() => setTab(k)}
-                className={cn("flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm", tab === k ? "border-brand-600 font-medium text-brand-700" : "border-transparent text-muted")}
+                className={cn("flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm", tab === k ? "border-ink font-medium text-ink" : "border-transparent text-muted")}
               >
                 <Icon className="h-4 w-4" /> {label}
               </button>
@@ -247,7 +259,7 @@ export function DraftEditor({
                       </td>
                       <td className="px-2 py-1.5 font-semibold"><Editable multiline value={c.beats[i].onScreen} disabled={locked} onChange={(v) => update((x) => { x.beats[i].onScreen = v; return x; })} /></td>
                       <td className="px-2 py-1.5"><Editable multiline value={c.beats[i].vo} disabled={locked} onChange={(v) => update((x) => { x.beats[i].vo = v; return x; })} /></td>
-                      <td className="px-2 py-1.5 text-slate-600"><Editable multiline value={c.beats[i].visual} disabled={locked} onChange={(v) => update((x) => { x.beats[i].visual = v; return x; })} /></td>
+                      <td className="px-2 py-1.5 text-muted"><Editable multiline value={c.beats[i].visual} disabled={locked} onChange={(v) => update((x) => { x.beats[i].visual = v; return x; })} /></td>
                       <td className="px-3 py-2 text-center"><span className="rounded-md bg-canvas px-2 py-0.5 text-xs font-semibold">{b.shot}</span></td>
                     </tr>
                   ))}
@@ -271,7 +283,7 @@ export function DraftEditor({
                     <dt className="text-muted">{d.props}</dt><dd dir="auto">{s.props}</dd>
                     <dt className="text-muted">{d.talent}</dt><dd dir="auto">{s.talent}</dd>
                   </dl>
-                  {s.notes && <p className="mt-2 rounded-lg bg-canvas px-2 py-1 text-xs text-slate-600" dir="auto">{s.notes}</p>}
+                  {s.notes && <p className="mt-2 rounded-lg bg-canvas px-2 py-1 text-xs text-muted" dir="auto">{s.notes}</p>}
                 </div>
               ))}
             </section>
@@ -311,24 +323,23 @@ export function DraftEditor({
               <button type="button" className="btn-primary shadow-lg" disabled={pending} onClick={save}>{d.saveEdits}</button>
             </div>
           )}
-          {saved && <p className="text-end text-sm text-green-700">{d.editsSaved}</p>}
         </div>
 
         <aside className="space-y-4">
           <section
             className={cn(
               "card p-4",
-              compliance.status === "PASS" && "border-green-200 bg-green-50/50",
-              compliance.status === "REVIEW" && "border-amber-200 bg-amber-50/50",
-              compliance.status === "FAIL" && "border-red-200 bg-red-50/50",
+              compliance.status === "PASS" && "border-pos/25 bg-pos/[0.04]",
+              compliance.status === "REVIEW" && "border-sand-100 bg-sand-50",
+              compliance.status === "FAIL" && "border-neg/25 bg-neg/[0.04]",
             )}
           >
             <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <ComplianceIcon className={cn("h-4 w-4", compliance.status === "PASS" ? "text-green-600" : compliance.status === "FAIL" ? "text-red-600" : "text-amber-600")} />
+              <ComplianceIcon className={cn("h-4 w-4", compliance.status === "PASS" ? "text-pos" : compliance.status === "FAIL" ? "text-neg" : "text-sand-700")} />
               {d.compliance}: {d.complianceStatus[compliance.status]}
             </h3>
             {compliance.notes.length > 0 && (
-              <ul className="mt-2 list-disc space-y-1 ps-5 text-xs text-slate-700" dir="auto">
+              <ul className="mt-2 list-disc space-y-1 ps-5 text-xs text-ink/80" dir="auto">
                 {compliance.notes.map((n) => <li key={n}>{n}</li>)}
               </ul>
             )}
@@ -336,14 +347,14 @@ export function DraftEditor({
           <section className="card p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">{d.voiceMatch}</h3>
-              <span className={cn("text-xl font-semibold ltr-nums", c.voice_match.score >= 80 ? "text-green-700" : c.voice_match.score >= 60 ? "text-amber-700" : "text-red-700")}>
+              <span className={cn("text-xl font-semibold ltr-nums", c.voice_match.score >= 80 ? "text-pos" : c.voice_match.score >= 60 ? "text-sand-700" : "text-neg")}>
                 {c.voice_match.score}
               </span>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-slate-100">
+            <div className="mt-2 h-2 rounded-full bg-sunken">
               <div className="h-2 rounded-full bg-brand-600" style={{ width: `${c.voice_match.score}%` }} />
             </div>
-            <p className="mt-2 text-xs text-slate-600" dir="auto">{c.voice_match.notes}</p>
+            <p className="mt-2 text-xs text-muted" dir="auto">{c.voice_match.notes}</p>
           </section>
           <section className="card space-y-3 p-4">
             <div>

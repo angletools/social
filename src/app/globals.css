@@ -5,22 +5,49 @@
 @import "@fontsource/ibm-plex-sans-arabic/600.css";
 @import "@fontsource/ibm-plex-sans-arabic/700.css";
 
+/*
+ * Rasd design tokens.
+ * Warm paper canvas, near-black ink for actions, deep palm green for data and
+ * focus, sand as a quiet highlight. Colour is reserved for meaning.
+ */
 @theme {
   --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #ecfdf8;
-  --color-brand-100: #d1faee;
-  --color-brand-200: #a6f2dc;
-  --color-brand-500: #13a37f;
-  --color-brand-600: #0b8a6b;
-  --color-brand-700: #0a6e57;
-  --color-brand-900: #073f33;
-  --color-ink: #0f1a17;
-  --color-muted: #5b6965;
-  --color-line: #e6ebe9;
-  --color-canvas: #f6f8f7;
-  --color-pos: #16a34a;
-  --color-neu: #94a3b8;
-  --color-neg: #dc2626;
+
+  --color-canvas: #f6f5f1;
+  --color-surface: #ffffff;
+  --color-sunken: #efede7;
+  --color-ink: #15181b;
+  --color-muted: #5f646b;
+  --color-faint: #8d9198;
+  --color-line: #e6e3dc;
+  --color-line-strong: #d6d2c8;
+
+  --color-brand-50: #eef5f1;
+  --color-brand-100: #d8eae1;
+  --color-brand-200: #b4d6c5;
+  --color-brand-500: #1f8a68;
+  --color-brand-600: #12735a;
+  --color-brand-700: #0e5c46;
+  --color-brand-900: #0a3b2e;
+
+  --color-sand-50: #faf5ec;
+  --color-sand-100: #f2e6cf;
+  --color-sand-500: #b98a3e;
+  --color-sand-700: #8a6424;
+
+  --color-pos: #2e8b57;
+  --color-neu: #a3a8af;
+  --color-neg: #c8452f;
+  --color-warn: #c98a1a;
+  --color-info: #2f64a8;
+  --color-plum: #8a3f74;
+
+  --radius-card: 14px;
+  --shadow-pop: 0 1px 2px rgb(21 24 27 / 0.04), 0 12px 32px -8px rgb(21 24 27 / 0.16);
+}
+
+html {
+  font-size: 14px;
 }
 
 html,
@@ -32,42 +59,109 @@ body {
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--color-brand-100);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* Keep numbers and handles readable inside RTL text */
 .ltr-nums {
   direction: ltr;
   unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 @utility card {
-  @apply rounded-2xl border border-line bg-white;
+  @apply rounded-[var(--radius-card)] border border-line bg-surface;
 }
 
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-[10px] px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45;
 }
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  @apply btn bg-ink text-white hover:bg-black;
+}
+@utility btn-brand {
+  @apply btn bg-brand-700 text-white hover:bg-brand-900;
 }
 @utility btn-secondary {
-  @apply btn border border-line bg-white text-ink hover:bg-canvas;
+  @apply btn border border-line-strong bg-surface text-ink hover:bg-sunken;
 }
 @utility btn-ghost {
-  @apply btn text-muted hover:bg-canvas hover:text-ink;
+  @apply btn text-muted hover:bg-sunken hover:text-ink;
 }
 @utility btn-danger {
-  @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50;
+  @apply btn border border-line-strong bg-surface text-neg hover:border-neg/40 hover:bg-neg/5;
+}
+@utility btn-sm {
+  @apply h-7 gap-1.5 rounded-lg px-2.5 text-xs;
 }
 
 @utility input {
-  @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-100;
+  @apply w-full rounded-[10px] border border-line-strong bg-surface px-3 py-2 text-[13.5px] outline-none transition placeholder:text-faint focus:border-brand-500 focus:ring-[3px] focus:ring-brand-100 disabled:bg-sunken disabled:text-faint;
 }
 @utility label {
-  @apply mb-1.5 block text-sm font-medium text-ink;
+  @apply mb-1.5 block text-[13px] font-medium text-ink;
 }
 @utility hint {
-  @apply mt-1.5 text-xs text-muted;
+  @apply mt-1.5 text-xs leading-relaxed text-muted;
+}
+@utility eyebrow {
+  @apply text-[11px] font-medium tracking-wide text-faint;
+}
+@utility chip {
+  @apply inline-flex h-6 items-center gap-1 rounded-md bg-sunken px-2 text-xs text-muted;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.18s ease-out both;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-sunken);
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+  animation: shimmer 1.4s infinite;
 }
 
 @media print {

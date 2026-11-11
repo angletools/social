@@ -41,7 +41,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
             {t.dialects[d.dialect]} · {fmt(s.draft.seconds, { n: d.durationSec })} · {s.draft.goals[d.goal as keyof typeof s.draft.goals] ?? d.goal}
             {d.voice && <> · {d.voice.name}</>} · {timeAgo(d.updatedAt, locale)}
           </p>
-          <p dir="auto" className="mt-2 max-w-3xl text-sm text-slate-600">{d.brief}</p>
+          <p dir="auto" className="mt-2 max-w-3xl text-sm text-muted">{d.brief}</p>
         </div>
       </div>
 
@@ -52,7 +52,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
       {d.status === "FAILED" && !d.content && (
-        <div className="card p-8 text-center text-sm text-red-700">
+        <div className="card p-8 text-center text-sm text-neg">
           {t.reports.failed}
           {d.error && <p className="mt-2 text-xs" dir="ltr">{d.error}</p>}
         </div>

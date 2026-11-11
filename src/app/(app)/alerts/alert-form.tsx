@@ -5,6 +5,8 @@ import type { AlertKind } from "@prisma/client";
 import type { Dict } from "@/lib/i18n/en";
 import { createAlert } from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/feedback";
+import { useClientDict } from "@/components/client-dict";
 
 const KINDS: AlertKind[] = ["NEGATIVE_SPIKE", "VOLUME_SPIKE", "RISK", "HIGH_REACH", "KEYWORD"];
 const DEFAULTS: Record<AlertKind, number> = { NEGATIVE_SPIKE: 35, VOLUME_SPIKE: 100, HIGH_REACH: 50000, KEYWORD: 0, RISK: 0 };
@@ -13,23 +15,29 @@ export function AlertForm({ t, monitors, saveLabel }: { t: Dict["alerts"]; monit
   const [kind, setKind] = useState<AlertKind>("NEGATIVE_SPIKE");
   const [state, action, pending] = useActionState(createAlert, null);
   const formRef = useRef<HTMLFormElement>(null);
+  const { toasts, common } = useClientDict();
   useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
-  }, [state]);
+    if (!state) return;
+    if (state.ok) {
+      formRef.current?.reset();
+      toast(toasts.created);
+    } else toast(state.error === "webhook" ? t.webhookHint : common.failed, "error");
+  }, [state, toasts.created, common.failed, t.webhookHint]);
 
   return (
     <form ref={formRef} action={action} className="space-y-5">
       <input type="hidden" name="kind" value={kind} />
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-1">
+      <div className="grid gap-1.5">
         {KINDS.map((k) => (
           <button
             type="button"
             key={k}
             onClick={() => setKind(k)}
-            className={cn("rounded-xl border-2 px-3 py-2.5 text-start", kind === k ? "border-brand-500 bg-brand-50" : "border-line hover:border-slate-300")}
+            aria-pressed={kind === k}
+            className={cn("rounded-xl border px-3.5 py-2.5 text-start transition-colors", kind === k ? "border-ink bg-surface shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong")}
           >
-            <div className="text-sm font-medium">{t.kind[k]}</div>
-            <div className="mt-0.5 text-xs text-muted">{t.kindHelp[k]}</div>
+            <div className="text-[13.5px] font-medium">{t.kind[k]}</div>
+            <div className="mt-0.5 text-xs leading-relaxed text-muted">{t.kindHelp[k]}</div>
           </button>
         ))}
       </div>
@@ -73,6 +81,11 @@ export function AlertForm({ t, monitors, saveLabel }: { t: Dict["alerts"]; monit
       <div>
         <label className="label">{t.email}</label>
         <input name="emails" className="input" placeholder={t.emailPlaceholder} dir="ltr" />
+      </div>
+      <div>
+        <label className="label">{t.webhook}</label>
+        <input name="webhookUrl" type="url" className="input" placeholder={t.webhookPh} dir="ltr" />
+        <p className="hint">{t.webhookHint}</p>
       </div>
       <button className="btn-primary w-full" disabled={pending}>{saveLabel}</button>
     </form>

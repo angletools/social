@@ -2,7 +2,7 @@
 
 import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { createBrief } from "@/app/actions";
 
 export function BriefCard({
@@ -16,41 +16,41 @@ export function BriefCard({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const generating = brief?.status === "GENERATING";
+  const generating = brief?.status === "GENERATING" || pending;
 
   useEffect(() => {
-    if (!generating) return;
+    if (brief?.status !== "GENERATING") return;
     const id = setInterval(() => router.refresh(), 4000);
     return () => clearInterval(id);
-  }, [generating, router]);
+  }, [brief?.status, router]);
 
   return (
-    <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-start gap-4 bg-gradient-to-l from-brand-50 to-white p-5 rtl:bg-gradient-to-r">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white">
-          <Sparkles className="h-5 w-5" />
-        </div>
+    <section className="card relative overflow-hidden">
+      <span className="absolute inset-y-0 start-0 w-[3px] bg-sand-500" />
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-3 px-6 py-5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">{labels.title}</h2>
-            {brief?.when && <span className="text-xs text-muted">· {brief.when}</span>}
+            <span className="rounded-md bg-sand-50 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-sand-700">AI</span>
+            <h2 className="text-[13px] font-semibold">{labels.title}</h2>
+            {brief?.when && <span className="text-xs text-faint">· {brief.when}</span>}
           </div>
           {generating ? (
-            <p className="mt-2 animate-pulse text-sm text-muted">{labels.generating}</p>
+            <div className="mt-3 space-y-2">
+              <div className="skeleton h-4 w-3/4" />
+              <div className="skeleton h-3.5 w-1/2" />
+            </div>
           ) : brief?.status === "READY" ? (
             <>
-              <p className="mt-2 text-base font-medium leading-relaxed">{brief.headline}</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{brief.summary}</p>
+              <p className="mt-2.5 text-[16px] font-medium leading-relaxed">{brief.headline}</p>
+              <p className="mt-1.5 max-w-4xl text-[13.5px] leading-relaxed text-muted">{brief.summary}</p>
             </>
-          ) : brief?.status === "FAILED" ? (
-            <p className="mt-2 text-sm text-red-700">{aiOn ? labels.failed : labels.disabled}</p>
           ) : (
-            <p className="mt-2 text-sm text-muted">{aiOn ? labels.empty : labels.disabled}</p>
+            <p className="mt-2.5 text-[13.5px] text-muted">{brief?.status === "FAILED" ? (aiOn ? labels.failed : labels.disabled) : aiOn ? labels.empty : labels.disabled}</p>
           )}
         </div>
         {aiOn && !generating && (
-          <button type="button" className="btn-secondary" disabled={pending} onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
-            <RefreshCw className={pending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          <button type="button" className="btn-secondary" onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
+            <RefreshCw className="h-3.5 w-3.5" />
             {labels.generate}
           </button>
         )}

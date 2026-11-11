@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AlertKind, Dialect, MentionStatus, MonitorType, Platform, Role, Sentiment } from "@prisma/client";
@@ -16,20 +16,28 @@ const PLATFORMS = ["X", "INSTAGRAM", "TIKTOK", "YOUTUBE", "FACEBOOK", "LINKEDIN"
 
 // ---------- auth & preferences ----------
 
-const attempts = new Map<string, { n: number; until: number }>();
+const LOCK_WINDOW_MS = 15 * 60_000;
+const MAX_PER_EMAIL = 8;
+const MAX_PER_IP = 40;
 
+/** Sign-in with throttling stored in the database (works across restarts and instances). */
 export async function login(_: unknown, form: FormData): Promise<ActionResult> {
-  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const email = String(form.get("email") ?? "").trim().toLowerCase().slice(0, 200);
   const password = String(form.get("password") ?? "");
-  const a = attempts.get(email);
-  if (a && a.n >= 5 && a.until > Date.now()) return { ok: false, error: "locked" };
+  const ip = ((await headers()).get("x-forwarded-for") ?? "").split(",")[0].trim().slice(0, 64) || null;
+  const since = new Date(Date.now() - LOCK_WINDOW_MS);
+  const [byEmail, byIp] = await Promise.all([
+    db.loginAttempt.count({ where: { key: email, createdAt: { gte: since } } }),
+    ip ? db.loginAttempt.count({ where: { ip, createdAt: { gte: since } } }) : Promise.resolve(0),
+  ]);
+  if (byEmail >= MAX_PER_EMAIL || byIp >= MAX_PER_IP) return { ok: false, error: "locked" };
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user || !user.active || !(await verifyPassword(password, user.passwordHash))) {
-    attempts.set(email, { n: (a?.n ?? 0) + 1, until: Date.now() + 15 * 60_000 });
+    await db.loginAttempt.create({ data: { key: email, ip } });
     return { ok: false, error: "invalid" };
   }
-  attempts.delete(email);
+  await db.loginAttempt.deleteMany({ where: { key: email } });
   await createSession(user.id);
   await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
   (await cookies()).set(LOCALE_COOKIE, user.locale, { path: "/", maxAge: 365 * 86400 });
@@ -144,6 +152,7 @@ const AlertInput = z.object({
   windowMinutes: z.coerce.number().int().min(15).max(10080).default(60),
   keyword: z.string().trim().max(100).optional(),
   emails: z.string().optional(),
+  webhookUrl: z.string().trim().max(500).optional(),
 });
 
 export async function createAlert(_: unknown, form: FormData): Promise<ActionResult> {
@@ -153,6 +162,8 @@ export async function createAlert(_: unknown, form: FormData): Promise<ActionRes
   const d = parsed.data;
   if (d.monitorId) await ownMonitor(d.monitorId, user.organizationId);
   if (d.kind === "KEYWORD" && !d.keyword) return { ok: false, error: "keyword" };
+  const { isAllowedWebhook } = await import("@/lib/webhooks");
+  if (d.webhookUrl && !isAllowedWebhook(d.webhookUrl)) return { ok: false, error: "webhook" };
   const emails = (d.emails ?? "")
     .split(/[,\s]+/)
     .map((e) => e.trim())
@@ -168,6 +179,7 @@ export async function createAlert(_: unknown, form: FormData): Promise<ActionRes
       keyword: d.keyword,
       emails,
       notifyEmail: emails.length > 0,
+      webhookUrl: d.webhookUrl || null,
     },
   });
   await audit(user, "alert.create", undefined, { name: d.name });
@@ -602,4 +614,89 @@ export async function deleteDraft(id: string) {
   await db.contentDraft.deleteMany({ where: { id, organizationId: user.organizationId } });
   revalidatePath("/studio");
   redirect("/studio?tab=drafts");
+}
+
+// ---------- profile ----------
+
+export async function updateProfile(_: unknown, form: FormData): Promise<ActionResult> {
+  const user = await requireRole("VIEWER");
+  const name = String(form.get("name") ?? "").trim().slice(0, 80);
+  const locale = form.get("locale") === "en" ? "en" : "ar";
+  if (!name) return { ok: false, error: "invalid" };
+  await db.user.update({ where: { id: user.id }, data: { name, locale } });
+  (await cookies()).set(LOCALE_COOKIE, locale, { path: "/", maxAge: 365 * 86400 });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Changes the password and signs out every other session. */
+export async function changePassword(_: unknown, form: FormData): Promise<ActionResult> {
+  const user = await requireRole("VIEWER");
+  const current = String(form.get("current") ?? "");
+  const next = String(form.get("next") ?? "");
+  if (next.length < 10 || next.length > 200) return { ok: false, error: "short" };
+  if (!(await verifyPassword(current, user.passwordHash))) return { ok: false, error: "wrong" };
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(next) } });
+  await db.session.deleteMany({ where: { userId: user.id } });
+  await createSession(user.id);
+  await audit(user, "auth.password_changed");
+  return { ok: true };
+}
+
+// ---------- assignment ----------
+
+/** Assigns a post to a teammate (or clears it) and notifies the assignee. */
+export async function assignMention(mentionId: string, assigneeId: string | null) {
+  const user = await requireRole("ANALYST");
+  const m = await db.mention.findFirst({ where: { id: mentionId, organizationId: user.organizationId } });
+  if (!m) return { ok: false as const, error: "not_found" };
+  const assignee = assigneeId ? await db.user.findFirst({ where: { id: assigneeId, organizationId: user.organizationId, active: true } }) : null;
+  if (assigneeId && !assignee) return { ok: false as const, error: "invalid" };
+  await db.mention.update({ where: { id: m.id }, data: { assignedToId: assignee?.id ?? null } });
+  if (assignee && assignee.id !== user.id) {
+    const snippet = m.text.slice(0, 160);
+    await db.notification.create({
+      data: {
+        organizationId: user.organizationId,
+        userId: assignee.id,
+        severity: "INFO",
+        titleEn: `${user.name} assigned you a post`,
+        titleAr: `أسند إليك ${user.name} منشورًا`,
+        bodyEn: snippet,
+        bodyAr: snippet,
+        link: `/inbox?m=${m.id}`,
+      },
+    });
+  }
+  await audit(user, "mention.assign", m.id, { to: assignee?.email ?? null });
+  revalidatePath("/inbox");
+  revalidatePath("/mentions");
+  return { ok: true as const, name: assignee?.name ?? null };
+}
+
+// ---------- weekly report ----------
+
+export async function saveWeeklyReport(_: unknown, form: FormData): Promise<ActionResult> {
+  const user = await requireRole("ADMIN");
+  const recipients = String(form.get("recipients") ?? "")
+    .split(/[,\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => z.email().safeParse(e).success)
+    .slice(0, 20);
+  const day = Math.min(6, Math.max(0, Number(form.get("day")) || 0));
+  const enabled = form.get("enabled") === "on";
+  if (enabled && recipients.length === 0) return { ok: false, error: "recipients" };
+  await db.organization.update({
+    where: { id: user.organizationId },
+    data: { weeklyReportEnabled: enabled, weeklyReportDay: day, weeklyReportRecipients: recipients, weeklyReportLocale: form.get("locale") === "en" ? "en" : "ar" },
+  });
+  await audit(user, "org.weekly_report", undefined, { enabled, recipients: recipients.length });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function dismissOnboarding() {
+  const user = await requireRole("VIEWER");
+  await db.organization.update({ where: { id: user.organizationId }, data: { onboardingDoneAt: new Date() } });
+  revalidatePath("/");
 }

@@ -126,6 +126,13 @@ model Organization {
   mentionQuota       Int                @default(100000) // mentions ingested per billing period
   brandContext       String?            // short description of the company, given to the AI
   complianceRules    String?            // rules every AI reply / script must follow (e.g. CMA marketing rules)
+  timezone           String             @default("Asia/Riyadh")
+  onboardingDoneAt   DateTime?
+  weeklyReportEnabled    Boolean  @default(false)
+  weeklyReportDay        Int      @default(0) // 0 = Sunday (start of the Saudi work week)
+  weeklyReportLocale     String   @default("ar")
+  weeklyReportRecipients String[]
+  weeklyReportLastSentAt DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -308,6 +315,7 @@ model AlertRule {
   keyword         String?
   notifyEmail     Boolean   @default(false)
   emails          String[]
+  webhookUrl      String? // Slack / Microsoft Teams incoming webhook
   enabled         Boolean   @default(true)
   cooldownMinutes Int       @default(180)
   lastTriggeredAt DateTime?
@@ -323,6 +331,7 @@ model AlertRule {
 model Notification {
   id             String    @id @default(cuid())
   organizationId String
+  userId         String? // set for personal notifications (e.g. "assigned to you"); null = whole team
   ruleId         String?
   severity       Severity  @default(INFO)
   titleEn        String
@@ -575,4 +584,21 @@ model ContentDraft {
   voice        BrandVoice?  @relation(fields: [voiceId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, updatedAt])
+}
+
+// Key/value system state, e.g. the worker heartbeat.
+model AppState {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// Failed sign-in attempts, for throttling that survives restarts and multiple instances.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  key       String // lower-cased email
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
 }

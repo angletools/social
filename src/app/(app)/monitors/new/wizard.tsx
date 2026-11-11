@@ -115,7 +115,7 @@ export function MonitorWizard({
             <span
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                i < step ? "bg-brand-600 text-white" : i === step ? "bg-brand-100 text-brand-700 ring-2 ring-brand-500" : "bg-slate-100 text-slate-500",
+                i < step ? "bg-brand-600 text-white" : i === step ? "bg-brand-100 text-brand-700 ring-2 ring-brand-500" : "bg-sunken text-muted",
               )}
             >
               {i < step ? <Check className="h-4 w-4" /> : i + 1}
@@ -137,8 +137,8 @@ export function MonitorWizard({
                   key={ty}
                   onClick={() => setType(ty)}
                   className={cn(
-                    "rounded-2xl border-2 p-4 text-start transition",
-                    type === ty ? "border-brand-500 bg-brand-50" : "border-line hover:border-slate-300",
+                    "rounded-xl border p-4 text-start transition",
+                    type === ty ? "border-ink bg-surface shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong",
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ export function MonitorWizard({
                     <span className="font-semibold">{t.types[ty]}</span>
                   </div>
                   <p className="mt-3 text-sm leading-relaxed text-muted">{t.typeHelp[ty]}</p>
-                  <p className="mt-2 text-xs text-slate-400" dir="auto">{t.typeExample[ty]}</p>
+                  <p className="mt-2 text-xs text-faint" dir="auto">{t.typeExample[ty]}</p>
                 </button>
               ))}
             </div>
@@ -192,7 +192,7 @@ export function MonitorWizard({
                     type="button"
                     key={o.l}
                     onClick={() => setLanguages(o.v)}
-                    className={cn("rounded-xl border px-4 py-2 text-sm", languages.join() === o.v.join() ? "border-brand-500 bg-brand-50 text-brand-700" : "border-line")}
+                    className={cn("rounded-xl border px-4 py-2 text-sm", languages.join() === o.v.join() ? "border-ink bg-ink text-white" : "border-line")}
                   >
                     {o.l}
                   </button>
@@ -225,8 +225,8 @@ export function MonitorWizard({
                     disabled={!ok}
                     onClick={() => setPlatforms(on ? platforms.filter((x) => x !== p) : [...platforms, p])}
                     className={cn(
-                      "flex items-center gap-3 rounded-2xl border-2 p-4 transition",
-                      on ? "border-brand-500 bg-brand-50" : "border-line hover:border-slate-300",
+                      "flex items-center gap-3 rounded-xl border p-4 transition",
+                      on ? "border-ink bg-surface shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong",
                       !ok && "cursor-not-allowed opacity-40",
                     )}
                   >
@@ -251,7 +251,7 @@ export function MonitorWizard({
         {step === 3 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">{t.wizard.step4}</h2>
-            <dl className="divide-y divide-line rounded-2xl border border-line">
+            <dl className="divide-y divide-line rounded-xl border border-line">
               {[
                 [t.wizard.name, name],
                 [t.type, t.types[type]],
@@ -268,7 +268,7 @@ export function MonitorWizard({
                 </div>
               ))}
             </dl>
-            {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            {error && <p className="rounded-xl bg-neg/[0.06] px-3 py-2 text-sm text-neg">{error}</p>}
           </div>
         )}
 

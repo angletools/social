@@ -47,7 +47,7 @@ export default async function DialectPage({ searchParams }: { searchParams: Prom
             <ul className="space-y-3">
               {dialects.map((d) => (
                 <li key={d.dialect}>
-                  <Link href={`/mentions?dialect=${d.dialect}&days=${days}`} className="group block">
+                  <Link prefetch={false} href={`/mentions?dialect=${d.dialect}&days=${days}`} className="group block">
                     <div className="mb-1 flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 font-medium group-hover:text-brand-700">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: DIALECT_COLORS[d.dialect] }} />
@@ -57,8 +57,8 @@ export default async function DialectPage({ searchParams }: { searchParams: Prom
                         {formatNumber(d.count, locale)} · {pct(d.count)}%
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-100">
-                      <div className="h-2 rounded-full" style={{ width: `${(d.count / maxD) * 100}%`, background: DIALECT_COLORS[d.dialect] }} />
+                    <div className="h-1.5 rounded-full bg-sunken">
+                      <div className="h-1.5 rounded-full" style={{ width: `${(d.count / maxD) * 100}%`, background: DIALECT_COLORS[d.dialect] }} />
                     </div>
                   </Link>
                 </li>
@@ -72,10 +72,10 @@ export default async function DialectPage({ searchParams }: { searchParams: Prom
                 <li key={d.dialect}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span>{t.dialects[d.dialect]}</span>
-                    <span className={`font-semibold ltr-nums ${d.netSentiment >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    <span className={`font-semibold ltr-nums ${d.netSentiment >= 0 ? "text-pos" : "text-neg"}`}>
                       {d.netSentiment > 0 ? "+" : ""}
                       {d.netSentiment}
-                      {d.sarcasm > 0 && <span className="ms-2 text-xs font-normal text-fuchsia-700">🙃 {d.sarcasm}</span>}
+                      {d.sarcasm > 0 && <span className="ms-2 text-xs font-normal text-plum">🙃 {d.sarcasm}</span>}
                     </span>
                   </div>
                   <SentimentBar pos={d.positive} neg={d.negative} neu={d.count - d.positive - d.negative} />
@@ -90,14 +90,14 @@ export default async function DialectPage({ searchParams }: { searchParams: Prom
             <ul className="space-y-3">
               {intents.map((i) => (
                 <li key={i.intent}>
-                  <Link href={`/mentions?intent=${i.intent}&days=${days}`} className="group block">
+                  <Link prefetch={false} href={`/mentions?intent=${i.intent}&days=${days}`} className="group block">
                     <div className="mb-1 flex justify-between text-sm">
                       <span className="group-hover:text-brand-700">{t.intents[i.intent]}</span>
                       <span className="text-muted ltr-nums">{formatNumber(i.count, locale)}</span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-100">
+                    <div className="h-1.5 rounded-full bg-sunken">
                       <div
-                        className={`h-2 rounded-full ${i.intent === "CHURN_RISK" ? "bg-red-600" : i.intent === "COMPLAINT" ? "bg-orange-500" : i.intent === "PURCHASE_INTENT" ? "bg-emerald-600" : "bg-brand-500"}`}
+                        className={`h-2 rounded-full ${i.intent === "CHURN_RISK" ? "bg-neg" : i.intent === "COMPLAINT" ? "bg-warn" : i.intent === "PURCHASE_INTENT" ? "bg-brand-700" : "bg-brand-500"}`}
                         style={{ width: `${(i.count / maxI) * 100}%` }}
                       />
                     </div>
@@ -113,9 +113,9 @@ export default async function DialectPage({ searchParams }: { searchParams: Prom
               <ul className="divide-y divide-line">
                 {slang.map((s) => (
                   <li key={s.term}>
-                    <Link href={`/mentions?q=${encodeURIComponent(s.term)}&days=${days}`} className="flex items-center gap-4 px-5 py-2.5 hover:bg-canvas">
+                    <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(s.term)}&days=${days}`} className="flex items-center gap-4 px-5 py-2.5 hover:bg-canvas">
                       <b dir="auto" className="w-36 shrink-0 text-base">{s.term}</b>
-                      <span dir="ltr" className="flex-1 text-start text-sm text-slate-600">{s.gloss}</span>
+                      <span dir="ltr" className="flex-1 text-start text-sm text-muted">{s.gloss}</span>
                       {s.dialect && <span className="hidden text-xs text-muted sm:inline">{t.dialects[s.dialect]}</span>}
                       <span className="w-20">
                         <SentimentBar pos={s.positive} neg={s.negative} neu={s.count - s.positive - s.negative} />

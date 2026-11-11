@@ -49,7 +49,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
         {report.status === "GENERATING" && <p className="animate-pulse py-16 text-center text-muted">{ui.reports.generating}</p>}
         {report.status === "FAILED" && (
-          <p className="my-8 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="my-8 rounded-xl bg-neg/[0.06] px-4 py-3 text-sm text-neg">
             {ui.reports.failed}
             {report.error ? ` — ${report.error}` : ""}
           </p>
@@ -69,14 +69,14 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
         {content && (
           <>
-            <section className="mt-10 rounded-2xl bg-brand-50 p-6">
+            <section className="mt-10 rounded-xl bg-brand-50 p-6">
               <p className="text-lg font-semibold leading-relaxed text-brand-900">{content.headline}</p>
-              <p className="mt-3 leading-relaxed text-slate-700">{content.summary}</p>
+              <p className="mt-3 leading-relaxed text-ink/80">{content.summary}</p>
             </section>
             {content.sections.map((s, i) => (
               <section key={i} className="mt-8 break-inside-avoid">
                 <h2 className="mb-2 text-lg font-semibold">{s.title}</h2>
-                <p className="whitespace-pre-line leading-relaxed text-slate-700">{s.body}</p>
+                <p className="whitespace-pre-line leading-relaxed text-ink/80">{s.body}</p>
               </section>
             ))}
             {stats && stats.topics.length > 0 && (
@@ -84,16 +84,16 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <h2 className="mb-3 text-lg font-semibold">{t.overview.topTopics}</h2>
                 <div className="flex flex-wrap gap-2">
                   {stats.topics.map((tp) => (
-                    <span key={tp.key} className="rounded-full bg-slate-100 px-3 py-1 text-sm">
+                    <span key={tp.key} className="rounded-full bg-sunken px-3 py-1 text-sm">
                       {locale === "ar" ? tp.labelAr : tp.labelEn} <span className="text-muted ltr-nums">({tp.count})</span>
                     </span>
                   ))}
                 </div>
               </section>
             )}
-            <section className="mt-8 break-inside-avoid rounded-2xl border border-line p-6">
+            <section className="mt-8 break-inside-avoid rounded-xl border border-line p-6">
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-                <Lightbulb className="h-5 w-5 text-amber-500" /> {t.reports.recommendations}
+                <Lightbulb className="h-5 w-5 text-sand-500" /> {t.reports.recommendations}
               </h2>
               <ol className="list-decimal space-y-2 ps-5 leading-relaxed">
                 {content.recommendations.map((r, i) => (

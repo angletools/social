@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, PenLine } from "lucide-react";
 import type { Dialect, Platform } from "@prisma/client";
 import type { Dict } from "@/lib/i18n/en";
 import { createDraft } from "@/app/actions";
@@ -52,7 +52,7 @@ export function NewDraftForm({
           </select>
           {format && (
             <div className="mt-2 rounded-xl bg-brand-50 px-3 py-2 text-sm">
-              <p className="text-slate-700">{format.summary}</p>
+              <p className="text-ink/80">{format.summary}</p>
               <p dir="auto" className="mt-1 text-xs text-brand-700">{format.hook}</p>
             </div>
           )}
@@ -65,7 +65,7 @@ export function NewDraftForm({
           <label className="label">{t.goal}</label>
           <div className="flex flex-wrap gap-2">
             {Object.entries(t.goals).map(([v, l], i) => (
-              <label key={v} className="cursor-pointer rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-700">
+              <label key={v} className="cursor-pointer rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white">
                 <input type="radio" name="goal" value={v} defaultChecked={i === 0} className="sr-only" />
                 {l}
               </label>
@@ -81,7 +81,7 @@ export function NewDraftForm({
                 type="button"
                 key={p}
                 onClick={() => setPlatform(p)}
-                className={cn("flex items-center gap-2 rounded-xl border px-3 py-2 text-sm", platform === p ? "border-brand-500 bg-brand-50" : "border-line")}
+                className={cn("flex items-center gap-2 rounded-xl border px-3 py-2 text-sm", platform === p ? "border-ink bg-surface shadow-[0_0_0_1px_var(--color-ink)]" : "border-line")}
               >
                 <PlatformIcon platform={p} size="sm" /> {platforms[p]}
               </button>
@@ -122,17 +122,17 @@ export function NewDraftForm({
           <input type="hidden" name="durationSec" value={duration} />
           <div className="grid grid-cols-5 gap-1.5">
             {DURATIONS.map((d) => (
-              <button type="button" key={d} onClick={() => setDuration(d)} className={cn("rounded-lg border py-2 text-sm ltr-nums", duration === d ? "border-brand-500 bg-brand-50 font-medium" : "border-line")}>
+              <button type="button" key={d} onClick={() => setDuration(d)} className={cn("rounded-lg border py-2 text-sm ltr-nums", duration === d ? "border-ink bg-ink font-medium text-white" : "border-line")}>
                 {d}s
               </button>
             ))}
           </div>
           <p className="hint">{fmtClient(t.seconds, { n: duration })}</p>
         </div>
-        {!aiOn && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">{t.aiOff}</p>}
-        {state && !state.ok && <p className="text-sm text-red-600">{state.error}</p>}
+        {!aiOn && <p className="rounded-xl bg-sand-50 px-3 py-2 text-xs text-sand-700">{t.aiOff}</p>}
+        {state && !state.ok && <p className="text-sm text-neg">{state.error}</p>}
         <button className="btn-primary w-full py-3" disabled={pending || !aiOn}>
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {t.generate}
+          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />} {t.generate}
         </button>
       </div>
     </form>

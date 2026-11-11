@@ -7,7 +7,7 @@ const DIALECTS = new Set(["SAUDI", "KHALEEJI", "EGYPTIAN", "LEVANTINE", "IRAQI",
 const INTENTS = new Set(["COMPLAINT", "QUESTION", "PRAISE", "PURCHASE_INTENT", "CHURN_RISK", "SUGGESTION", "OTHER"]);
 
 /** Parses mention filters from URL search params. */
-export function filtersFromParams(orgId: string, sp: Record<string, string | undefined>): MentionFilters {
+export function filtersFromParams(orgId: string, sp: Record<string, string | undefined>, userId?: string): MentionFilters {
   return {
     orgId,
     days: sp.days ? parseDays(sp.days) : 30,
@@ -21,5 +21,7 @@ export function filtersFromParams(orgId: string, sp: Record<string, string | und
     dialect: sp.dialect && DIALECTS.has(sp.dialect) ? (sp.dialect as Dialect) : undefined,
     intent: sp.intent && INTENTS.has(sp.intent) ? (sp.intent as Intent) : undefined,
     sarcasm: sp.sarcasm === "1",
+    assignedToId: sp.mine === "1" && userId ? userId : undefined,
+    needsReply: sp.reply === "1",
   };
 }

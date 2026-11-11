@@ -60,7 +60,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
         }
       />
       {sp.created === "1" && (
-        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-pos/25 bg-pos/[0.07] px-4 py-3 text-sm text-pos">
           <CheckCircle2 className="h-5 w-5" /> {t.monitors.wizard.created}
         </div>
       )}
@@ -96,7 +96,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
             <ul className="space-y-3.5">
               {topics.map((tp) => (
                 <li key={tp.key}>
-                  <Link href={`/mentions?monitor=${id}&topic=${tp.key}&days=${days}`} className="group block">
+                  <Link prefetch={false} href={`/mentions?monitor=${id}&topic=${tp.key}&days=${days}`} className="group block">
                     <div className="mb-1.5 flex justify-between text-sm">
                       <span className="group-hover:text-brand-700">{locale === "ar" ? tp.labelAr : tp.labelEn}</span>
                       <span className="text-muted ltr-nums">{tp.count}</span>
@@ -116,7 +116,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
           <div className="space-y-3 lg:col-span-2">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{t.overview.latest}</h2>
-              <Link href={`/mentions?monitor=${id}`} className="text-sm text-brand-700 hover:underline">{t.common.viewAll}</Link>
+              <Link prefetch={false} href={`/mentions?monitor=${id}`} className="text-sm text-brand-700 hover:underline">{t.common.viewAll}</Link>
             </div>
             {mentions.map((m) => (
               <MentionCard key={m.id} m={m} t={t} locale={locale} topicLabels={topicLabels} canAct={hasRole(user, "ANALYST")} />
@@ -133,7 +133,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
                       <span className="text-xs text-muted">{formatDate(r.startedAt, locale, { dateStyle: "short", timeStyle: "short" })}</span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          r.status === "SUCCESS" ? "bg-green-50 text-green-700" : r.status === "FAILED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+                          r.status === "SUCCESS" ? "bg-pos/[0.07] text-pos" : r.status === "FAILED" ? "bg-neg/[0.06] text-neg" : "bg-sand-50 text-sand-700"
                         }`}
                       >
                         {r.status}
@@ -141,9 +141,9 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
                     </div>
                     <div className="mt-0.5 text-xs">
                       <span className="ltr-nums">{r.itemsFetched}</span> {t.monitors.detail.fetched} · <span className="ltr-nums">{r.itemsNew}</span> {t.monitors.detail.new}
-                      {r.source === "demo" && <span className="text-amber-700"> · {t.common.demoMode}</span>}
+                      {r.source === "demo" && <span className="text-sand-700"> · {t.common.demoMode}</span>}
                     </div>
-                    {r.error && <p className="mt-1 break-words text-xs text-red-600" dir="ltr">{r.error}</p>}
+                    {r.error && <p className="mt-1 break-words text-xs text-neg" dir="ltr">{r.error}</p>}
                   </div>
                 </li>
               ))}

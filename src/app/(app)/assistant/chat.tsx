@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowUp, Loader2, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
+import { AiMark } from "@/components/ai-mark";
 import type { Dict } from "@/lib/i18n/en";
 import { cn } from "@/lib/utils";
 
@@ -68,11 +69,9 @@ export function Chat({ threadId: initialThread, initial, enabled, t }: { threadI
       <div className="flex-1 space-y-6 overflow-y-auto p-5 sm:p-8">
         {messages.length === 0 && (
           <div className="mx-auto flex max-w-2xl flex-col items-center py-10 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <Sparkles className="h-7 w-7" />
-            </div>
-            <h2 className="text-lg font-semibold">{t.subtitle}</h2>
-            {!enabled && <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{t.disabled}</p>}
+            <AiMark size="lg" className="mb-5" />
+            <h2 className="text-[17px] font-semibold">{t.subtitle}</h2>
+            {!enabled && <p className="mt-4 rounded-xl bg-sand-50 px-4 py-3 text-sm text-sand-700">{t.disabled}</p>}
             <div className="mt-8 grid w-full gap-2 sm:grid-cols-2">
               {t.suggestions.map((s) => (
                 <button
@@ -80,7 +79,7 @@ export function Chat({ threadId: initialThread, initial, enabled, t }: { threadI
                   key={s}
                   disabled={!enabled}
                   onClick={() => ask(s)}
-                  className="rounded-2xl border border-line px-4 py-3 text-start text-sm transition hover:border-brand-500 hover:bg-brand-50 disabled:opacity-50"
+                  className="rounded-xl border border-line bg-surface px-4 py-3 text-start text-[13.5px] leading-relaxed text-ink/85 transition hover:border-ink hover:text-ink disabled:opacity-50"
                 >
                   {s}
                 </button>
@@ -91,20 +90,18 @@ export function Chat({ threadId: initialThread, initial, enabled, t }: { threadI
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div dir="auto" className="max-w-[85%] rounded-2xl rounded-ee-md bg-brand-600 px-4 py-3 text-[15px] text-white">
+              <div dir="auto" className="max-w-[85%] rounded-2xl rounded-ee-md bg-ink px-4 py-2.5 text-[14.5px] leading-relaxed text-white">
                 {m.text}
               </div>
             </div>
           ) : (
             <div key={i} className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                <Sparkles className="h-4 w-4" />
-              </div>
+              <AiMark size="md" className="mt-0.5" />
               <div className="min-w-0 flex-1">
                 {m.tools && m.tools.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1.5">
                     {[...new Set(m.tools)].map((tool) => (
-                      <span key={tool} className="rounded-full bg-canvas px-2.5 py-1 text-xs text-muted">
+                      <span key={tool} className="chip">
                         {(t.tools as Record<string, string>)[tool] ?? tool}
                       </span>
                     ))}
@@ -119,7 +116,7 @@ export function Chat({ threadId: initialThread, initial, enabled, t }: { threadI
                     <Loader2 className="h-4 w-4 animate-spin" /> {t.thinking}
                   </p>
                 ) : null}
-                {m.error && <p className="mt-2 text-sm text-red-600">{t.error}</p>}
+                {m.error && <p className="mt-2 text-sm text-neg">{t.error}</p>}
               </div>
             </div>
           ),
@@ -133,7 +130,7 @@ export function Chat({ threadId: initialThread, initial, enabled, t }: { threadI
         }}
         className="border-t border-line p-4"
       >
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-white p-2 focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100">
+        <div className="flex items-end gap-2 rounded-xl border border-line-strong bg-surface p-2 focus-within:border-brand-500 focus-within:ring-[3px] focus-within:ring-brand-100">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

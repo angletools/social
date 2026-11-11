@@ -9,11 +9,20 @@ export function formatNumber(n: number, locale: string) {
   }).format(n);
 }
 
-export function formatDate(d: Date | string, locale: string, opts?: Intl.DateTimeFormatOptions) {
+/** Default display timezone; organizations can override it in settings. */
+export const DEFAULT_TZ = process.env.NEXT_PUBLIC_DEFAULT_TIMEZONE ?? "Asia/Riyadh";
+
+export function formatDate(d: Date | string, locale: string, opts?: Intl.DateTimeFormatOptions, timeZone = DEFAULT_TZ) {
   return new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : "en-GB", {
     dateStyle: "medium",
+    timeZone,
     ...opts,
   }).format(new Date(d));
+}
+
+/** Greeting-friendly hour in the given timezone (0-23). */
+export function hourIn(timeZone = DEFAULT_TZ, d = new Date()) {
+  return Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone }).format(d));
 }
 
 export function timeAgo(d: Date | string, locale: string) {
