@@ -3,19 +3,59 @@
 @import "@fontsource/urbanist/500.css";
 @import "@fontsource/urbanist/600.css";
 @import "@fontsource/urbanist/700.css";
-@import "@fontsource-variable/vazirmatn/wght.css";
+
+@font-face {
+  font-family: "Plex Arabic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-400-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+  /* Plex's Arabic sits small beside Urbanist; nudge it up to match. */
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "Plex Arabic";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-500-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+  /* Plex's Arabic sits small beside Urbanist; nudge it up to match. */
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "Plex Arabic";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-600-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+  /* Plex's Arabic sits small beside Urbanist; nudge it up to match. */
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "Plex Arabic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-700-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+  /* Plex's Arabic sits small beside Urbanist; nudge it up to match. */
+  size-adjust: 108%;
+}
 
 /*
  * angle social design tokens (v2).
  * Calm slate on a cool grey canvas. Flat surfaces, no borders or shadows
  * where the space between cards can do the work. Colour is kept for meaning.
- * Urbanist sets Latin text and numbers; Vazirmatn covers Arabic,
+ * Urbanist sets Latin text and numbers; IBM Plex Sans Arabic covers Arabic,
  * which Urbanist has no glyphs for. Dark values live below @theme.
  */
 @theme {
   /* Spacing is a true 4px grid (4/8/12/16/24/32/40), independent of the 14px root font size. */
   --spacing: 4px;
-  --font-sans: "Urbanist", "Vazirmatn Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Urbanist", "Plex Arabic", ui-sans-serif, system-ui, sans-serif;
 
   --color-canvas: #e9e8e4;
   --color-surface: #f3f2ef;
