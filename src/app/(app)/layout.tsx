@@ -68,7 +68,7 @@ export default async function AppLayout({
   return (
     <ClientDictProvider value={{ locale, toasts: t.toasts, common: t.common }}>
       <div className="flex min-h-dvh bg-black">
-        <FeedbackHost labels={{ confirm: t.common.confirm, cancel: t.common.cancel }} />
+        <FeedbackHost labels={{ confirm: t.common.confirm, cancel: t.common.cancel, retry: t.states.retry, dismiss: t.states.dismiss }} />
         <Sidebar
           dir={dir}
           labels={labels}
