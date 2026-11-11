@@ -71,6 +71,7 @@ export async function getKpis(s: Scope) {
   return {
     ...current,
     previousMentions: previous.mentions,
+    previousRisks: previous.risks,
     deltas: {
       mentions: delta(current.mentions, previous.mentions),
       engagement: delta(current.engagement, previous.engagement),

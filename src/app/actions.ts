@@ -111,7 +111,7 @@ export async function toggleMonitor(id: string) {
   const m = await ownMonitor(id, user.organizationId);
   await db.monitor.update({
     where: { id },
-    data: { status: m.status === "ACTIVE" ? "PAUSED" : "ACTIVE", nextSyncAt: new Date() },
+    data: { status: m.status === "ACTIVE" ? "PAUSED" : "ACTIVE", nextSyncAt: new Date(), pausedAt: m.status === "ACTIVE" ? new Date() : null },
   });
   await audit(user, m.status === "ACTIVE" ? "monitor.pause" : "monitor.resume", id);
   revalidatePath("/monitors");

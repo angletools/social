@@ -203,6 +203,7 @@ model Monitor {
   maxItemsPerRun Int           @default(50)
   lastSyncAt     DateTime?
   nextSyncAt     DateTime?
+  pausedAt       DateTime? // when the monitor was last paused; null while active
   createdById    String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -236,6 +237,8 @@ model Mention {
   comments        Int           @default(0)
   shares          Int           @default(0)
   views           Int           @default(0)
+  /// likes + comments + shares, kept by Postgres (GENERATED ALWAYS ... STORED). Read-only: never write it.
+  engagement      Int?          @default(dbgenerated("((likes + comments) + shares)"))
   mediaUrl        String?
   raw             Json?
 
@@ -272,6 +275,7 @@ model Mention {
   @@index([monitorId, publishedAt])
   @@index([organizationId, enrichedAt])
   @@index([organizationId, intent, status])
+  @@index([organizationId, engagement])
 }
 
 // Canonical topic labels, bilingual, produced by the AI during enrichment.
