@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { alertWebhooks, maskSecret, maskWebhook, monthStart, parseRules, senderFor, serializeRules, usageBand, webhookKind } from "@/lib/workspace";
-import { beatForNote } from "@/lib/drafts";
+import { beatForNote } from "@/lib/draft-notes";
 
 const org = { slackWebhookUrl: "https://hooks.slack.com/services/T0/B0/x8Kd", teamsWebhookUrl: "https://acme.webhook.office.com/webhookb2/abc", emailFrom: "alerts@acme.sa" };
 
