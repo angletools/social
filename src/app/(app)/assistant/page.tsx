@@ -1,53 +1,48 @@
-import Link from "next/link";
-import { MessageSquarePlus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { aiEnabled } from "@/lib/ai/client";
-import { cn, timeAgo } from "@/lib/utils";
-import { PageHeader } from "@/components/ui";
-import { Chat } from "./chat";
+import { formatDate, timeAgo } from "@/lib/utils";
+import { plainAnswer, type AssistantMeta } from "@/lib/assistant-format";
+import { Chat, type Msg } from "./chat";
+import { History } from "./history";
 
 export default async function AssistantPage({ searchParams }: { searchParams: Promise<{ thread?: string }> }) {
   const user = await requireUser();
   const { t, locale } = await getDict();
-  const { thread: threadId } = await searchParams;
-  const threads = await db.assistantThread.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 30 });
-  const messages = threadId
-    ? await db.assistantMessage.findMany({ where: { threadId, thread: { userId: user.id } }, orderBy: { createdAt: "asc" } })
-    : [];
+  const { thread: threadParam } = await searchParams;
+  const [threads, current] = await Promise.all([
+    db.assistantThread.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 40, select: { id: true, title: true, updatedAt: true } }),
+    threadParam ? db.assistantThread.findFirst({ where: { id: threadParam, userId: user.id }, select: { id: true } }) : null,
+  ]);
+  const threadId = current?.id;
+  const messages = threadId ? await db.assistantMessage.findMany({ where: { threadId }, orderBy: { createdAt: "asc" } }) : [];
+  const tz = user.organization.timezone;
+  const when = (d: Date) => (Date.now() - d.getTime() < 2 * 86400_000 ? timeAgo(d, locale) : formatDate(d, locale, { dateStyle: undefined, day: "numeric", month: "long" }, tz));
+
+  const initial: Msg[] = messages.map((m) => {
+    const meta = (m.meta ?? {}) as AssistantMeta;
+    return { role: m.role as "user" | "assistant", text: m.text, steps: meta.steps, posts: meta.posts, followups: meta.followups };
+  });
+
+  const list = threads.map((th) => ({ id: th.id, title: plainAnswer(th.title), when: when(th.updatedAt) }));
+  const deleteLabels = { confirm: t.common.confirmDelete, delete: t.common.delete };
 
   return (
-    <>
-      <PageHeader title={t.assistant.title} />
-      <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
-        <aside className="hidden lg:block">
-          <Link href="/assistant" className="btn-primary mb-4 w-full">
-            <MessageSquarePlus className="h-4 w-4" /> {t.assistant.newChat}
-          </Link>
-          {threads.length > 0 && <h3 className="mb-2 px-2 text-xs font-medium text-muted">{t.assistant.history}</h3>}
-          <ul className="space-y-1">
-            {threads.map((th) => (
-              <li key={th.id}>
-                <Link
-                  href={`/assistant?thread=${th.id}`}
-                  className={cn("block rounded-xl px-3 py-2 text-sm hover:bg-surface", th.id === threadId && "bg-surface ring-1 ring-line")}
-                >
-                  <span dir="auto" className="line-clamp-1">{th.title}</span>
-                  <span className="text-xs text-muted">{timeAgo(th.updatedAt, locale)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </aside>
-        <Chat
-          key={threadId ?? "new"}
-          threadId={threadId}
-          enabled={aiEnabled()}
-          initial={messages.map((m) => ({ role: m.role as "user" | "assistant", text: m.text }))}
-          t={t.assistant}
-        />
-      </div>
-    </>
+    <div className="full-bleed flex min-h-[calc(100dvh-60px)] w-full md:min-h-0 md:flex-1">
+      <History threads={list} current={threadId} t={t.assistantPage} deleteLabels={deleteLabels} />
+      <Chat
+        key={threadId ?? "new"}
+        threadId={threadId}
+        enabled={aiEnabled()}
+        initial={initial}
+        locale={locale}
+        tz={tz}
+        t={t.assistantPage}
+        disabledLabel={t.assistant.disabled}
+        errorLabel={t.assistant.error}
+        history={{ threads: list, deleteLabels }}
+      />
+    </div>
   );
 }
