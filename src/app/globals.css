@@ -515,3 +515,86 @@ main:has(> .full-bleed) {
   --color-legend-muted-foreground: var(--legend-muted-foreground);
   --color-legend-track: var(--legend-track);
 }
+
+/* ---------- Report document: print exactly the document card (Export PDF) ---------- */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  html:has(.report-doc),
+  html:has(.report-doc) body,
+  body:has(.report-doc) > div {
+    color-scheme: light !important;
+    background: #fff !important;
+    min-height: 0 !important;
+  }
+  /* Everything around the card goes: shell, toolbar, banners, toasts. */
+  body:has(.report-doc) .app-col > :not(.sheet),
+  body:has(.report-doc) .sheet > :not(main),
+  body:has(.report-doc) main > div > :not(.report-doc) {
+    display: none !important;
+  }
+  body:has(.report-doc) .app-col,
+  body:has(.report-doc) .sheet,
+  body:has(.report-doc) main,
+  body:has(.report-doc) main > div {
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    min-height: 0 !important;
+  }
+  /* The printed page always uses the light palette, whatever the screen theme. */
+  .report-doc {
+    --color-canvas: #f1f0ec;
+    --color-surface: #ffffff;
+    --color-sunken: #e6e4de;
+    --color-ink: #161616;
+    --color-muted: #5f5e59;
+    --color-faint: #8f8d87;
+    --color-line: #dcdbd6;
+    --color-line-strong: #cfcdc7;
+    --color-chart: #e8775e;
+    --color-dot-track: #e6e4de;
+    --color-pos: #2f8f5b;
+    --color-neg: #d4503f;
+    --color-neu: #a9a7a1;
+    color: var(--color-ink);
+    background: #fff !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    gap: 26px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report-doc section,
+  .report-doc figure,
+  .report-doc li {
+    break-inside: avoid;
+  }
+  .report-doc h2 {
+    break-after: avoid;
+  }
+  /* Paper is narrower than the screen card: keep the board's columns, tighten the gaps. */
+  .report-doc .md\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .report-doc .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .report-doc .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .report-doc .md\:grid-cols-\[300px_minmax\(0\,1fr\)\] {
+    grid-template-columns: 260px minmax(0, 1fr) !important;
+    gap: 40px !important;
+  }
+  .report-doc blockquote {
+    -webkit-line-clamp: unset !important;
+    display: block !important;
+  }
+}

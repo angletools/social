@@ -58,6 +58,7 @@ export async function runDueWeeklyReports(now = new Date()) {
     const report = await db.report.create({
       data: {
         organizationId: org.id,
+        weekly: true,
         title: `${org.weeklyReportLocale === "ar" ? "التقرير الأسبوعي" : "Weekly report"} · ${start.toISOString().slice(0, 10)} → ${now.toISOString().slice(0, 10)}`,
         locale: org.weeklyReportLocale,
         periodStart: start,
