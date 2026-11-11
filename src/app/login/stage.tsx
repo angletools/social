@@ -6,13 +6,13 @@ import css from "./stage.module.css";
 
 const LightField = dynamic(() => import("./light-field"), { ssr: false });
 
-/** The dark half of the sign-in page: a slow warm light beam, film grain and a frosted card. */
+/** The dark half of the sign-in page: a slow warm light beam with film grain, and a dot-matrix chart resting on it. */
 export function Stage({ children, rtl = false }: { children: React.ReactNode; rtl?: boolean }) {
   const [gl, setGl] = useState<"pending" | "on" | "off">("pending");
   const onReady = useCallback(() => setGl("on"), []);
   const onFail = useCallback(() => setGl("off"), []);
   return (
-    <section aria-hidden className={`${rtl ? "" : css.mirror} relative isolate ms-4 hidden items-center justify-center overflow-hidden rounded-[26px] bg-[#050505] px-16 py-12 lg:flex`}>
+    <section aria-hidden className={`${rtl ? "" : css.mirror} relative isolate ms-4 hidden overflow-hidden rounded-[26px] bg-[#050505] px-14 pt-14 pb-12 lg:flex lg:flex-col`}>
       {gl !== "on" && (
         <>
           <span className={css.beam} />
@@ -28,7 +28,7 @@ export function Stage({ children, rtl = false }: { children: React.ReactNode; rt
         </filter>
         <rect width="100%" height="100%" filter="url(#lg-grain)" />
       </svg>
-      <div className={`${css.glass} relative flex w-full max-w-[560px] flex-col gap-9 rounded-[24px] px-9 pt-9 pb-7`}>{children}</div>
+      <div className="relative z-[1] mt-auto w-full">{children}</div>
     </section>
   );
 }

@@ -6,8 +6,8 @@ import { Stage } from "./stage";
 
 export const metadata = { title: "Sign in" };
 
-const COLS = 60;
-const ROWS = 18;
+const COLS = 72;
+const ROWS = 30;
 
 /** Decorative dot-matrix of a month of conversation: two readings a day, with a late spike. */
 function matrix() {
@@ -16,11 +16,11 @@ function matrix() {
   const dots: { x: number; y: number; on: boolean; a: number }[] = [];
   for (let c = 0; c < COLS; c++) {
     const t = c / (COLS - 1);
-    const base = 0.28 + 0.1 * Math.sin(t * 9) + 0.06 * Math.sin(t * 23);
-    const spike = 0.62 * Math.exp(-(((t - 0.86) / 0.035) ** 2)) + 0.22 * Math.exp(-(((t - 0.93) / 0.03) ** 2));
+    const base = 0.22 + 0.08 * Math.sin(t * 9) + 0.05 * Math.sin(t * 23);
+    const spike = 0.58 * Math.exp(-(((t - 0.86) / 0.035) ** 2)) + 0.2 * Math.exp(-(((t - 0.93) / 0.03) ** 2));
     const lit = Math.max(1, Math.round(Math.min(1, base + spike + (rnd() - 0.5) * 0.08) * ROWS));
     for (let r = 0; r < ROWS; r++) {
-      dots.push({ x: 5 + c * 10, y: 5 + r * 10, on: ROWS - r <= lit, a: 0.22 + 0.78 * (1 - r / (ROWS - 1)) });
+      dots.push({ x: 5 + c * 10, y: 5 + r * 10, on: ROWS - r <= lit, a: 0.35 + 0.65 * (1 - (ROWS - r) / Math.max(1, lit)) });
     }
   }
   return dots;
@@ -59,25 +59,26 @@ export default async function LoginPage() {
       </section>
 
       <Stage rtl={dir === "rtl"}>
-        <p className={ar ? "text-[28px] leading-[1.75] font-medium text-white" : "text-[28px] leading-[1.45] font-medium tracking-[-0.01em] text-white"}>{t.login.pitch}</p>
-        <div className="flex flex-col gap-3.5">
-          <div className="flex items-baseline justify-between gap-4 text-[13.5px] text-white/62">
-            <span>{t.loginPage.chartLabel}</span>
-            <span className="flex items-baseline gap-2.5">
-              <span dir="ltr" className="text-[20px] font-semibold text-white tnum">945</span>
-              <span dir="ltr" className="text-[13.5px] font-semibold text-[#ffb199]">↗ 13%</span>
-            </span>
-          </div>
-          <svg viewBox="0 0 600 180" className="block h-auto w-full" style={{ direction: "ltr" }}>
-            {DOTS.map((d, i) => (
-              <circle key={i} cx={d.x} cy={d.y} r={2.4} fill={d.on ? `rgba(255,214,200,${d.a.toFixed(2)})` : "rgba(255,255,255,0.07)"} />
-            ))}
-          </svg>
-          <div dir="ltr" className="flex justify-between text-[12px] text-white/45 tnum">
-            {ticks.map((x) => (
-              <span key={x} dir="auto">{x}</span>
-            ))}
-          </div>
+        <div className="flex items-end justify-between gap-6">
+          <span className="text-[13.5px] text-white/55">{t.loginPage.chartLabel}</span>
+          <span className="flex items-baseline gap-3">
+            <span dir="ltr" className="text-[40px] leading-none font-semibold tracking-[-0.02em] text-white tnum">945</span>
+            <span dir="ltr" className="text-[14px] font-semibold text-[#ffb199]">↗ 13%</span>
+          </span>
+        </div>
+        <svg
+          viewBox={`0 0 ${COLS * 10} ${ROWS * 10}`}
+          className="mt-6 block h-auto w-full"
+          style={{ direction: "ltr", maskImage: "linear-gradient(to bottom, transparent, #000 35%), linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)", maskComposite: "intersect", WebkitMaskComposite: "source-in" }}
+        >
+          {DOTS.map((d, i) => (
+            <circle key={i} cx={d.x} cy={d.y} r={2.3} fill={d.on ? `rgba(255,${Math.round(200 + 30 * d.a)},${Math.round(180 + 40 * d.a)},${(0.45 + 0.55 * d.a).toFixed(2)})` : "rgba(255,255,255,0.055)"} />
+          ))}
+        </svg>
+        <div dir="ltr" className="mt-3 flex justify-between px-[8%] text-[12px] text-white/40 tnum">
+          {ticks.map((x) => (
+            <span key={x} dir="auto">{x}</span>
+          ))}
         </div>
       </Stage>
     </div>
