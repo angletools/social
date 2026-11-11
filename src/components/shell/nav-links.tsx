@@ -52,7 +52,7 @@ export type SidebarMonitor = { id: string; name: string; type: "KEYWORD" | "HASH
 const MONITOR_ICON: Record<SidebarMonitor["type"], React.ElementType> = { KEYWORD: Target, HASHTAG: Hash, PROFILE: UserRound, TOPIC: MessagesSquare };
 const isActive = (path: string, href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
 
-function useMac() {
+export function useMac() {
   const [mac, setMac] = useState(true);
   useEffect(() => {
     setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
@@ -112,9 +112,9 @@ function NavRow({ item, label, count, collapsed, kbd }: { item: Item; label: str
   return (
     <Link href={item.href} aria-label={collapsed ? label : undefined} aria-current={active ? "page" : undefined} className={row(collapsed, active)}>
       <Icon className="h-5 w-5 shrink-0" strokeWidth={1.5} />
-      {!collapsed && <span className="flex-1 truncate">{label}</span>}
+      {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
       {!collapsed && count ? (
-        <span dir="ltr" className="text-[14px] text-[#8f8f8f] tnum">
+        <span dir="ltr" className="flex w-5 shrink-0 justify-center text-[14px] leading-none whitespace-nowrap text-[#8f8f8f] tnum">
           {count > 999 ? "999+" : count}
         </span>
       ) : null}
@@ -202,7 +202,7 @@ export function Sidebar({
         collapsed ? "w-[84px]" : "w-[264px]",
       )}
     >
-      <div className={cn("mb-3.5 flex h-12 items-center ps-2.5 pe-1", collapsed ? "justify-center ps-0 pe-0" : "justify-between")}>
+      <div className={cn("mb-3.5 flex h-12 items-center", collapsed ? "justify-center" : "justify-between ps-3.5 pe-1")}>
         {!collapsed && (
           <Link href="/" className="min-w-0 truncate text-[25px] font-semibold leading-none tracking-[-0.03em] text-white" dir="ltr">
             angle<span className="text-[20px] font-normal tracking-normal text-[#7a7a7a]"> /social</span>
@@ -230,8 +230,8 @@ export function Sidebar({
         href="/settings#organization"
         aria-label={ws}
         className={cn(
-          "group relative mt-[22px] flex h-[50px] shrink-0 items-center gap-3 rounded-[13px] bg-[#080808]",
-          collapsed ? "justify-center border border-transparent" : "border border-[#212121] px-3",
+          "group relative mt-[22px] flex h-[50px] shrink-0 items-center gap-[11px] rounded-[13px] border bg-[#080808]",
+          collapsed ? "justify-center border-transparent" : "border-[#212121] ps-2.5 pe-[13px]",
         )}
       >
         <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[13px] font-semibold text-white" style={{ background: wsColor }}>
@@ -240,7 +240,9 @@ export function Sidebar({
         {!collapsed && (
           <>
             <span className="flex-1 truncate text-[15.5px] font-medium text-[#f2f2f2]">{ws}</span>
-            <ChevronDown className="h-4 w-4 text-[#9a9a9a]" strokeWidth={1.8} />
+            <span className="flex w-5 shrink-0 justify-center" aria-hidden>
+              <ChevronDown className="h-4 w-4 text-[#9a9a9a]" strokeWidth={1.8} />
+            </span>
           </>
         )}
         <Tip label={ws} show={collapsed} />
@@ -248,9 +250,9 @@ export function Sidebar({
 
       {!collapsed ? (
         <>
-          <div className="flex items-center justify-between px-3.5 pt-[18px] pb-2 text-[13.5px] text-[#8a8a8a]">
+          <div className="flex h-12 items-end justify-between px-3.5 pb-2 text-[13.5px] leading-7 text-[#8a8a8a]">
             <Link href="/monitors" className="hover:text-white">{labels.monitors}</Link>
-            <Link href="/monitors/new" aria-label={labels.newMonitor} title={labels.newMonitor} className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] text-[#9a9a9a] hover:bg-[#161616] hover:text-white">
+            <Link href="/monitors/new" aria-label={labels.newMonitor} title={labels.newMonitor} className="-me-1 flex h-7 w-7 items-center justify-center rounded-[8px] text-[#9a9a9a] hover:bg-[#161616] hover:text-white">
               <Plus className="h-4 w-4" strokeWidth={1.6} />
             </Link>
           </div>
@@ -282,10 +284,12 @@ function MonitorRow({ href, icon: Icon, name, live }: { href: string; icon: Reac
   const path = usePathname();
   const active = path === href;
   return (
-    <Link href={href} className={cn("flex h-10 shrink-0 items-center gap-3 rounded-[10px] px-3.5 text-[15px]", active ? "bg-[#1c1c1c] text-white" : "text-[#c9c9c9] hover:bg-[#111] hover:text-white")}>
-      <Icon className="h-[18px] w-[18px] shrink-0 text-[#8f8f8f]" strokeWidth={1.5} />
-      <span className="flex-1 truncate">{name}</span>
-      {live && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5cc08a]" aria-hidden />}
+    <Link href={href} className={cn("flex h-10 shrink-0 items-center gap-3.5 rounded-[10px] px-3.5 text-[15px]", active ? "bg-[#1c1c1c] text-white" : "text-[#c9c9c9] hover:bg-[#111] hover:text-white")}>
+      <Icon className="h-5 w-5 shrink-0 text-[#8f8f8f]" strokeWidth={1.5} />
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="flex w-5 shrink-0 justify-center" aria-hidden>
+        {live && <span className="h-1.5 w-1.5 rounded-full bg-[#5cc08a]" />}
+      </span>
     </Link>
   );
 }

@@ -47,7 +47,7 @@ export function UserMenu({
           onClick={() => setOpen((v) => !v)}
           aria-label={name}
           aria-expanded={open}
-          className={cn("flex w-full items-center gap-3 rounded-xl py-2 text-start hover:bg-[#111]", collapsed ? "justify-center px-0" : "px-2.5")}
+          className={cn("flex w-full items-center gap-2 rounded-xl py-2 text-start hover:bg-[#111]", collapsed ? "justify-center px-0" : "px-2")}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-[13px] font-semibold text-[#e6e6e6]">{[...name][0]?.toUpperCase()}</span>
           {!collapsed && (
