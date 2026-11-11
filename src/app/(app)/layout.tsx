@@ -82,8 +82,10 @@ export default async function AppLayout({
 
         <div className="app-col flex min-w-0 flex-1 flex-col bg-black">
           <header className="no-print sticky top-0 z-30 flex h-[60px] shrink-0 items-center gap-1.5 bg-black px-3 md:px-[18px]">
-            <Link href="/" aria-label={t.app.name} dir="ltr" className="me-2 text-[20px] font-semibold tracking-[-0.03em] text-white md:hidden">
-              angle<span className="font-normal text-[#7a7a7a]"> /social</span>
+            <Link href="/" aria-label={t.app.name} className="me-2 text-[20px] font-semibold tracking-[-0.03em] text-white md:hidden">
+              <span dir="ltr">
+                angle<span className="font-normal text-[#7a7a7a]"> /social</span>
+              </span>
             </Link>
             <HistoryArrows dir={dir} labels={{ back: t.nav.back, forward: t.nav.forward }} />
             <div className="ms-auto flex min-w-0 items-center gap-1.5 md:gap-2.5">

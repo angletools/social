@@ -39,10 +39,9 @@ export function GlobalSearch({ placeholder }: { placeholder: string }) {
         ref={ref}
         type="search"
         placeholder={placeholder}
-        dir="auto"
-        className="h-[38px] w-full rounded-[11px] border-0 bg-[#141414] ps-9 pe-11 text-[14px] text-[#ececec] outline-none placeholder:text-[#858585] focus:ring-2 focus:ring-white/15"
+        className="h-[38px] w-full rounded-[11px] border-0 bg-[#141414] ps-9 pe-12 text-[14px] text-ellipsis text-[#ececec] outline-none placeholder:text-[#858585] focus:ring-2 focus:ring-white/15"
       />
-      <kbd dir="ltr" className="pointer-events-none absolute end-3 top-1/2 hidden -translate-y-1/2 font-sans text-[12.5px] text-[#6b6b6b] sm:block">⌘K</kbd>
+      <kbd className="pointer-events-none absolute end-3 top-1/2 hidden -translate-y-1/2 font-sans text-[12.5px] text-[#6b6b6b] sm:block"><span dir="ltr">⌘K</span></kbd>
     </form>
   );
 }
