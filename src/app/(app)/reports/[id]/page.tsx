@@ -4,7 +4,7 @@ import type { Platform, Sentiment } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dictFor, getDict } from "@/lib/i18n";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, signed } from "@/lib/utils";
 import type { ReportContent } from "@/lib/ai/report";
 import { KpiCard, Meter } from "@/components/ui";
 import { PlatformIcon } from "@/components/platform";
@@ -60,7 +60,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <h2 className="mb-4 text-lg font-semibold">{t.reports.keyNumbers}</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <KpiCard label={t.overview.mentions} value={formatNumber(stats.kpis.mentions, locale)} delta={stats.kpis.deltas.mentions} />
-              <KpiCard label={t.sentiment.net} value={`${stats.kpis.netSentiment > 0 ? "+" : ""}${stats.kpis.netSentiment}`} delta={stats.kpis.deltas.netSentiment} deltaSuffix="" />
+              <KpiCard label={t.sentiment.net} value={signed(stats.kpis.netSentiment)} delta={stats.kpis.deltas.netSentiment} deltaSuffix="" />
               <KpiCard label={t.overview.reach} value={formatNumber(stats.kpis.reach, locale)} delta={stats.kpis.deltas.reach} />
               <KpiCard label={t.overview.risks} value={formatNumber(stats.kpis.risks, locale)} delta={stats.kpis.deltas.risks} invert />
             </div>

@@ -4,7 +4,7 @@ import type { Platform } from "@prisma/client";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
-import { formatDate, formatNumber, hourIn, timeAgo } from "@/lib/utils";
+import { formatDate, formatNumber, hourIn, ltr, signed, timeAgo } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import {
   INBOX_INTENTS,
@@ -138,7 +138,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                   Math.abs(kpis.deltas.mentions) < 3
                     ? t.overview.steady
                     : fmt(kpis.deltas.mentions > 0 ? t.overview.up : t.overview.down, { n: formatNumber(Math.abs(kpis.deltas.mentions), locale) }),
-                net: `${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`,
+                net: ltr(signed(kpis.netSentiment)),
               })}{" "}
               {waiting > 0 && (
                 <Link href="/inbox" className="font-medium text-ink underline decoration-1 underline-offset-[6px]">
@@ -166,7 +166,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           />
           <KpiCard
             label={t.sentiment.net}
-            value={`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`}
+            value={signed(kpis.netSentiment)}
             delta={kpis.deltas.netSentiment}
             deltaSuffix=""
             trend={pts.map((p) => p.net)}
@@ -204,7 +204,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             }
           >
             {attention.length === 0 ? (
-              <p className="px-5 pb-6 pt-4 text-[13px] text-muted">{t.inbox.empty}</p>
+              <p className="px-6 pb-6 pt-4 text-[13px] text-muted">{t.inbox.empty}</p>
             ) : (
               <ul className="px-2 pb-2">
                 {attention.map((m) => (
@@ -247,7 +247,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                       <span className="truncate text-[13.5px] font-medium group-hover:text-brand-700">{locale === "ar" ? tp.labelAr : tp.labelEn}</span>
                       <span className="text-xs text-muted ltr-nums">
                         {formatNumber(tp.count, locale)}
-                        {tp.negative > 0 && <span className="ms-2 text-neg">{Math.round((tp.negative / tp.count) * 100)}% −</span>}
+                        {tp.negative > 0 && (
+                          <span className="ms-3 inline-flex items-center gap-1.5 text-neg" title={t.sentiment.NEGATIVE}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-neg" aria-hidden />
+                            {Math.round((tp.negative / tp.count) * 100)}%
+                          </span>
+                        )}
                       </span>
                       <div className="col-span-2" style={{ width: `${Math.max(10, (tp.count / maxTopic) * 100)}%` }}>
                         <SentimentBar pos={tp.positive} neg={tp.negative} neu={tp.count - tp.positive - tp.negative} />
@@ -258,28 +263,28 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
               </ul>
             )}
           </Card>
-          <Card title={t.sentiment.label} help={t.sentiment.help}>
-            <div className="space-y-5">
+          <Card title={t.sentiment.label} help={t.sentiment.help} bodyClassName="flex flex-col justify-center gap-8">
+            <div className="mx-auto w-full max-w-[300px]">
               <SentimentGauge net={kpis.netSentiment} label={t.sentiment.net} />
-              <ul className="grid grid-cols-3 gap-2">
+            </div>
+            <ul className="grid grid-cols-3 gap-2">
                 {(["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((s) => {
                   const v = s === "POSITIVE" ? kpis.positive : s === "NEUTRAL" ? kpis.neutral : kpis.negative;
                   return (
                     <li key={s}>
-                      <Link prefetch={false} href={`/mentions?sentiment=${s}&days=${days}`} className="block rounded-lg px-2 py-1.5 hover:bg-panel">
+                      <Link prefetch={false} href={`/mentions?sentiment=${s}&days=${days}`} className="flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-center transition-colors hover:bg-panel">
                         <span className="flex items-center gap-2 text-[13px]">
                           <span className={`h-2 w-2 rounded-full ${s === "POSITIVE" ? "bg-pos" : s === "NEUTRAL" ? "bg-neu" : "bg-neg"}`} />
                           {t.sentiment[s]}
                         </span>
-                        <span className="mt-0.5 block text-[13px] ltr-nums">
+                        <span className="text-[13px] ltr-nums">
                           <b className="font-semibold">{pct(v)}%</b> <span className="text-faint">· {formatNumber(v, locale)}</span>
                         </span>
                       </Link>
                     </li>
                   );
                 })}
-              </ul>
-            </div>
+            </ul>
           </Card>
         </div>
 
@@ -290,15 +295,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             ) : (
               <>
                 <ShareOfVoiceChart totalLabel={t.overview.shareOfVoice} data={sov.map((s) => ({ name: s.name, share: s.share, isCompetitor: s.isCompetitor }))} />
-                <ul className="mt-4 space-y-2 text-[13px]">
+                <ul className="mt-5 grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 gap-y-2.5 text-[13.5px]">
                   {sov.map((s, i) => (
-                    <li key={s.monitorId} className="flex items-center gap-2">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: sovColor[i] }} />
-                      <span className={`flex-1 truncate ${s.isCompetitor ? "text-muted" : "font-semibold"}`}>{s.name}</span>
-                      <span className="text-muted ltr-nums">{s.share}%</span>
-                      <span className={`w-10 text-end font-medium ltr-nums ${s.netSentiment >= 0 ? "text-pos" : "text-neg"}`}>
-                        {s.netSentiment > 0 ? "+" : ""}
-                        {s.netSentiment}
+                    <li key={s.monitorId} className="contents">
+                      <span className="h-2 w-2 rounded-full" style={{ background: sovColor[i] }} aria-hidden />
+                      <span className={`min-w-0 truncate ${s.isCompetitor ? "text-muted" : "font-semibold"}`}>{s.name}</span>
+                      <span className="text-end text-muted ltr-nums">{s.share}%</span>
+                      <span className={`min-w-9 text-end font-medium ltr-nums ${s.netSentiment >= 0 ? "text-pos" : "text-neg"}`} title={t.sentiment.net}>
+                        {signed(s.netSentiment)}
                       </span>
                     </li>
                   ))}
@@ -324,14 +328,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             <ul>
               {authors.map((a) => (
                 <li key={a.handle}>
-                  <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(a.handle)}&days=${days}`} className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-canvas">
+                  <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(a.handle)}&days=${days}`} className="flex items-center gap-3 px-6 py-2.5 transition-colors hover:bg-panel">
                     <Avatar name={a.name ?? a.handle} seed={a.handle} size={30} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 truncate text-[13px] font-medium">
                         {a.name ?? a.handle} <PlatformIcon platform={a.platform} size="xs" />
                       </div>
                       <div className="text-xs text-faint">
-                        <span className="ltr-nums">{formatNumber(a.followers, locale)}</span> {t.overview.followers} · <span className="ltr-nums">{a.mentions}</span>
+                        <span className="ltr-nums">{formatNumber(a.followers, locale)}</span> {a.followers === 1 ? t.inbox.follower : t.overview.followers} · <span className="ltr-nums">{a.mentions}</span>
                       </div>
                     </div>
                     {a.avgSentiment !== null && (

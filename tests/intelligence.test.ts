@@ -72,7 +72,7 @@ describe("fallbackBrief", () => {
   };
   it("writes both languages from the numbers", () => {
     const b = fallbackBrief(input);
-    expect(b.summaryEn).toContain("Net sentiment -18");
+    expect(b.summaryEn).toContain("Net sentiment \u2066\u221218\u2069");
     expect(b.summaryEn).toContain("app-outage");
     expect(b.summaryEn).toContain("12 posts signal churn");
     expect(b.summaryAr).toContain("ع-app-outage");

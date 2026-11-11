@@ -13,6 +13,8 @@
  * which Urbanist has no glyphs for. Dark values live below @theme.
  */
 @theme {
+  /* Spacing is a true 4px grid (4/8/12/16/24/32/40), independent of the 14px root font size. */
+  --spacing: 4px;
   --font-sans: "Urbanist", "Vazirmatn Variable", ui-sans-serif, system-ui, sans-serif;
 
   --color-canvas: #e9e8e4;
@@ -184,6 +186,33 @@ h3 {
 }
 body {
   font-synthesis: none;
+}
+
+/*
+ * Mixed-language content (an Arabic post in the English UI, or the reverse)
+ * keeps its own reading direction but lines up with the page's edge, so a
+ * name and the post under it share one alignment line. Form fields are left
+ * alone: typing should follow the text.
+ */
+/* Taps fire immediately (no double-tap-zoom wait) and long-press doesn't select button text. */
+@layer base {
+  :where(a, button, [role="button"], [role="tab"], [role="radio"], label, summary) {
+    touch-action: manipulation;
+  }
+  :where(button, [role="button"], [role="tab"]) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+@layer base {
+  :where(p, span, div, li, dd, dt, blockquote, b, strong, a, h1, h2, h3, h4)[dir="auto"] {
+    text-align: left;
+    unicode-bidi: plaintext;
+  }
+  :where([dir="rtl"]) :where(p, span, div, li, dd, dt, blockquote, b, strong, a, h1, h2, h3, h4)[dir="auto"] {
+    text-align: right;
+  }
 }
 
 ::selection {

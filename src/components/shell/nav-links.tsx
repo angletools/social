@@ -286,7 +286,7 @@ function MonitorRow({ href, icon: Icon, name, live }: { href: string; icon: Reac
   return (
     <Link href={href} className={cn("flex h-10 shrink-0 items-center gap-3.5 rounded-[10px] px-3.5 text-[15px]", active ? "bg-[#1c1c1c] text-white" : "text-[#c9c9c9] hover:bg-[#111] hover:text-white")}>
       <Icon className="h-5 w-5 shrink-0 text-[#8f8f8f]" strokeWidth={1.5} />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span dir="auto" className="min-w-0 flex-1 truncate">{name}</span>
       <span className="flex w-5 shrink-0 justify-center" aria-hidden>
         {live && <span className="h-1.5 w-1.5 rounded-full bg-[#5cc08a]" />}
       </span>

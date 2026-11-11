@@ -80,7 +80,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
         <div className="space-y-6">
           {isAdmin && (
             <div className="grid gap-6 lg:grid-cols-2">
-              <section className="card p-5">
+              <section className="card p-6">
                 <h2 className="mb-1 font-semibold">{s.voice.learn}</h2>
                 <p className="mb-4 text-sm text-muted">{s.voice.learnHint}</p>
                 <LearnVoiceForm
@@ -89,7 +89,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
                   aiOn={aiEnabled()}
                 />
               </section>
-              <section className="card p-5">
+              <section className="card p-6">
                 <h2 className="mb-4 font-semibold">{s.voice.new}</h2>
                 <VoiceForm labels={s.voice} dialects={t.dialects} saveLabel={t.common.save} />
               </section>
@@ -140,7 +140,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
             ))}
           </section>
           {isAdmin && (
-            <section className="card h-fit p-5">
+            <section className="card h-fit p-6">
               <h2 className="mb-4 font-semibold">{s.watch.new}</h2>
               <WatchForm labels={s.watch} platformLabels={t.platforms} platforms={TREND_PLATFORMS} />
             </section>
@@ -182,7 +182,7 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
         const structure = f.structure as { label: string; description: string; labelAr?: string; descriptionAr?: string }[];
         const ar = locale === "ar";
         return (
-          <article key={f.id} className="card flex flex-col p-5">
+          <article key={f.id} className="card flex flex-col p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
@@ -344,7 +344,7 @@ async function DraftsTab({ orgId, locale, t }: { orgId: string; locale: string; 
     <ul className="card divide-y divide-line">
       {drafts.map((d) => (
         <li key={d.id}>
-          <Link prefetch={false} href={`/studio/drafts/${d.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-canvas">
+          <Link prefetch={false} href={`/studio/drafts/${d.id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-canvas">
             <PlatformIcon platform={d.platform} />
             <div className="min-w-0 flex-1">
               <div dir="auto" className="truncate font-medium">{d.title}</div>

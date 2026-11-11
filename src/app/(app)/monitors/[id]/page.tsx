@@ -4,7 +4,7 @@ import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
-import { formatDate, formatNumber, timeAgo } from "@/lib/utils";
+import { formatDate, formatNumber, signed, timeAgo } from "@/lib/utils";
 import { getKpis, getTimeseries, getTopTopics, parseDays } from "@/lib/analytics";
 import { Card, KpiCard, PageHeader } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
@@ -82,10 +82,10 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
 
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <KpiCard label={t.overview.mentions} value={formatNumber(kpis.mentions, locale)} delta={kpis.deltas.mentions} vsLabel={t.overview.vsPrev} />
-          <KpiCard label={t.sentiment.net} value={`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`} delta={kpis.deltas.netSentiment} deltaSuffix="" help={t.sentiment.help} vsLabel={t.overview.vsPrev} />
-          <KpiCard label={t.overview.reach} value={formatNumber(kpis.reach, locale)} delta={kpis.deltas.reach} vsLabel={t.overview.vsPrev} />
-          <KpiCard label={t.overview.risks} value={formatNumber(kpis.risks, locale)} delta={kpis.deltas.risks} invert vsLabel={t.overview.vsPrev} icon={<ShieldAlert className="h-4 w-4" />} />
+          <KpiCard label={t.overview.mentions} value={formatNumber(kpis.mentions, locale)} delta={kpis.deltas.mentions} />
+          <KpiCard label={t.sentiment.net} value={signed(kpis.netSentiment)} delta={kpis.deltas.netSentiment} deltaSuffix="" help={t.sentiment.help} />
+          <KpiCard label={t.overview.reach} value={formatNumber(kpis.reach, locale)} delta={kpis.deltas.reach} />
+          <KpiCard label={t.overview.risks} value={formatNumber(kpis.risks, locale)} delta={kpis.deltas.risks} invert icon={<ShieldAlert className="h-4 w-4" />} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -126,17 +126,17 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
           <Card title={t.monitors.detail.syncHistory} bodyClassName="p-0">
             <ul className="divide-y divide-line text-sm">
               {runs.map((r) => (
-                <li key={r.id} className="flex items-start gap-3 px-5 py-3">
+                <li key={r.id} className="flex items-start gap-3 px-6 py-3">
                   <PlatformIcon platform={r.platform} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-muted">{formatDate(r.startedAt, locale, { dateStyle: "short", timeStyle: "short" })}</span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        className={`inline-flex h-6 items-center rounded-[7px] px-2 text-[12px] font-semibold ${
                           r.status === "SUCCESS" ? "bg-pos/[0.07] text-pos" : r.status === "FAILED" ? "bg-neg/[0.06] text-neg" : "bg-sand-50 text-sand-700"
                         }`}
                       >
-                        {r.status}
+                        {t.monitors.detail.runStatus[r.status] ?? r.status}
                       </span>
                     </div>
                     <div className="mt-0.5 text-xs">
@@ -147,7 +147,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
                   </div>
                 </li>
               ))}
-              {runs.length === 0 && <li className="px-5 py-6 text-center text-muted">{t.monitors.detail.noRuns}</li>}
+              {runs.length === 0 && <li className="px-6 py-6 text-center text-muted">{t.monitors.detail.noRuns}</li>}
             </ul>
           </Card>
         </div>

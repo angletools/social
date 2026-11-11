@@ -261,7 +261,7 @@ export function VoiceList({
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       {voices.map((v) => (
-        <article key={v.id} className={cn("card p-5", v.isDefault && "ring-2 ring-brand-500")}>
+        <article key={v.id} className={cn("card p-6", v.isDefault && "ring-2 ring-brand-500")}>
           {editing === v.id ? (
             <VoiceForm voice={v} labels={labels} dialects={dialects} saveLabel={saveLabel} onSaved={() => setEditing(null)} />
           ) : (

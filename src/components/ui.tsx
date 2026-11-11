@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, CircleHelp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, signed } from "@/lib/utils";
 import { Sparkline } from "./sparkline";
 import { DotBar } from "./dots";
 
 export function PageHeader({ title, subtitle, actions, eyebrow }: { title: string; subtitle?: string; actions?: React.ReactNode; eyebrow?: React.ReactNode }) {
   return (
-    <div className="mb-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
       <div className="min-w-0">
         {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
-        <h1 className="text-[22px] font-semibold leading-tight">{title}</h1>
+        <h1 className="text-[24px] font-semibold leading-tight md:text-[28px]">{title}</h1>
         {subtitle && <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -35,11 +35,11 @@ export function Card({
   bodyClassName?: string;
 }) {
   return (
-    <section className={cn("card", className)}>
+    <section className={cn("card flex flex-col", className)}>
       {(title || actions) && (
-        <div className="flex items-start justify-between gap-3 px-5 pt-4">
+        <div className="flex min-h-[52px] items-center justify-between gap-3 px-6 pt-5">
           <div className="min-w-0">
-            <h2 className="flex items-center gap-1.5 text-[13.5px] font-semibold">
+            <h2 className="flex items-center gap-1.5 text-[15px] leading-6 font-semibold">
               {title}
               {help && <HelpTip text={help} />}
             </h2>
@@ -48,7 +48,7 @@ export function Card({
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
       )}
-      <div className={cn("p-5", title && "pt-4", bodyClassName)}>{children}</div>
+      <div className={cn("flex-1 p-6", (title || actions) && "pt-4", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -76,8 +76,7 @@ export function Delta({ value, suffix = "%", invert }: { value: number; suffix?:
       )}
     >
       {value > 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : value < 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : null}
-      {value > 0 ? "+" : ""}
-      {value}
+      {signed(value)}
       {suffix}
     </span>
   );
@@ -109,12 +108,12 @@ export function KpiCard({
 }) {
   const body = (
     <>
-      <div className="flex items-center gap-1.5 text-[12.5px] leading-snug text-muted sm:text-[13px]">
+      <div className="flex items-center gap-1.5 text-[13px] leading-5 text-muted sm:text-[14px]">
         {label}
         {help && <HelpTip text={help} />}
       </div>
       <div className="mt-2 flex items-end justify-between gap-3">
-        <div className="whitespace-nowrap text-[21px] font-semibold leading-none tracking-tight ltr-nums sm:text-[28px]">{value}</div>
+        <div className="whitespace-nowrap text-[24px] font-semibold leading-none tracking-tight ltr-nums sm:text-[30px]">{value}</div>
         {trend && trend.length > 1 && (
           <div className="hidden w-24 shrink-0 pb-0.5 sm:block">
             <Sparkline values={trend} color={trendColor} height={30} width={96} />
@@ -130,11 +129,11 @@ export function KpiCard({
     </>
   );
   return href ? (
-    <Link href={href} className="card block p-4 transition-colors hover:bg-panel sm:p-5">
+    <Link href={href} className="card block p-5 transition-colors hover:bg-panel sm:p-6">
       {body}
     </Link>
   ) : (
-    <div className="card p-4 sm:p-5">{body}</div>
+    <div className="card p-5 sm:p-6">{body}</div>
   );
 }
 

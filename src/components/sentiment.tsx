@@ -8,8 +8,8 @@ const TEXT: Record<Sentiment, string> = { POSITIVE: "text-pos", NEUTRAL: "text-m
 export function SentimentBadge({ sentiment, label }: { sentiment: Sentiment | null; label: string }) {
   if (!sentiment) return null;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", TEXT[sentiment])}>
-      <span className={cn("h-2 w-2 rounded-full", DOT[sentiment])} />
+    <span className={cn("inline-flex items-center gap-1.5 font-medium", TEXT[sentiment])}>
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[sentiment])} aria-hidden />
       {label}
     </span>
   );

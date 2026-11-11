@@ -9,7 +9,7 @@ import { SentimentBadge } from "./sentiment";
 import { MentionActions } from "./mention-actions";
 import { TranslateButton } from "./translate-button";
 import { DialectBadge, IntentBadge, SarcasmBadge, SlangChips } from "./dialect-badges";
-import { Avatar } from "./avatar";
+import { SolidAvatar } from "./avatar";
 
 export type MentionRow = Pick<
   Mention,
@@ -18,7 +18,7 @@ export type MentionRow = Pick<
   | "dialect" | "intent" | "sarcasm" | "slang" | "translation" | "repliedAt" | "note"
 > & { monitor?: { name: string }; assignedTo?: { name: string; email: string } | null };
 
-const Dot = () => <span className="text-line-strong">·</span>;
+const Dot = () => <span className="h-[3px] w-[3px] shrink-0 rounded-full bg-faint" aria-hidden />;
 
 export function MentionCard({
   m,
@@ -43,23 +43,23 @@ export function MentionCard({
   const text = compact && m.text.length > 220 ? `${m.text.slice(0, 220)}…` : m.text.length > 700 ? `${m.text.slice(0, 700)}…` : m.text;
 
   return (
-    <article className={cn("card group/m p-4 transition-colors hover:border-line-strong", m.status === "REVIEWED" && "bg-surface/70", className)}>
-      <header className="flex items-start gap-3">
-        <Avatar name={name} seed={m.authorHandle ?? name} size={compact ? 30 : 36} />
+    <article className={cn("card group/m p-5 sm:p-6", m.status === "REVIEWED" && "bg-surface/70", className)}>
+      <header className="flex items-center gap-3">
+        <SolidAvatar name={name} seed={m.authorHandle ?? name} size={compact ? 32 : 36} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px]">
-            <span className="truncate font-semibold">{name}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[14px] leading-5">
+            <span dir="auto" className="min-w-0 truncate font-semibold">{name}</span>
             {m.authorVerified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-info" aria-label="verified" />}
             {m.authorHandle && !compact && <span className="truncate text-muted ltr-nums">@{m.authorHandle}</span>}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px] leading-5 text-faint">
             <PlatformIcon platform={m.platform as Platform} size="xs" title={t.platforms[m.platform]} />
             <span>{timeAgo(m.publishedAt, locale)}</span>
             {m.authorFollowers ? (
               <>
                 <Dot />
                 <span>
-                  <span className="ltr-nums">{formatNumber(m.authorFollowers, locale)}</span> {t.overview.followers}
+                  <span className="ltr-nums">{formatNumber(m.authorFollowers, locale)}</span> {m.authorFollowers === 1 ? t.inbox.follower : t.overview.followers}
                 </span>
               </>
             ) : null}
@@ -72,19 +72,19 @@ export function MentionCard({
           </div>
         </div>
         {m.assignedTo && (
-          <span title={m.assignedTo.name}>
-            <Avatar name={m.assignedTo.name} seed={m.assignedTo.email} size={22} />
+          <span title={m.assignedTo.name} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-sunken text-[11px] font-semibold text-muted">
+            {[...m.assignedTo.name][0]?.toUpperCase()}
           </span>
         )}
       </header>
 
-      <p dir="auto" className={cn("mt-3 whitespace-pre-line leading-relaxed", compact ? "text-[13.5px]" : "text-[14.5px]")}>
+      <p dir="auto" className={cn("mt-3.5 whitespace-pre-line leading-[1.75] [overflow-wrap:anywhere]", compact ? "text-[14px]" : "text-[15px]")}>
         {text}
       </p>
 
       {m.isRisk && (
-        <div className="mt-3 flex items-start gap-2 rounded-lg border-s-2 border-neg bg-neg/[0.05] px-3 py-2 text-xs text-neg">
-          <ShieldAlert className="mt-px h-3.5 w-3.5 shrink-0" />
+        <div className="mt-3 flex items-start gap-2 rounded-xl bg-neg/[0.07] px-3 py-2.5 text-[13px] leading-5 text-neg">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
           <span>
             <b className="font-semibold">{t.mentions.risk}</b>
             {m.riskReason ? `: ${m.riskReason}` : ""}
@@ -92,18 +92,18 @@ export function MentionCard({
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] leading-5">
         {m.enrichedAt ? (
           <>
             <SentimentBadge sentiment={m.sentiment} label={m.sentiment ? t.sentiment[m.sentiment] : ""} />
             {m.intent && m.intent !== "OTHER" && <IntentBadge intent={m.intent} label={t.intents[m.intent]} />}
             {m.sarcasm && <SarcasmBadge label={t.engage.sarcasm} help={t.engage.sarcasmHelp} />}
-            {m.dialect && <DialectBadge dialect={m.dialect} label={t.dialects[m.dialect]} />}
+            {m.dialect && m.dialect !== "OTHER" && <DialectBadge dialect={m.dialect} label={t.dialects[m.dialect]} />}
             {!compact &&
               m.topics.map((k) => {
                 const l = topicLabels.get(k);
                 return (
-                  <Link key={k} prefetch={false} href={`/mentions?topic=${k}`} className="text-xs text-muted underline-offset-2 hover:text-ink hover:underline">
+                  <Link key={k} prefetch={false} href={`/mentions?topic=${k}`} className="text-muted underline-offset-4 hover:text-ink hover:underline">
                     #{l ? (locale === "ar" ? l.ar : l.en) : k}
                   </Link>
                 );

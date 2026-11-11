@@ -121,9 +121,10 @@ export type BriefInput = {
   examples?: Record<string, string[]>;
 };
 
-const sign = (n: number) => (n > 0 ? `+${n}` : String(n));
+/** Signed number with a true minus, isolated left-to-right so it never flips inside Arabic text. */
+const sign = (n: number) => `\u2066${n > 0 ? "+" : n < 0 ? "\u2212" : ""}${Math.abs(n)}\u2069`;
 const chg = (c: number | null, ar: boolean) =>
-  c === null ? (ar ? "جديد هذه الفترة" : "new this period") : ar ? `${c >= 0 ? "ارتفع" : "انخفض"} ${Math.abs(c)}٪` : `${c >= 0 ? "up" : "down"} ${Math.abs(c)}%`;
+  c === null ? (ar ? "جديد هذه الفترة" : "new this period") : ar ? `${c >= 0 ? "ارتفع" : "انخفض"} ${Math.abs(c)}%` : `${c >= 0 ? "up" : "down"} ${Math.abs(c)}%`;
 
 /** Deterministic brief from the numbers, used when AI is not configured or fails. */
 export function fallbackBrief(i: BriefInput): BriefContent {
@@ -135,7 +136,7 @@ export function fallbackBrief(i: BriefInput): BriefContent {
       title_en: d.labelEn,
       sentiment: "NEGATIVE",
       sharePct: d.share,
-      summary_ar: `${d.share}٪ من المحادثة السلبية (${d.hits} منشور)، ${chg(d.change, true)}.`,
+      summary_ar: `${d.share}% من المحادثة السلبية (${d.hits} منشور)، ${chg(d.change, true)}.`,
       summary_en: `${d.share}% of negative conversation (${d.hits} posts), ${chg(d.change, false)}.`,
       recommendation_ar: "",
       recommendation_en: "",
@@ -150,7 +151,7 @@ export function fallbackBrief(i: BriefInput): BriefContent {
       title_en: d.labelEn,
       sentiment: "POSITIVE",
       sharePct: d.share,
-      summary_ar: `${d.share}٪ من المحادثة الإيجابية (${d.hits} منشور).`,
+      summary_ar: `${d.share}% من المحادثة الإيجابية (${d.hits} منشور).`,
       summary_en: `${d.share}% of positive conversation (${d.hits} posts).`,
       recommendation_ar: "",
       recommendation_en: "",
@@ -179,7 +180,7 @@ export function fallbackBrief(i: BriefInput): BriefContent {
   const churnLineAr = i.churn ? ` ${i.churn} منشور يلمّح لترك الخدمة${cmp && i.churnPrev ? ` (كان ${i.churnPrev})` : ""}.` : "";
   const churnLineEn = i.churn ? ` ${i.churn} posts signal churn${cmp && i.churnPrev ? ` (was ${i.churnPrev})` : ""}.` : "";
   const summaryAr = i.total
-    ? `صافي المشاعر ${sign(i.netSentiment)}${cmp ? ` (${sign(i.netChange)} عن الفترة السابقة)` : ""} عبر ${i.total} منشور في آخر ${i.days} يوم.${top ? ` أكبر مصدر للاستياء: ${top.labelAr} (${top.share}٪).` : ""}${churnLineAr}`
+    ? `صافي المشاعر ${sign(i.netSentiment)}${cmp ? ` (${sign(i.netChange)} عن الفترة السابقة)` : ""} عبر ${i.total} منشور في آخر ${i.days} يوم.${top ? ` أكبر مصدر للاستياء: ${top.labelAr} (${top.share}%).` : ""}${churnLineAr}`
     : "لا توجد بيانات كافية لهذه الفترة بعد.";
   const summaryEn = i.total
     ? `Net sentiment ${sign(i.netSentiment)}${cmp ? ` (${sign(i.netChange)} vs previous period)` : ""} across ${i.total} posts in the last ${i.days} days.${top ? ` Biggest source of frustration: ${top.labelEn} (${top.share}%).` : ""}${churnLineEn}`

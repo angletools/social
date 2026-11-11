@@ -85,7 +85,7 @@ export function OrgForm({
     <form action={action} className="space-y-4">
       <div>
         <label className="label">{labels.name}</label>
-        <input name="name" defaultValue={name} className="input max-w-md" disabled={disabled} dir="auto" />
+        <input name="name" defaultValue={name} className="input" disabled={disabled} dir="auto" />
       </div>
       <div>
         <label className="label">{labels.context}</label>

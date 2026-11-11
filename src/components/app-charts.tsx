@@ -178,14 +178,14 @@ export function SentimentGauge({ net, label }: { net: number; label: string }) {
     <div dir="ltr" className="mx-auto w-full max-w-[300px]">
       <Gauge
         value={Math.max(0, Math.min(100, (net + 100) / 2))}
-        centerValue={net}
+        centerValue={Math.abs(net)}
         defaultLabel={label}
-        prefix={net > 0 ? "+" : undefined}
+        prefix={net > 0 ? "+" : net < 0 ? "\u2212" : undefined}
         totalNotches={41}
         spacing={30}
         notchCornerRadius={2}
         inactiveFillOpacity={0.35}
-        activeFill={net < 0 ? "var(--color-neg)" : "var(--color-pos)"}
+        activeFill="var(--color-ink)"
         inactiveFill="var(--color-line-strong)"
         minWidth={220}
       />

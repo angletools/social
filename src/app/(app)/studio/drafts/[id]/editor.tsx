@@ -197,7 +197,7 @@ export function DraftEditor({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="min-w-0 space-y-6">
-          <section className="card p-5">
+          <section className="card p-6">
             <h2 className="mb-2 text-xs font-medium text-muted">{d.concept}</h2>
             <Editable multiline value={c.concept} disabled={locked} onChange={(v) => update((x) => ({ ...x, concept: v }))} className="text-[15px]" />
             <h2 className="mb-2 mt-5 text-xs font-medium text-muted">{d.hooks}</h2>
@@ -291,7 +291,7 @@ export function DraftEditor({
           )}
 
           {tab === "edit" && (
-            <section className="card space-y-4 p-5 text-sm">
+            <section className="card space-y-4 p-6 text-sm">
               {([
                 [d.music, c.edit.music],
                 [d.pacing, c.edit.pacing],
@@ -314,7 +314,7 @@ export function DraftEditor({
           )}
 
           {tab === "rough" && (
-            <section className="card p-5">
+            <section className="card p-6">
               <RoughCut beats={beats} shots={c.shots} title={title} t={roughT} />
             </section>
           )}

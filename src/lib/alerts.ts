@@ -40,7 +40,7 @@ async function check(rule: AlertRule): Promise<Hit | null> {
       return {
         severity: pct >= rule.threshold * 1.5 ? "CRITICAL" : "WARNING",
         titleEn: `${rule.name}: ${pct}% negative`,
-        titleAr: `${rule.name}: ${pct}٪ سلبي`,
+        titleAr: `${rule.name}: ${pct}% سلبي`,
         bodyEn: `${neg} of ${total} recent mentions are negative.`,
         bodyAr: `${neg} من أصل ${total} إشارة حديثة سلبية.`,
         link: `${link}${link.includes("?") ? "&" : "?"}sentiment=NEGATIVE`,

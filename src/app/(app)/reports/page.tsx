@@ -29,7 +29,7 @@ export default async function ReportsPage() {
             <ul className="divide-y divide-line">
               {reports.map((r) => (
                 <li key={r.id}>
-                  <Link prefetch={false} href={`/reports/${r.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-canvas">
+                  <Link prefetch={false} href={`/reports/${r.id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-canvas">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
                       <FileText className="h-5 w-5" />
                     </div>

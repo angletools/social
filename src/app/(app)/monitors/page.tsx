@@ -46,7 +46,7 @@ export default async function MonitorsPage() {
             const total = c24.get(m.id) ?? 0;
             const neg = n24.get(m.id) ?? 0;
             return (
-              <Link key={m.id} href={`/monitors/${m.id}`} className="card group flex flex-col p-5 transition hover:border-line-strong">
+              <Link key={m.id} href={`/monitors/${m.id}`} className="card group flex flex-col p-6 transition hover:border-line-strong">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold group-hover:text-brand-700">{m.name}</h3>

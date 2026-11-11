@@ -2,7 +2,7 @@ import Link from "next/link";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
-import { cn, formatNumber, timeAgo } from "@/lib/utils";
+import { cn, formatNumber, signed, timeAgo } from "@/lib/utils";
 import { getPostingHeatmap, getTopSlang, parseDays } from "@/lib/analytics";
 import { fallbackBrief, getIntelligence, readBrief, type BriefTheme, type Driver } from "@/lib/intelligence";
 import { Card, Delta, Meter } from "@/components/ui";
@@ -17,8 +17,16 @@ import { RefreshBrief } from "./refresh-brief";
 
 export const metadata = { title: "Intelligence" };
 
-const TONE = { POSITIVE: "bg-pos", NEGATIVE: "bg-neg", MIXED: "bg-warn" } as const;
-const TONE_VAR: Record<string, string> = { POSITIVE: "var(--color-pos)", NEGATIVE: "var(--color-neg)", MIXED: "var(--color-warn)" };
+const TONE = {
+  POSITIVE: "bg-pos",
+  NEGATIVE: "bg-neg",
+  MIXED: "bg-warn",
+} as const;
+const TONE_VAR: Record<string, string> = {
+  POSITIVE: "var(--color-pos)",
+  NEGATIVE: "var(--color-neg)",
+  MIXED: "var(--color-warn)",
+};
 
 export default async function IntelligencePage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await requireUser();
@@ -28,7 +36,11 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
   const tab = sp.tab === "language" ? "language" : "overview";
   const T = t.intelligencePage;
   const ar = locale === "ar";
-  const scope = { orgId: user.organizationId, days, tz: user.organization.timezone };
+  const scope = {
+    orgId: user.organizationId,
+    days,
+    tz: user.organization.timezone,
+  };
   const q = (extra: Record<string, string>) => `/mentions?${new URLSearchParams({ days: String(days), ...extra })}`;
 
   const tabs = (
@@ -38,7 +50,10 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
           key={k}
           href={`/intelligence?${new URLSearchParams({ days: String(days), ...(k === "language" && { tab: k }) })}`}
           aria-current={tab === k ? "page" : undefined}
-          className={cn("rounded-[8px] px-3 py-1.5 text-[13px] transition", tab === k ? "bg-surface font-medium text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-muted hover:text-ink")}
+          className={cn(
+            "rounded-[8px] px-3 py-1.5 text-[13px] transition",
+            tab === k ? "bg-surface font-medium text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-muted hover:text-ink",
+          )}
         >
           {T.tabs[k]}
         </Link>
@@ -58,7 +73,10 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
   if (tab === "language") {
     const [slang, terms] = await Promise.all([
       getTopSlang(scope, 20),
-      db.lexiconTerm.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" } }),
+      db.lexiconTerm.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
     return (
       <>
@@ -71,9 +89,13 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               <ul className="divide-y divide-line">
                 {slang.map((s) => (
                   <li key={s.term}>
-                    <Link prefetch={false} href={q({ q: s.term })} className="flex items-center gap-4 px-5 py-2.5 hover:bg-panel">
-                      <b dir="auto" className="w-36 shrink-0 text-base font-medium">{s.term}</b>
-                      <span dir="ltr" className="flex-1 text-start text-sm text-muted">{s.gloss}</span>
+                    <Link prefetch={false} href={q({ q: s.term })} className="flex items-center gap-4 px-6 py-2.5 hover:bg-panel">
+                      <b dir="auto" className="w-36 shrink-0 text-base font-medium">
+                        {s.term}
+                      </b>
+                      <span dir="ltr" className="flex-1 text-start text-sm text-muted">
+                        {s.gloss}
+                      </span>
                       <span className="w-20">
                         <SentimentBar pos={s.positive} neg={s.negative} neu={s.count - s.positive - s.negative} />
                       </span>
@@ -90,7 +112,11 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               canEdit={hasRole(user, "ANALYST")}
               t={t.dialectPage}
               dialects={t.dialects}
-              sentiments={{ POSITIVE: t.sentiment.POSITIVE, NEUTRAL: t.sentiment.NEUTRAL, NEGATIVE: t.sentiment.NEGATIVE }}
+              sentiments={{
+                POSITIVE: t.sentiment.POSITIVE,
+                NEUTRAL: t.sentiment.NEUTRAL,
+                NEGATIVE: t.sentiment.NEGATIVE,
+              }}
               addLabel={t.dialectPage.add}
             />
           </Card>
@@ -101,7 +127,10 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
 
   const [intel, stored, heat] = await Promise.all([
     getIntelligence(scope),
-    db.intelligenceBrief.findFirst({ where: { organizationId: user.organizationId, days }, orderBy: { createdAt: "desc" } }),
+    db.intelligenceBrief.findFirst({
+      where: { organizationId: user.organizationId, days },
+      orderBy: { createdAt: "desc" },
+    }),
     getPostingHeatmap(scope),
   ]);
   const brief =
@@ -130,12 +159,22 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
       <div className="space-y-8">
         {/* Customer voice: one plain sentence, set large */}
         <section aria-label={T.brief} className="max-w-[920px]">
-          <p dir="auto" className="text-[21px] leading-[1.65] md:text-[25px]">{ar ? brief.summaryAr : brief.summaryEn}</p>
+          <p dir="auto" className="text-[21px] leading-[1.65] md:text-[25px]">
+            {ar ? brief.summaryAr : brief.summaryEn}
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-faint">
             {stored && <span>{fmt(T.updated, { when: timeAgo(stored.createdAt, locale) })}</span>}
             {fromNumbers && <span>· {T.numbersOnly}</span>}
             {hasRole(user, "ANALYST") && (
-              <RefreshBrief days={days} stamp={stored?.id ?? null} labels={{ refresh: T.refresh, refreshing: T.refreshing, queued: T.queued }} />
+              <RefreshBrief
+                days={days}
+                stamp={stored?.id ?? null}
+                labels={{
+                  refresh: T.refresh,
+                  refreshing: T.refreshing,
+                  queued: T.queued,
+                }}
+              />
             )}
           </div>
         </section>
@@ -144,10 +183,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
           <section className="card px-6 pt-6 pb-3">
             <div className="flex flex-wrap items-baseline gap-x-3">
               <h2 className="text-[15px] text-muted">{T.netSentiment}</h2>
-              <span className="text-[32px] font-semibold leading-none tracking-tight ltr-nums">
-                {intel.kpis.netSentiment > 0 ? "+" : ""}
-                {intel.kpis.netSentiment}
-              </span>
+              <span className="text-[32px] font-semibold leading-none tracking-tight ltr-nums">{signed(intel.kpis.netSentiment)}</span>
               {cmp && <Delta value={intel.kpis.deltas.netSentiment} suffix="" />}
             </div>
             <div className="mt-3">
@@ -155,40 +191,88 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
             </div>
           </section>
           <div className="grid grid-cols-2 gap-5 lg:grid-cols-1">
-            <Stat label={T.churn} value={formatNumber(intel.churn.count, locale)} delta={cmp && intel.churn.change !== null && <Delta value={churnDelta} invert />} href={q({ intent: "CHURN_RISK" })} />
-            <Stat label={T.mentions} value={formatNumber(intel.kpis.mentions, locale)} delta={cmp && <Delta value={intel.kpis.deltas.mentions} />} href={q({})} />
+            <Stat
+              label={T.churn}
+              value={formatNumber(intel.churn.count, locale)}
+              delta={cmp && intel.churn.change !== null && <Delta value={churnDelta} invert />}
+              href={q({ intent: "CHURN_RISK" })}
+            />
+            <Stat
+              label={T.mentions}
+              value={formatNumber(intel.kpis.mentions, locale)}
+              delta={cmp && <Delta value={intel.kpis.deltas.mentions} />}
+              href={q({})}
+            />
           </div>
         </div>
 
         {brief.themes.length > 0 && (
           <section aria-labelledby="saying" className="space-y-2">
-            <h2 id="saying" className="mb-3 text-[18px] font-semibold">{T.saying}</h2>
+            <h2 id="saying" className="mb-3 text-[18px] font-semibold">
+              {T.saying}
+            </h2>
             <ul className="space-y-2">
               {brief.themes.map((th, i) => (
-                <ThemeItem key={i} th={th} ar={ar} href={th.topicKey ? q({ topic: th.topicKey }) : null} labels={{ doNext: T.doNext }} max={Math.max(...brief.themes.map((x) => x.sharePct))} />
+                <ThemeItem
+                  key={i}
+                  th={th}
+                  ar={ar}
+                  href={th.topicKey ? q({ topic: th.topicKey }) : null}
+                  labels={{ doNext: T.doNext }}
+                  max={Math.max(...brief.themes.map((x) => x.sharePct))}
+                />
               ))}
             </ul>
           </section>
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <DriverList comparable={cmp} title={T.frustrations} items={intel.negative} tone="neg" ar={ar} hrefFor={(k) => q({ topic: k, sentiment: "NEGATIVE" })} empty={T.empty} sub={T.ofNegative} newLabel={T.isNew} />
-          <DriverList comparable={cmp} title={T.loves} items={intel.positive} tone="pos" ar={ar} hrefFor={(k) => q({ topic: k, sentiment: "POSITIVE" })} empty={T.empty} sub={T.ofPositive} newLabel={T.isNew} />
+          <DriverList
+            comparable={cmp}
+            title={T.frustrations}
+            items={intel.negative}
+            tone="neg"
+            ar={ar}
+            hrefFor={(k) => q({ topic: k, sentiment: "NEGATIVE" })}
+            empty={T.empty}
+            sub={T.ofNegative}
+            newLabel={T.isNew}
+          />
+          <DriverList
+            comparable={cmp}
+            title={T.loves}
+            items={intel.positive}
+            tone="pos"
+            ar={ar}
+            hrefFor={(k) => q({ topic: k, sentiment: "POSITIVE" })}
+            empty={T.empty}
+            sub={T.ofPositive}
+            newLabel={T.isNew}
+          />
         </div>
 
         <Card title={T.whenPost}>
-          <PostingHeatmapCard grid={heat} locale={locale} labels={{ less: T.heatLess, more: T.heatMore, idle: T.heatIdle, posts: T.heatPosts }} />
+          <PostingHeatmapCard
+            grid={heat}
+            locale={locale}
+            labels={{
+              less: T.heatLess,
+              more: T.heatMore,
+              idle: T.heatIdle,
+              posts: T.heatPosts,
+            }}
+          />
         </Card>
 
-        <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-6 lg:grid-cols-2">
           <Card title={T.complaints} bodyClassName="p-0 pb-2">
             {intel.complaints.length === 0 ? (
-              <p className="px-5 pb-4 text-sm text-muted">{T.empty}</p>
+              <p className="px-6 pb-4 text-sm text-muted">{T.empty}</p>
             ) : (
               <ul className="divide-y divide-line">
                 {intel.complaints.map((c) => (
                   <li key={c.key}>
-                    <Link prefetch={false} href={q({ topic: c.key, intent: "COMPLAINT" })} className="block px-5 py-3.5 hover:bg-panel">
+                    <Link prefetch={false} href={q({ topic: c.key, intent: "COMPLAINT" })} className="block px-6 py-3.5 transition-colors hover:bg-panel">
                       <div className="flex items-baseline gap-3">
                         <span className="flex-1 text-[14px] font-medium">{label(c)}</span>
                         {c.churn > 0 && (
@@ -207,58 +291,66 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               </ul>
             )}
           </Card>
-          <div className="space-y-6">
-            <Card title={T.emerging} bodyClassName="p-0 pb-2">
-              {intel.emerging.length === 0 ? (
-                <p className="px-5 pb-4 text-sm text-muted">{T.empty}</p>
-              ) : (
-                <ul>
-                  {intel.emerging.map((e) => (
-                    <li key={e.key}>
-                      <Link prefetch={false} href={q({ topic: e.key })} className="flex items-center gap-3 px-5 py-2.5 hover:bg-panel">
-                        <span className={cn("h-2 w-2 shrink-0 rounded-full", e.net < -10 ? "bg-neg" : e.net > 10 ? "bg-pos" : "bg-neu")} />
-                        <span className="flex-1 truncate text-[14px]">{label(e)}</span>
-                        <span className="text-[13px] text-muted ltr-nums">{e.count}</span>
-                        <span className="w-14 text-end text-[13px] font-medium ltr-nums">
-                          {e.change === null ? <span className="text-brand-700">{T.isNew}</span> : <span className="text-ink">+{e.change}%</span>}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-            <Card title={T.intents} bodyClassName="p-0 pb-2">
+          <Card title={T.emerging} bodyClassName="p-0 pb-2">
+            {intel.emerging.length === 0 ? (
+              <p className="px-6 pb-4 text-sm text-muted">{T.empty}</p>
+            ) : (
               <ul>
-                {intel.intents.map((i) => (
-                  <li key={i.intent}>
-                    <Link prefetch={false} href={q({ intent: i.intent })} className="flex items-center gap-3 px-5 py-2 hover:bg-panel">
-                      <span className="flex-1 text-[14px]">{t.intents[i.intent]}</span>
-                      <span className={cn("w-12 text-end text-[13px] ltr-nums", i.net >= 0 ? "text-pos" : "text-neg")}>
-                        {i.net > 0 ? "+" : ""}
-                        {i.net}
+                {intel.emerging.map((e) => (
+                  <li key={e.key}>
+                    <Link prefetch={false} href={q({ topic: e.key })} className="flex h-11 items-center gap-3 px-6 transition-colors hover:bg-panel">
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", e.net < -10 ? "bg-neg" : e.net > 10 ? "bg-pos" : "bg-neu")} />
+                      <span className="flex-1 truncate text-[14px]">{label(e)}</span>
+                      <span className="text-[13px] text-muted ltr-nums">{e.count}</span>
+                      <span className="w-14 text-end text-[13px] font-medium ltr-nums">
+                        {e.change === null ? <span className="text-brand-700">{T.isNew}</span> : <span className="text-ink">{signed(e.change)}%</span>}
                       </span>
-                      <span className="w-12 text-end text-[13px] text-muted ltr-nums">{formatNumber(i.count, locale)}</span>
                     </Link>
                   </li>
                 ))}
               </ul>
-            </Card>
-            <Card title={T.dialects}>
-              <ShareRings centerLabel={T.dialects} max={4} items={intel.dialects.map((d) => ({ label: t.dialects[d.dialect], value: Math.round((d.count / Math.max(1, totalDialect)) * 100), color: DIALECT_COLORS[d.dialect] }))} />
-              <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2">
-                {intel.dialects.slice(0, 6).map((d) => (
-                  <li key={d.dialect}>
-                    <Link prefetch={false} href={q({ dialect: d.dialect })} className="flex items-center gap-2 text-[13.5px] hover:text-brand-700">
-                      <span className="h-2 w-2 rounded-full" style={{ background: DIALECT_COLORS[d.dialect] }} />
-                      <span className="flex-1 truncate">{t.dialects[d.dialect]}</span>
-                      <span className="text-muted ltr-nums">{Math.round((d.count / Math.max(1, totalDialect)) * 100)}%</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card title={T.intents} bodyClassName="p-0 pb-2">
+            <ul>
+              {intel.intents.map((i) => (
+                <li key={i.intent}>
+                  <Link prefetch={false} href={q({ intent: i.intent })} className="flex h-11 items-center gap-3 px-6 transition-colors hover:bg-panel">
+                    <span className="flex-1 text-[14px]">{t.intents[i.intent]}</span>
+                    <span className={cn("w-12 text-end text-[13px] ltr-nums", i.net >= 0 ? "text-pos" : "text-neg")}>{signed(i.net)}</span>
+                    <span className="w-12 text-end text-[13px] text-muted ltr-nums">{formatNumber(i.count, locale)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+          <Card title={T.dialects} bodyClassName="flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
+            <div className="w-full max-w-[200px] shrink-0">
+              <ShareRings
+                centerLabel={T.dialects}
+                max={4}
+                items={intel.dialects.map((d) => ({
+                  label: t.dialects[d.dialect],
+                  value: Math.round((d.count / Math.max(1, totalDialect)) * 100),
+                  color: DIALECT_COLORS[d.dialect],
+                }))}
+              />
+            </div>
+            <ul className="flex w-full min-w-0 max-w-[260px] flex-1 flex-col gap-3">
+              {intel.dialects.slice(0, 6).map((d) => (
+                <li key={d.dialect}>
+                  <Link prefetch={false} href={q({ dialect: d.dialect })} className="flex items-center gap-2.5 text-[14px] hover:text-brand-700">
+                    <span className="h-2 w-2 rounded-full" style={{ background: DIALECT_COLORS[d.dialect] }} />
+                    <span className="flex-1 truncate">{t.dialects[d.dialect]}</span>
+                    <span className="text-muted ltr-nums">{Math.round((d.count / Math.max(1, totalDialect)) * 100)}%</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
         </div>
       </div>
     </>
@@ -295,7 +387,15 @@ function ThemeItem({ th, ar, href, labels, max }: { th: BriefTheme; ar: boolean;
         )}
       </div>
       <div className="col-start-2 sm:col-start-auto">
-        <DotBar segments={[{ value: th.sharePct, color: TONE_VAR[th.sentiment] ?? "var(--color-neu)" }]} max={Math.max(1, max)} />
+        <DotBar
+          segments={[
+            {
+              value: th.sharePct,
+              color: TONE_VAR[th.sentiment] ?? "var(--color-neu)",
+            },
+          ]}
+          max={Math.max(1, max)}
+        />
       </div>
       <span className="hidden text-end text-[14px] font-semibold ltr-nums sm:block">{th.sharePct}%</span>
     </div>

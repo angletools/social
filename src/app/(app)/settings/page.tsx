@@ -90,7 +90,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title={t.settings.title} />
-      <nav className="sticky top-14 z-20 -mx-4 mb-8 flex gap-1 overflow-x-auto border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur lg:-mx-8 lg:px-8">
+      <nav className="sticky top-[60px] z-20 -mx-4 mb-8 flex gap-1 overflow-x-auto border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur md:-mx-10 md:px-10">
         {nav.map(([id, label]) => (
           <a key={id} href={`#${id}`} className="whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] text-muted hover:bg-sunken hover:text-ink">
             {label}
@@ -100,10 +100,10 @@ export default async function SettingsPage() {
 
       <Section id="profile" title={t.profile.title}>
         <div className="card divide-y divide-line">
-          <div className="p-5">
+          <div className="p-6">
             <ProfileForm name={user.name} locale={user.locale} labels={{ name: t.profile.name, language: t.profile.language, save: t.common.save }} />
           </div>
-          <div className="p-5">
+          <div className="p-6">
             <h3 className="mb-4 text-[13.5px] font-semibold">{t.profile.password}</h3>
             <PasswordForm labels={{ current: t.profile.current, next: t.profile.next, nextHint: t.profile.nextHint, wrong: t.profile.wrong, short: t.profile.short, save: t.common.save }} />
           </div>
@@ -112,7 +112,7 @@ export default async function SettingsPage() {
 
       <Section id="organization" title={t.settings.organization} description={t.settings.brandContext}>
         <div className="space-y-5">
-          <div className="card p-5">
+          <div className="card p-6">
             <OrgForm
               name={org.name}
               brandContext={org.brandContext ?? ""}
@@ -129,15 +129,15 @@ export default async function SettingsPage() {
               }}
             />
           </div>
-          <div className="card p-5">
+          <div className="card p-6">
             <div className="mb-5 flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
               <div>
                 <div className="text-faint">{t.settings.planName}</div>
-                <div className="mt-0.5 font-semibold">{org.plan}</div>
+                <div className="mt-0.5 font-semibold">{t.settings.plans[org.plan]}</div>
               </div>
               <div>
                 <div className="text-faint">{t.settings.status}</div>
-                <div className="mt-0.5 font-semibold">{org.subscriptionStatus}</div>
+                <div className="mt-0.5 font-semibold">{t.settings.subStatus[org.subscriptionStatus]}</div>
               </div>
               {org.currentPeriodEnd && (
                 <div>
@@ -163,7 +163,7 @@ export default async function SettingsPage() {
         <div className="card overflow-hidden">
           <ul className="divide-y divide-line">
             {members.map((m) => (
-              <li key={m.id} className={cn("flex flex-wrap items-center gap-3 px-4 py-3", !m.active && "opacity-50")}>
+              <li key={m.id} className={cn("flex flex-wrap items-center gap-3 px-6 py-3", !m.active && "opacity-50")}>
                 <Avatar name={m.name} seed={m.email} size={32} />
                 <div className="min-w-0 flex-1">
                   <div className="text-[13.5px] font-medium">
@@ -192,7 +192,7 @@ export default async function SettingsPage() {
 
       {isAdmin && (
         <Section id="weekly" title={t.weekly.title} description={t.weekly.desc}>
-          <div className="card p-5">
+          <div className="card p-6">
             <WeeklyReportForm
               enabled={org.weeklyReportEnabled}
               day={org.weeklyReportDay}
@@ -210,7 +210,7 @@ export default async function SettingsPage() {
       )}
 
       <Section id="connections" title={t.settings.dataSources}>
-        <div className="card divide-y divide-line px-5">
+        <div className="card divide-y divide-line px-6">
           <StatusRow label={t.settings.monid} ok={Boolean(monid)} okLabel={t.settings.connected} offLabel={t.settings.notConnected} detail={balance} />
           <StatusRow
             label={t.settings.anthropic}
@@ -234,7 +234,7 @@ export default async function SettingsPage() {
         <Section id="activity" title={t.settings.audit}>
           <div className="card divide-y divide-line">
             {logs.map((l) => (
-              <div key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-[13px]">
+              <div key={l.id} className="flex flex-wrap items-center gap-3 px-6 py-2.5 text-[13px]">
                 <span className="w-32 shrink-0 text-xs text-faint ltr-nums">{formatDate(l.createdAt, locale, { dateStyle: "short", timeStyle: "short" }, org.timezone)}</span>
                 <span className="font-medium">{l.userId ? names.get(l.userId) : "system"}</span>
                 <code className="rounded bg-sunken px-1.5 py-0.5 text-[11.5px] text-muted">
