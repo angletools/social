@@ -65,11 +65,17 @@ async function kpiRow(s: Scope, previous: boolean) {
   };
 }
 
+/** Whether a previous window holds enough data for a % change to be meaningful. */
+export const isComparable = (current: number, previous: number) => previous >= Math.max(20, current * 0.25);
+
 export async function getKpis(s: Scope) {
   const [current, previous] = await Promise.all([kpiRow(s, false), kpiRow(s, true)]);
   const delta = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : Math.round(((a - b) / b) * 100));
   return {
     ...current,
+    // Changes only mean something when the previous window has real data
+    // (not right after a monitor was created or demo data was loaded).
+    comparable: isComparable(current.mentions, previous.mentions),
     previousMentions: previous.mentions,
     previousRisks: previous.risks,
     deltas: {

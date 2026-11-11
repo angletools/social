@@ -1310,6 +1310,7 @@ const en = {
     net: "Net sentiment",
     reach: "Potential reach",
     risks: "Risk flags",
+    noCompare: "Not enough earlier data to compare",
     vsPrev: "vs previous period",
     vsLastWeek: "vs last week",
     pts: "pts",

@@ -35,6 +35,7 @@ export type NotablePost = {
 };
 
 const SYSTEM = `You write social-listening reports for the management of a Saudi company. Readers are executives who want clear conclusions, not data dumps.
+If kpis.comparable is false, the previous period has too little data: do not quote percentage changes or "up/down vs before" for it; describe the current period on its own.
 Write with confidence and precision, grounded only in the statistics and posts provided. Quote numbers with comparisons. Call out risks plainly. No filler, no hedging, no markdown headings inside fields (plain sentences; bullet-like lines are fine in section bodies).`;
 
 /** The statistics and the post sample a report is written from. */

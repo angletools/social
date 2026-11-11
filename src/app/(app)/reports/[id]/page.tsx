@@ -8,6 +8,7 @@ import { cn, formatDate, formatNumber } from "@/lib/utils";
 import type { NotablePost, ReportContent } from "@/lib/ai/report";
 import { getReportSeries, type ReportSeries } from "@/lib/report-series";
 import { DotBar } from "@/components/dots";
+import { isComparable } from "@/lib/analytics";
 import { SolidAvatar } from "@/components/avatar";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ReportToolbar, RetryInline } from "./toolbar";
@@ -23,6 +24,8 @@ type Stats = {
     positive?: number;
     negative?: number;
     neutral?: number;
+    comparable?: boolean;
+    previousMentions?: number;
     deltas: Record<string, number>;
   };
   topics: { key: string; labelEn: string; labelAr: string; count: number; positive?: number; negative?: number }[];
@@ -62,6 +65,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const vs = days === 7 ? d.vsLastWeek : d.vsPrev;
 
   const k = stats?.kpis;
+  // Hide % changes when the previous window had too little data (older reports lack the flag).
+  const comparable = !k || (k.comparable ?? (k.previousMentions === undefined || isComparable(k.mentions, k.previousMentions)));
   // Colour carries meaning: more talk while sentiment falls is bad; more reach and fewer risks are good.
   const kpis = k
     ? [
@@ -191,6 +196,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 >
                   <span className="text-[13.5px] text-muted">{x.label}</span>
                   <span className="text-[26px] font-semibold tracking-[-0.02em] tnum ltr-nums self-start sm:text-[30px]">{x.value}</span>
+                  {comparable && (x.unit !== "%" || Math.abs(x.delta) < 1000) ? (
                   <span className="flex flex-wrap items-center gap-x-1 text-[13px]">
                     <span className={cn("inline-flex items-center gap-0.5 font-semibold ltr-nums", x.good === null || x.delta === 0 ? "text-faint" : x.good ? "text-pos" : "text-neg")}>
                       {x.delta > 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : x.delta < 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : null}
@@ -199,6 +205,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                     </span>
                     <span className="text-faint">{vs}</span>
                   </span>
+                  ) : (
+                    <span className="text-[13px] text-faint">{d.noCompare}</span>
+                  )}
                 </div>
               ))}
             </div>
