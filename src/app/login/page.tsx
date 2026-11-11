@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getDict } from "@/lib/i18n";
 import { LoginForm, LoginLanguage } from "./login-form";
+import { Stage } from "./stage";
 
 export const metadata = { title: "Sign in" };
 
@@ -35,7 +36,7 @@ export default async function LoginPage() {
   const ticks = [28, 21, 14, 7, 0].map((n) => tick.format(new Date(Date.now() - n * day)));
 
   return (
-    <div dir={dir} className="grid min-h-dvh bg-black p-3 sm:p-4 lg:grid-cols-[640px_minmax(0,1fr)]">
+    <div dir={dir} className="grid min-h-dvh bg-black p-3 sm:p-4 lg:grid-cols-[600px_minmax(0,1fr)]">
       <section className="flex min-h-[calc(100dvh-24px)] flex-col rounded-[22px] bg-canvas px-5 py-6 sm:min-h-[calc(100dvh-32px)] sm:rounded-[26px] sm:px-10 sm:py-8">
         <header className="flex h-10 items-center justify-between gap-4">
           <span dir="ltr" aria-label={t.app.name} className="text-[25px] leading-none font-semibold tracking-[-0.03em]">
@@ -57,30 +58,28 @@ export default async function LoginPage() {
         </footer>
       </section>
 
-      <section aria-hidden className="hidden items-center justify-center px-16 py-12 lg:flex">
-        <div className="flex w-full max-w-[600px] flex-col gap-14">
-          <p className={ar ? "max-w-[520px] text-[30px] leading-[1.75] font-medium text-[#f2f2f2]" : "max-w-[520px] text-[30px] leading-[1.45] font-medium tracking-[-0.01em] text-[#f2f2f2]"}>{t.login.pitch}</p>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-baseline justify-between gap-4 text-[13.5px] text-[#8a8a8a]">
-              <span>{t.loginPage.chartLabel}</span>
-              <span className="flex items-baseline gap-2.5">
-                <span dir="ltr" className="text-[20px] font-semibold text-[#f2f2f2] tnum">945</span>
-                <span dir="ltr" className="text-[13.5px] font-semibold text-[#ef7a6a]">↗ 13%</span>
-              </span>
-            </div>
-            <svg viewBox="0 0 600 180" className="block h-auto w-full" style={{ direction: "ltr" }}>
-              {DOTS.map((d, i) => (
-                <circle key={i} cx={d.x} cy={d.y} r={2.6} fill={d.on ? `rgba(232,119,94,${d.a.toFixed(2)})` : "#161616"} />
-              ))}
-            </svg>
-            <div dir="ltr" className="flex justify-between text-[12px] text-[#5f5f5f] tnum">
-              {ticks.map((x) => (
-                <span key={x} dir="auto">{x}</span>
-              ))}
-            </div>
+      <Stage>
+        <p className={ar ? "text-[28px] leading-[1.75] font-medium text-white" : "text-[28px] leading-[1.45] font-medium tracking-[-0.01em] text-white"}>{t.login.pitch}</p>
+        <div className="flex flex-col gap-3.5">
+          <div className="flex items-baseline justify-between gap-4 text-[13.5px] text-white/62">
+            <span>{t.loginPage.chartLabel}</span>
+            <span className="flex items-baseline gap-2.5">
+              <span dir="ltr" className="text-[20px] font-semibold text-white tnum">945</span>
+              <span dir="ltr" className="text-[13.5px] font-semibold text-[#ffb199]">↗ 13%</span>
+            </span>
+          </div>
+          <svg viewBox="0 0 600 180" className="block h-auto w-full" style={{ direction: "ltr" }}>
+            {DOTS.map((d, i) => (
+              <circle key={i} cx={d.x} cy={d.y} r={2.4} fill={d.on ? `rgba(255,214,200,${d.a.toFixed(2)})` : "rgba(255,255,255,0.07)"} />
+            ))}
+          </svg>
+          <div dir="ltr" className="flex justify-between text-[12px] text-white/45 tnum">
+            {ticks.map((x) => (
+              <span key={x} dir="auto">{x}</span>
+            ))}
           </div>
         </div>
-      </section>
+      </Stage>
     </div>
   );
 }

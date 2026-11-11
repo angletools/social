@@ -661,6 +661,8 @@ const en = {
     } as Record<string, string>,
   },
   loginPage: {
+    showShort: "Show",
+    hideShort: "Hide",
     show: "Show password",
     hide: "Hide password",
     forgot: "Forgot it? Ask your team admin for a temporary password.",

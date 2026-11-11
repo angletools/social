@@ -663,6 +663,8 @@ const ar: Dict = {
     } as Record<string, string>,
   },
   loginPage: {
+    showShort: "إظهار",
+    hideShort: "إخفاء",
     show: "إظهار كلمة المرور",
     hide: "إخفاء كلمة المرور",
     forgot: "نسيت كلمة المرور؟ اطلب كلمة مؤقتة من مسؤول فريقك.",

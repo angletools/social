@@ -1,24 +1,49 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { CircleAlert, Eye, EyeOff, Globe, Loader2 } from "lucide-react";
+import { CircleAlert, Globe, Loader2 } from "lucide-react";
 import { login, setLocale } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
-type Labels = { email: string; password: string; submit: string; invalid: string; locked: string; show: string; hide: string; forgot: string };
+type Labels = {
+  email: string;
+  password: string;
+  submit: string;
+  invalid: string;
+  locked: string;
+  show: string;
+  hide: string;
+  showShort: string;
+  hideShort: string;
+  forgot: string;
+};
+
+/**
+ * 48px field: surface fill, a 1px inset line, an ink line plus a soft 4px ring on
+ * focus, a tinted red line on error. The input inside has no border of its own.
+ */
+const field = (error: boolean) =>
+  cn(
+    "relative flex h-12 items-center rounded-[12px] bg-surface shadow-[inset_0_0_0_1px_var(--color-line)] transition-shadow duration-150 ease-(--ease-out)",
+    "focus-within:shadow-[inset_0_0_0_1px_var(--color-ink),0_0_0_4px_color-mix(in_srgb,var(--color-ink)_8%,transparent)]",
+    error && "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-neg)_55%,var(--color-line))]",
+  );
+// LTR values (email, password) still line up with the labels: right-aligned in Arabic.
+const input = "h-full min-w-0 flex-1 bg-transparent px-4 text-start text-[16px] text-ink outline-none rtl:text-right md:text-[15px]";
+
+// The field draws its own focus ring; skip the global outline on the bare input.
+const NO_OUTLINE = { outline: "none" } as const;
 
 export function LoginForm({ labels }: { labels: Labels }) {
   const [state, action, pending] = useActionState(login, null);
   const [shown, setShown] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [lockedEmail, setLockedEmail] = useState<string | null>(null);
   const error = state && !state.ok ? state.error : null;
+  const showError = Boolean(error) && !pending;
   // After a lockout the button stays off for that address; another address can still try.
   const locked = error === "locked" && (lockedEmail ?? email) === email;
-  const input = cn(
-    "input h-[46px] px-3.5 text-[16px] md:text-[15px]",
-    error && !pending && "border-[color-mix(in_srgb,var(--color-neg)_45%,var(--color-line))]",
-  );
 
   return (
     <form
@@ -27,54 +52,64 @@ export function LoginForm({ labels }: { labels: Labels }) {
         return action(fd);
       }}
       className="mt-8 flex flex-col gap-4"
-      noValidate={false}
     >
       <label className="flex flex-col gap-2">
         <span className="text-[14px] font-medium">{labels.email}</span>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="username"
-          inputMode="email"
-          autoCapitalize="none"
-          spellCheck={false}
-          dir="ltr"
-          className={input}
-          autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          aria-invalid={Boolean(error) || undefined}
-        />
+        <span className={field(showError)}>
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="username"
+            inputMode="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            dir="ltr"
+            className={input}
+            style={NO_OUTLINE}
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={showError || undefined}
+          />
+        </span>
       </label>
       <label className="flex flex-col gap-2">
         <span className="text-[14px] font-medium">{labels.password}</span>
-        <span className="relative block" dir="ltr">
+        <span className={field(showError)}>
           <input
-            id="password"
             name="password"
             type={shown ? "text" : "password"}
             required
             autoComplete="current-password"
             dir="ltr"
-            className={cn(input, "pr-12")}
-            aria-invalid={Boolean(error) || undefined}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={cn(input, !shown && password && "text-transparent caret-ink selection:bg-transparent")}
+            style={NO_OUTLINE}
+            aria-invalid={showError || undefined}
           />
+          {/* A quieter mask than the browser's heavy bullets: small even dots. */}
+          {!shown && password && (
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 start-4 end-[72px] flex items-center gap-1.5 overflow-hidden">
+              {Array.from({ length: Math.min(password.length, 40) }, (_, i) => (
+                <span key={i} className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
+              ))}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setShown((v) => !v)}
             aria-label={shown ? labels.hide : labels.show}
             aria-pressed={shown}
-            title={shown ? labels.hide : labels.show}
-            className="absolute top-1 right-1 flex h-[38px] w-[38px] items-center justify-center rounded-[9px] text-muted transition-colors hover:bg-sunken hover:text-ink"
+            className="me-2 h-8 shrink-0 rounded-lg px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-sunken hover:text-ink max-md:h-10"
           >
-            {shown ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.6} /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.6} />}
+            {shown ? labels.hideShort : labels.showShort}
           </button>
         </span>
       </label>
 
-      {error && !pending && (
+      {showError && (
         <p role="alert" className="animate-rise flex items-start gap-2.5 rounded-[12px] bg-neg/[0.09] px-3.5 py-3 text-[14px] leading-relaxed text-neg">
           <CircleAlert aria-hidden className="mt-[3px] h-4 w-4 shrink-0" strokeWidth={1.8} />
           <span>{error === "locked" ? labels.locked : labels.invalid}</span>
