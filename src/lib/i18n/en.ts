@@ -314,6 +314,7 @@ const en = {
       get_timeseries: "Looking at trends",
       list_monitors: "Checking your monitors",
       get_top_authors: "Finding influential voices",
+      get_customer_intelligence: "Reading customer intelligence",
       get_dialect_insights: "Reading dialects & intent",
       get_trending_formats: "Checking trending formats",
     },

@@ -316,6 +316,7 @@ const ar: Dict = {
       get_timeseries: "أحلل الاتجاهات",
       list_monitors: "أراجع المراقبات",
       get_top_authors: "أبحث عن الأصوات المؤثرة",
+      get_customer_intelligence: "أراجع ذكاء العملاء",
       get_dialect_insights: "أحلل اللهجات والنوايا",
       get_trending_formats: "أراجع القوالب الرائجة",
     },
