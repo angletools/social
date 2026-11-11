@@ -2,6 +2,7 @@ import type { AlertRule, Severity } from "@prisma/client";
 import { db } from "./db";
 import { sendEmail } from "./email";
 import { postWebhook } from "./webhooks";
+import { alertWebhooks, senderFor } from "./workspace";
 
 type Hit = { severity: Severity; titleEn: string; titleAr: string; bodyEn: string; bodyAr: string; link: string };
 
@@ -99,7 +100,10 @@ async function check(rule: AlertRule): Promise<Hit | null> {
 
 /** Evaluates all enabled rules for an org and records notifications. */
 export async function evaluateAlerts(organizationId: string) {
-  const rules = await db.alertRule.findMany({ where: { organizationId, enabled: true } });
+  const [rules, channels] = await Promise.all([
+    db.alertRule.findMany({ where: { organizationId, enabled: true } }),
+    db.organization.findUnique({ where: { id: organizationId }, select: { slackWebhookUrl: true, teamsWebhookUrl: true, emailFrom: true } }),
+  ]);
   let fired = 0;
   for (const rule of rules) {
     if (rule.lastTriggeredAt && Date.now() - rule.lastTriggeredAt.getTime() < rule.cooldownMinutes * 60_000) continue;
@@ -110,10 +114,11 @@ export async function evaluateAlerts(organizationId: string) {
       db.notification.create({ data: { organizationId, ruleId: rule.id, ...hit } }),
       db.alertRule.update({ where: { id: rule.id }, data: { lastTriggeredAt: new Date() } }),
     ]);
-    if (rule.webhookUrl) {
+    // The rule's own webhook overrides the workspace's default Slack / Teams channels.
+    for (const url of alertWebhooks(rule, channels)) {
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
       const icon = hit.severity === "CRITICAL" ? "🔴" : hit.severity === "WARNING" ? "🟠" : "🔵";
-      await postWebhook(rule.webhookUrl, `${icon} *${hit.titleEn}*\n${hit.titleAr}\n> ${hit.bodyEn.replace(/\n/g, " ")}\n${appUrl}${hit.link}`).catch((e) =>
+      await postWebhook(url, `${icon} *${hit.titleEn}*\n${hit.titleAr}\n> ${hit.bodyEn.replace(/\n/g, " ")}\n${appUrl}${hit.link}`).catch((e) =>
         console.error("alert webhook failed", e),
       );
     }
@@ -123,6 +128,7 @@ export async function evaluateAlerts(organizationId: string) {
         rule.emails,
         `[angle social] ${hit.titleEn}`,
         `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`,
+        senderFor(channels),
       ).catch((e) => console.error("alert email failed", e));
     }
   }

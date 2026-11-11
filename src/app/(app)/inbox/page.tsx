@@ -14,6 +14,8 @@ import { ReplyComposer } from "./reply-composer";
 import { AssignSelect } from "./assign-select";
 import { Queue, type QueueItem } from "./queue";
 import { Meaning } from "./meaning";
+import { CaughtUp } from "@/components/states";
+import { dayStart } from "@/lib/workspace";
 
 const TONE: Partial<Record<Intent, QueueItem["tone"]>> = { CHURN_RISK: "neg", COMPLAINT: "warn", QUESTION: "info", PURCHASE_INTENT: "pos" };
 const PILL_TONE: Record<QueueItem["tone"], string> = {
@@ -84,6 +86,44 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     tone: tone(m),
     assignee: m.assignedTo?.name ?? null,
   }));
+
+  // Empty state: nothing waiting. Say so, with what the team got through today.
+  if (queue.length === 0 && !selectedId) {
+    const replied = await db.mention.findMany({
+      where: { organizationId: orgId, repliedAt: { gte: dayStart(user.organization.timezone) }, ...(mine && { assignedToId: user.id }) },
+      select: { publishedAt: true, repliedAt: true },
+      take: 2000,
+    });
+    const mins = replied.map((r) => (r.repliedAt!.getTime() - r.publishedAt.getTime()) / 60000).filter((m) => m >= 0).sort((a, b) => a - b);
+    const median = mins.length ? mins[Math.floor(mins.length / 2)] : null;
+    const C = t.states.caughtUp;
+    return (
+      <div className="full-bleed flex min-h-[calc(100dvh-4rem)] flex-1 flex-col md:min-h-0">
+        <div className="flex items-baseline justify-between gap-3 px-6 pt-7 pb-4 md:px-10">
+          <h1 className="text-[24px] leading-tight font-semibold">{t.inbox.title}</h1>
+          <span className="text-sm text-muted tnum">{fmt(t.inbox.waiting, { n: "0" })}</span>
+        </div>
+        <div role="tablist" className="flex gap-5 border-b border-line px-6 md:px-10">
+          {[
+            { label: t.inbox.everyone, href: "/inbox", active: !mine },
+            { label: t.inbox.mine, href: "/inbox?who=me", active: mine },
+          ].map((x) => (
+            <Link key={x.href} role="tab" aria-selected={x.active} prefetch={false} href={x.href} className={cn("-mb-px flex h-11 items-center border-b-2 text-sm", x.active ? "border-ink font-semibold text-ink" : "border-transparent text-faint hover:text-ink")}>
+              {x.label}
+            </Link>
+          ))}
+        </div>
+        <CaughtUp
+          title={C.title}
+          body={C.body}
+          stats={[
+            ...(replied.length ? [{ value: formatNumber(replied.length, locale), label: C.replied }] : []),
+            ...(median !== null ? [{ value: median < 90 ? fmt(C.min, { n: Math.max(1, Math.round(median)) }) : fmt(C.hours, { n: Math.round(median / 60) }), label: C.median }] : []),
+          ]}
+        />
+      </div>
+    );
+  }
 
   const slang = selected && Array.isArray(selected.slang) ? (selected.slang as { term: string; gloss: string }[]) : [];
   const name = selected ? (selected.authorName ?? selected.authorHandle ?? "—") : "";
