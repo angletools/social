@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rasd · رصد
 
-## Getting Started
+A bilingual (Arabic / English) social listening platform built for non-technical teams. It monitors brands, hashtags, accounts and topics across X, Instagram, TikTok, YouTube, Facebook and LinkedIn. Claude classifies every post (sentiment, topics, risk), answers questions about the data in chat, and writes management reports.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Area | What it does |
+|---|---|
+| **Monitors** | 4-step wizard. Types: brand/keyword, hashtag, account (own or competitor), and AI-filtered *topic* ("people complaining about slow trading apps"). You choose the platforms, languages, terms to exclude, how often to refresh, and whether it's a competitor. |
+| **Overview** | Mentions, net sentiment, engagement and risk flags, each compared with the previous period. Also: sentiment over time, top topics with sentiment split, share of voice against competitors, platform mix, most influential voices, latest posts, and a one-click AI daily brief. |
+| **Mentions** | Unified feed with search and filters (monitor, platform, sentiment, status, topic, risk, period). Team workflow (reviewed / flagged / archived). CSV export that opens correctly in Excel, Arabic included. |
+| **Ask AI** | Chat that answers from live data through tools: stats, trends, topics, authors and full-text post search. Replies arrive as they're written, in the user's language, and conversations are saved. |
+| **Alerts** | Negative-sentiment spike, volume spike, keyword, influencer (follower threshold) and AI-detected risk (fraud, impersonation, misleading claims, churn). Delivered in-app (bell) and optionally by email. Cooldowns stop repeat alerts. |
+| **Reports** | AI-written executive report for any period/monitor, in Arabic or English: headline, summary, sections, recommendations and notable posts. Print / save as PDF. |
+| **Settings** | Organization profile, plus a brand description that gives the AI context. Shows plan, usage and limits; Monid and Claude connection status (with Monid balance); team members with roles (Owner / Admin / Analyst / Viewer); and an activity log. |
+| **Bilingual** | Full Arabic (RTL) and English UI with per-user language and IBM Plex Sans Arabic bundled in the app. Posts render with automatic text direction. |
+
+## Architecture
+
+```
+Next.js 15 (App Router, server components + server actions)
+  ├─ src/app/(app)/*        pages
+  ├─ src/app/api/assistant  streaming chat endpoint
+  ├─ src/app/api/export     CSV export
+  └─ src/lib
+      ├─ monid/             Monid HTTP client, platform→scraper mapping, normalizer
+      ├─ ingest/            sync pipeline + demo data generator
+      ├─ ai/                Claude: enrichment, assistant tools, reports
+      ├─ analytics.ts       SQL aggregations (Postgres)
+      ├─ alerts.ts          rule evaluation + notifications
+      └─ auth.ts            DB sessions (httpOnly cookie, hashed tokens), roles, audit log
+Worker (src/worker)         pg-boss jobs: scheduler → sync → enrich → alerts; reports
+PostgreSQL                  data + job queue (no Redis needed)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Every query is scoped by `organizationId` (multi-tenant). The AI assistant's tools add that scope on the server, so the model can never ask for another tenant's data.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Running locally
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Requirements: Node 22+, PostgreSQL 14+.
 
-## Learn More
+```bash
+cp .env.example .env          # set DATABASE_URL; keys are optional
+npm install
+npx prisma migrate deploy
+npm run db:seed               # demo org + 30 days of sample data
+npm run dev:all               # web on :3000 + worker
+```
 
-To learn more about Next.js, take a look at the following resources:
+Sign in with `admin@rasd.local` / `rasd-demo-2026` (override with `SEED_EMAIL` / `SEED_PASSWORD`).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Or with Docker: `docker compose up -d --build`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Demo mode vs live data
 
-## Deploy on Vercel
+- **No `MONID_API_KEY`** → monitors collect realistic sample posts. The brands (Nakhla Invest, Raya Trade, Dana Capital) are fictional. A "Demo data" badge is shown.
+- **With `MONID_API_KEY`** → each monitor runs a Monid scraper per platform (`POST /v1/run`, polled until complete). Default scrapers are in `src/lib/monid/sources.ts`. To check or change them:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  ```bash
+  npm run monid:discover                                  # list candidate endpoints per platform
+  npm run monid:discover -- "tiktok hashtag" "apify#clockworks/tiktok-scraper"   # + inspect input schema
+  ```
+  Override any mapping without code changes: `MONID_ENDPOINT_<PLATFORM>_<TYPE>="provider#endpoint"`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **No `ANTHROPIC_API_KEY`** → posts get a basic keyword-based sentiment; the assistant, briefs and reports are turned off.
+
+### AI cost
+
+Classification runs in batches of 25 posts at low effort. By default every AI feature uses `claude-opus-5-5`. Classification is the high-volume part: set `AI_ENRICH_MODEL=claude-haiku-5-5` to cut its cost sharply, and spot-check quality on your own data first. Requests opt in to server-side refusal fallback on supported models.
+
+## Production checklist
+
+- Host Postgres + app in-Kingdom if the client requires PDPL data residency.
+- Put the app behind HTTPS (cookies are `secure` in production) and set `APP_URL`.
+- Run at least one `worker` process; it's safe to run more than one (pg-boss uses singleton keys).
+- Back up Postgres; mentions are the main data growth (~1–2 KB/row).
+- Billing is modelled (plan, status, limits, mention quota) but not wired to a payment provider. Connect Moyasar, Tap or Stripe webhooks to `Organization.subscriptionStatus`.
+
+## Scripts
+
+`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `db:migrate`, `db:seed`, `monid:discover`.

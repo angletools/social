@@ -1,26 +1,99 @@
 @import "tailwindcss";
+@import "@fontsource/ibm-plex-sans-arabic/300.css";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+@import "@fontsource/ibm-plex-sans-arabic/700.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #ecfdf8;
+  --color-brand-100: #d1faee;
+  --color-brand-200: #a6f2dc;
+  --color-brand-500: #13a37f;
+  --color-brand-600: #0b8a6b;
+  --color-brand-700: #0a6e57;
+  --color-brand-900: #073f33;
+  --color-ink: #0f1a17;
+  --color-muted: #5b6965;
+  --color-line: #e6ebe9;
+  --color-canvas: #f6f8f7;
+  --color-pos: #16a34a;
+  --color-neu: #94a3b8;
+  --color-neg: #dc2626;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Keep numbers and handles readable inside RTL text */
+.ltr-nums {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+@utility card {
+  @apply rounded-2xl border border-line bg-white;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-white text-ink hover:bg-canvas;
+}
+@utility btn-ghost {
+  @apply btn text-muted hover:bg-canvas hover:text-ink;
+}
+@utility btn-danger {
+  @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50;
+}
+
+@utility input {
+  @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-100;
+}
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-ink;
+}
+@utility hint {
+  @apply mt-1.5 text-xs text-muted;
+}
+
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .card {
+    border: none;
+  }
+}
+
+/* Assistant markdown */
+.prose-chat p { margin: 0 0 0.75rem; }
+.prose-chat p:last-child { margin-bottom: 0; }
+.prose-chat ul, .prose-chat ol { margin: 0 0 0.75rem; padding-inline-start: 1.25rem; }
+.prose-chat ul { list-style: disc; }
+.prose-chat ol { list-style: decimal; }
+.prose-chat li { margin: 0.25rem 0; }
+.prose-chat strong { font-weight: 600; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 600; margin: 1rem 0 0.5rem; }
+.prose-chat blockquote { border-inline-start: 3px solid var(--color-line); padding-inline-start: 0.75rem; color: var(--color-muted); margin: 0.5rem 0; }
+.prose-chat table { width: 100%; font-size: 0.875rem; border-collapse: collapse; margin: 0.5rem 0 0.75rem; }
+.prose-chat th, .prose-chat td { border: 1px solid var(--color-line); padding: 0.35rem 0.6rem; text-align: start; }
+.prose-chat code { background: var(--color-canvas); padding: 0.1rem 0.3rem; border-radius: 0.3rem; font-size: 0.85em; }

@@ -1,0 +1,365 @@
+// Rasd — social listening platform data model.
+// Multi-tenant: every business row is scoped by organizationId.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum Platform {
+  X
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+  FACEBOOK
+  LINKEDIN
+}
+
+enum MonitorType {
+  KEYWORD // brand / product names, free text
+  HASHTAG
+  PROFILE // a specific account (own brand or competitor)
+  TOPIC // natural-language topic, filtered for relevance by AI
+}
+
+enum MonitorStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum MentionStatus {
+  NEW
+  REVIEWED
+  FLAGGED
+  ARCHIVED
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum AlertKind {
+  NEGATIVE_SPIKE // share of negative mentions above threshold (%)
+  VOLUME_SPIKE // mentions in window above threshold (count)
+  KEYWORD // any new mention containing keyword
+  HIGH_REACH // a mention from an author with >= threshold followers
+  RISK // AI flagged a mention as a reputational / compliance risk
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum ReportStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
+model Organization {
+  id                 String             @id @default(cuid())
+  name               String
+  slug               String             @unique
+  plan               Plan               @default(GROWTH)
+  subscriptionStatus SubscriptionStatus @default(TRIALING)
+  currentPeriodEnd   DateTime?
+  monitorLimit       Int                @default(25)
+  seatLimit          Int                @default(10)
+  mentionQuota       Int                @default(100000) // mentions ingested per billing period
+  brandContext       String?            // short description of the company, given to the AI
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  users         User[]
+  monitors      Monitor[]
+  mentions      Mention[]
+  alertRules    AlertRule[]
+  notifications Notification[]
+  reports       Report[]
+  threads       AssistantThread[]
+  topics        Topic[]
+  auditLogs     AuditLog[]
+}
+
+model User {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String    @unique
+  name           String
+  passwordHash   String
+  role           Role      @default(ANALYST)
+  locale         String    @default("ar")
+  active         Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  threads      AssistantThread[]
+  assigned     Mention[]         @relation("assignee")
+
+  @@index([organizationId])
+}
+
+model Session {
+  id        String   @id // sha256 of the cookie token
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Monitor {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  type           MonitorType
+  platforms      Platform[]
+  terms          String[] // keywords, hashtags (without #) or handles (without @)
+  excludeTerms   String[]
+  languages      String[] // e.g. ["ar","en"]; empty = all
+  description    String? // for TOPIC monitors: what counts as relevant
+  isCompetitor   Boolean       @default(false)
+  status         MonitorStatus @default(ACTIVE)
+  refreshMinutes Int           @default(60)
+  maxItemsPerRun Int           @default(50)
+  lastSyncAt     DateTime?
+  nextSyncAt     DateTime?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mentions     Mention[]
+  syncRuns     SyncRun[]
+  alertRules   AlertRule[]
+  reports      Report[]
+
+  @@index([organizationId])
+  @@index([status, nextSyncAt])
+}
+
+model Mention {
+  id              String        @id @default(cuid())
+  organizationId  String
+  monitorId       String
+  platform        Platform
+  externalId      String
+  url             String?
+  authorHandle    String?
+  authorName      String?
+  authorAvatar    String?
+  authorFollowers Int?
+  authorVerified  Boolean       @default(false)
+  text            String
+  lang            String?
+  publishedAt     DateTime
+  likes           Int           @default(0)
+  comments        Int           @default(0)
+  shares          Int           @default(0)
+  views           Int           @default(0)
+  mediaUrl        String?
+  raw             Json?
+
+  // AI enrichment
+  sentiment      Sentiment?
+  sentimentScore Float? // -1 .. 1
+  emotion        String?
+  topics         String[] // Topic.key values
+  isRisk         Boolean   @default(false)
+  riskReason     String?
+  relevant       Boolean   @default(true)
+  enrichedAt     DateTime?
+
+  // Team workflow
+  status       MentionStatus @default(NEW)
+  assignedToId String?
+  note         String?
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor      Monitor      @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  assignedTo   User?        @relation("assignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@unique([monitorId, platform, externalId])
+  @@index([organizationId, publishedAt])
+  @@index([monitorId, publishedAt])
+  @@index([organizationId, enrichedAt])
+}
+
+// Canonical topic labels, bilingual, produced by the AI during enrichment.
+model Topic {
+  organizationId String
+  key            String // lowercase english slug, e.g. "app-outage"
+  labelEn        String
+  labelAr        String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, key])
+}
+
+model SyncRun {
+  id            String     @id @default(cuid())
+  monitorId     String
+  platform      Platform
+  source        String // "monid" | "demo"
+  status        SyncStatus @default(RUNNING)
+  providerRunId String?
+  itemsFetched  Int        @default(0)
+  itemsNew      Int        @default(0)
+  error         String?
+  startedAt     DateTime   @default(now())
+  finishedAt    DateTime?
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, startedAt])
+}
+
+model AlertRule {
+  id              String    @id @default(cuid())
+  organizationId  String
+  monitorId       String?
+  name            String
+  kind            AlertKind
+  threshold       Float     @default(0)
+  windowMinutes   Int       @default(60)
+  keyword         String?
+  notifyEmail     Boolean   @default(false)
+  emails          String[]
+  enabled         Boolean   @default(true)
+  cooldownMinutes Int       @default(180)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor       Monitor?       @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([organizationId])
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  organizationId String
+  ruleId         String?
+  severity       Severity  @default(INFO)
+  titleEn        String
+  titleAr        String
+  bodyEn         String
+  bodyAr         String
+  link           String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rule         AlertRule?   @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  organizationId String
+  monitorId      String?
+  kind           String       @default("report") // "report" | "brief"
+  title          String
+  locale         String       @default("ar")
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         ReportStatus @default(GENERATING)
+  stats          Json?
+  content        Json? // { headline, summary, sections: [{title, body}], recommendations: [] }
+  error          String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor      Monitor?     @relation(fields: [monitorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+model AssistantThread {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     AssistantMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AssistantMessage {
+  id        String   @id @default(cuid())
+  threadId  String
+  role      String // "user" | "assistant"
+  text      String // what the user sees
+  content   Json // full API content blocks, replayed to the model
+  createdAt DateTime @default(now())
+
+  thread AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  target         String?
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}

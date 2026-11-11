@@ -1,0 +1,42 @@
+# Local / single-server deployment: Postgres + web + worker.
+#   cp .env.example .env   (fill in keys)
+#   docker compose up -d --build
+#   docker compose run --rm web npm run db:seed   (optional demo data)
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: rasd
+      POSTGRES_PASSWORD: rasd
+      POSTGRES_DB: rasd
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rasd"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: npx prisma migrate deploy
+    env_file: .env
+    environment: { DATABASE_URL: "postgresql://rasd:rasd@db:5432/rasd" }
+    depends_on: { db: { condition: service_healthy } }
+
+  web:
+    build: .
+    env_file: .env
+    environment: { DATABASE_URL: "postgresql://rasd:rasd@db:5432/rasd" }
+    ports: ["3000:3000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: npm run worker
+    env_file: .env
+    environment: { DATABASE_URL: "postgresql://rasd:rasd@db:5432/rasd" }
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
