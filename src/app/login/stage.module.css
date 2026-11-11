@@ -1,55 +1,70 @@
-/* CSS fallback for the login light field: three blurred blobs drifting slowly. */
-.blob {
+/* CSS fallback for the login "Beam": a warm shaft of light from the stage's outer top corner, with drifting dust. */
+.beam,
+.beamCore {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
+  top: -60%;
+  height: 220%;
   mix-blend-mode: screen;
   will-change: transform;
 }
-.b1 {
-  width: 620px;
-  height: 620px;
-  inset-inline-start: -120px;
-  top: -160px;
-  opacity: 0.9;
-  background: radial-gradient(circle at 40% 40%, #ff8a5c, #e8775e 35%, transparent 68%);
-  animation: driftA 22s ease-in-out infinite alternate;
+.beam {
+  left: -30%;
+  width: 90%;
+  background: linear-gradient(90deg, transparent, rgb(255 170 130 / 0) 30%, rgb(255 170 130 / 0.55) 50%, rgb(255 170 130 / 0) 70%, transparent);
+  filter: blur(28px);
+  animation: sway 12s ease-in-out infinite alternate;
 }
-.b2 {
-  width: 560px;
-  height: 560px;
-  inset-inline-end: -140px;
-  top: 120px;
-  opacity: 0.55;
-  background: radial-gradient(circle at 50% 50%, #7c5cff, #4c3bd1 40%, transparent 70%);
-  animation: driftB 26s ease-in-out infinite alternate;
+.beamCore {
+  left: -10%;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, rgb(255 230 210 / 0.35) 50%, transparent);
+  filter: blur(18px);
+  animation: sway 16s ease-in-out infinite alternate-reverse;
 }
-.b3 {
-  width: 520px;
-  height: 520px;
-  inset-inline-start: 140px;
-  bottom: -220px;
-  opacity: 0.6;
-  background: radial-gradient(circle at 50% 50%, #ffb35c, #d99a2b 40%, transparent 70%);
-  animation: driftC 30s ease-in-out infinite alternate;
+.dust {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: radial-gradient(rgb(255 255 255 / 0.5) 1px, transparent 1.2px), radial-gradient(rgb(255 255 255 / 0.3) 1px, transparent 1.2px);
+  background-size: 120px 120px, 70px 70px;
+  background-position: 10px 20px, 40px 60px;
+  animation: dust 30s linear infinite;
 }
-@keyframes driftA {
+@keyframes sway {
+  from {
+    transform: rotate(-30deg) translateX(-4%);
+  }
   to {
-    transform: translate(140px, 90px) scale(1.12);
+    transform: rotate(-25deg) translateX(6%);
   }
 }
-@keyframes driftB {
+.mirror .beam {
+  left: auto;
+  right: -30%;
+  animation-name: swayMirror;
+}
+.mirror .beamCore {
+  left: auto;
+  right: -10%;
+  animation-name: swayMirror;
+}
+@keyframes swayMirror {
+  from {
+    transform: rotate(30deg) translateX(4%);
+  }
   to {
-    transform: translate(-120px, -60px) scale(0.92);
+    transform: rotate(25deg) translateX(-6%);
   }
 }
-@keyframes driftC {
+@keyframes dust {
   to {
-    transform: translate(90px, -120px) scale(1.08);
+    background-position: 10px -100px, 40px -60px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .blob {
+  .beam,
+  .beamCore,
+  .dust {
     animation: none;
   }
 }

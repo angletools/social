@@ -6,21 +6,21 @@ import css from "./stage.module.css";
 
 const LightField = dynamic(() => import("./light-field"), { ssr: false });
 
-/** The dark half of the sign-in page: a moving light field, film grain and a frosted card. */
-export function Stage({ children }: { children: React.ReactNode }) {
+/** The dark half of the sign-in page: a slow warm light beam, film grain and a frosted card. */
+export function Stage({ children, rtl = false }: { children: React.ReactNode; rtl?: boolean }) {
   const [gl, setGl] = useState<"pending" | "on" | "off">("pending");
   const onReady = useCallback(() => setGl("on"), []);
   const onFail = useCallback(() => setGl("off"), []);
   return (
-    <section aria-hidden className="relative isolate ms-4 hidden items-center justify-center overflow-hidden rounded-[26px] bg-[#050505] px-16 py-12 lg:flex">
+    <section aria-hidden className={`${rtl ? "" : css.mirror} relative isolate ms-4 hidden items-center justify-center overflow-hidden rounded-[26px] bg-[#050505] px-16 py-12 lg:flex`}>
       {gl !== "on" && (
         <>
-          <span className={`${css.blob} ${css.b1}`} />
-          <span className={`${css.blob} ${css.b2}`} />
-          <span className={`${css.blob} ${css.b3}`} />
+          <span className={css.beam} />
+          <span className={css.beamCore} />
+          <span className={css.dust} />
         </>
       )}
-      {gl !== "off" && <LightField onReady={onReady} onFail={onFail} />}
+      {gl !== "off" && <LightField onReady={onReady} onFail={onFail} mirror={!rtl} />}
       <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.18] mix-blend-overlay">
         <filter id="lg-grain">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />

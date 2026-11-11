@@ -58,7 +58,7 @@ export default async function LoginPage() {
         </footer>
       </section>
 
-      <Stage>
+      <Stage rtl={dir === "rtl"}>
         <p className={ar ? "text-[28px] leading-[1.75] font-medium text-white" : "text-[28px] leading-[1.45] font-medium tracking-[-0.01em] text-white"}>{t.login.pitch}</p>
         <div className="flex flex-col gap-3.5">
           <div className="flex items-baseline justify-between gap-4 text-[13.5px] text-white/62">

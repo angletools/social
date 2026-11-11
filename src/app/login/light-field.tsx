@@ -3,28 +3,34 @@
 import { useEffect, useRef } from "react";
 
 /**
- * A slow, domain-warped light field (coral, ember, violet, amber on black) drawn
- * with a tiny raw-WebGL fragment shader. Renders at half resolution with the
- * pixel ratio capped at 1.5, pauses while the tab is hidden and holds a single
- * frame when reduced motion is on. Calls onFail when WebGL isn't available so
- * the CSS fallback stays visible.
+ * "Beam": one warm shaft of light falling from the top corner, with soft
+ * god-ray striations and dust motes that only glint inside the beam. Drawn with
+ * a tiny raw-WebGL fragment shader at half resolution (pixel ratio capped at
+ * 1.5); pauses while the tab is hidden and holds a single frame when reduced
+ * motion is on. Calls onFail when WebGL isn't available so the CSS fallback
+ * stays visible. `mirror` flips the beam so it always falls from the stage's outer corner.
  */
 const FRAG = `precision mediump float;
-uniform vec2 r;uniform float t;
+uniform vec2 r;uniform float t;uniform float m;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
 float fb(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*n(p);p*=2.03;a*=.5;}return v;}
-vec3 b(vec2 p,vec2 c,float s,vec3 k){float d=length(p-c);return k*exp(-d*d/s);}
-void main(){vec2 u=gl_FragCoord.xy/r;vec2 p=vec2(u.x*r.x/r.y,u.y);
-vec2 q=vec2(fb(p*1.7+t),fb(p*1.7-t+5.2));p+=(q-.5)*.55;float a=r.x/r.y;
-vec3 c=b(p,vec2(a*(.22+.08*sin(t*6.)),.86+.06*cos(t*5.)),.075,vec3(1.,.54,.36));
-c+=b(p,vec2(a*(.38+.1*cos(t*4.)),.66),.035,vec3(.91,.47,.37))*.6;
-c+=b(p,vec2(a*(.86+.06*sin(t*5.+1.)),.5+.1*sin(t*3.)),.06,vec3(.36,.29,.84))*.85;
-c+=b(p,vec2(a*(.42+.12*sin(t*3.+2.)),-.02),.06,vec3(.85,.6,.17))*.75;
-c*=.8+.35*fb(p*3.+t*2.);float l=max(c.r,max(c.g,c.b));c*=(1.-exp(-l*1.7))/max(l,.001);gl_FragColor=vec4(c,1.);}`;
+float beam(vec2 v,float ang,float w0,float g){vec2 d=vec2(cos(ang),sin(ang));vec2 q=vec2(-d.y,d.x);float al=dot(v,d);float ac=dot(v,q);float w=w0+al*g;return exp(-ac*ac/(w*w))*smoothstep(0.,.3,al)*exp(-al*.8);}
+void main(){vec2 u=gl_FragCoord.xy/r;if(m>.5)u.x=1.-u.x;float a=r.x/r.y;vec2 p=vec2(u.x*a,u.y);
+vec2 o=vec2(-.15*a,1.25);vec2 v=p-o;float ang=-.92+.05*sin(t*3.1)+.02*sin(t*7.3);
+float B=beam(v,ang,.05,.17);float C=beam(v,ang+.015*sin(t*4.),.018,.07);
+vec2 d=vec2(cos(ang),sin(ang));vec2 q=vec2(-d.y,d.x);float al=dot(v,d);float ac=dot(v,q);
+float rays=.62+.38*fb(vec2(ac*9.,al*.8-t*1.5));
+vec3 warm=vec3(1.,.66,.5);vec3 core=vec3(1.,.9,.82);
+vec3 c=warm*B*rays*.85+core*C*.75;
+vec2 g=p*vec2(46.)+vec2(t*6.,-t*14.);vec2 id=floor(g);vec2 f=fract(g)-.5;vec2 j=vec2(h(id),h(id+7.3))-.5;
+float dm=step(.9,h(id+3.1))*exp(-dot(f-j*.6,f-j*.6)*140.)*(.5+.5*sin(t*40.+h(id)*30.));
+c+=core*dm*smoothstep(.15,.6,B)*1.8;
+c+=vec3(.9,.5,.36)*.05*exp(-length(p-vec2(.75*a,.05))*2.2);
+float l=max(c.r,max(c.g,c.b));c*=(1.-exp(-l*1.6))/max(l,.001);gl_FragColor=vec4(c,1.);}`;
 const VERT = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
 
-export default function LightField({ onFail, onReady }: { onFail?: () => void; onReady?: () => void }) {
+export default function LightField({ onFail, onReady, mirror = false }: { onFail?: () => void; onReady?: () => void; mirror?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -54,6 +60,7 @@ export default function LightField({ onFail, onReady }: { onFail?: () => void; o
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     const uR = gl.getUniformLocation(prog, "r");
     const uT = gl.getUniformLocation(prog, "t");
+    gl.uniform1f(gl.getUniformLocation(prog, "m"), mirror ? 1 : 0);
 
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const scale = Math.min(1.5, window.devicePixelRatio || 1) * 0.5;
@@ -86,6 +93,6 @@ export default function LightField({ onFail, onReady }: { onFail?: () => void; o
       ro.disconnect();
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [onFail, onReady]);
+  }, [onFail, onReady, mirror]);
   return <canvas ref={ref} aria-hidden className="absolute inset-0 h-full w-full" />;
 }
