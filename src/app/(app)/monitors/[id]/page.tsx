@@ -67,7 +67,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {monitor.platforms.map((p) => (
-          <span key={p} className="flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-xs ring-1 ring-line">
+          <span key={p} className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-xs ring-1 ring-line">
             <PlatformIcon platform={p} size="sm" /> {t.platforms[p]}
           </span>
         ))}

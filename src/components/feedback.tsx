@@ -73,10 +73,10 @@ export function FeedbackHost({ labels }: { labels: { confirm: string; cancel: st
         {toasts.map((t) => {
           const Icon = t.kind === "error" ? AlertTriangle : t.kind === "info" ? Info : CheckCircle2;
           return (
-            <div key={t.id} className="animate-rise pointer-events-auto flex items-center gap-2.5 rounded-xl bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-pop)]">
-              <Icon className={cn("h-4 w-4", t.kind === "error" ? "text-[#f0a090]" : t.kind === "info" ? "text-white/70" : "text-[#8fd3b0]")} />
+            <div key={t.id} className="animate-rise pointer-events-auto flex items-center gap-2.5 rounded-xl bg-ink px-4 py-2.5 text-[13px] text-on-ink shadow-[var(--shadow-pop)]">
+              <Icon className={cn("h-4 w-4", t.kind === "error" ? "text-neg" : t.kind === "info" ? "text-on-ink/70" : "text-pos")} />
               <span>{t.message}</span>
-              <button type="button" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))} className="ms-1 text-white/50 hover:text-white" aria-label="close">
+              <button type="button" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))} className="ms-1 text-on-ink/50 hover:text-on-ink" aria-label="close">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>

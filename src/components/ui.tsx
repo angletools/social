@@ -56,7 +56,7 @@ export function HelpTip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex" tabIndex={0} aria-label={text}>
       <CircleHelp className="h-3.5 w-3.5 text-faint transition group-hover:text-muted" />
-      <span className="pointer-events-none absolute start-1/2 top-6 z-30 hidden w-64 -translate-x-1/2 rounded-xl bg-ink px-3 py-2.5 text-xs font-normal leading-relaxed text-white shadow-[var(--shadow-pop)] group-hover:block group-focus:block rtl:translate-x-1/2">
+      <span className="pointer-events-none absolute start-1/2 top-6 z-30 hidden w-64 -translate-x-1/2 rounded-xl bg-ink px-3 py-2.5 text-xs font-normal leading-relaxed text-on-ink shadow-[var(--shadow-pop)] group-hover:block group-focus:block rtl:translate-x-1/2">
         {text}
       </span>
     </span>
@@ -171,7 +171,7 @@ export function Pill({ children, className }: { children: React.ReactNode; class
 
 /** Status pill with a coloured dot; tone carries meaning, not decoration. */
 export function StatusPill({ tone, children, pulse }: { tone: "neutral" | "good" | "warn" | "bad" | "info" | "brand"; children: React.ReactNode; pulse?: boolean }) {
-  const dot = { neutral: "bg-faint", good: "bg-pos", warn: "bg-warn", bad: "bg-neg", info: "bg-[#3b74c4]", brand: "bg-brand-600" }[tone];
+  const dot = { neutral: "bg-faint", good: "bg-pos", warn: "bg-warn", bad: "bg-neg", info: "bg-info", brand: "bg-brand-600" }[tone];
   return (
     <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-xs font-medium text-ink">
       <span className={cn("h-1.5 w-1.5 rounded-full", dot, pulse && "animate-pulse")} />

@@ -38,7 +38,7 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader title={t.mentions.title} subtitle={`${t.mentions.subtitle} · ${formatNumber(total, locale)}`} />
+      <PageHeader title={t.mentions.title} subtitle={formatNumber(total, locale)} />
       <FilterBar
         monitors={monitors.map((m) => ({ value: m.id, label: m.name }))}
         platforms={Object.entries(t.platforms).map(([value, label]) => ({ value, label }))}

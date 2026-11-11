@@ -99,7 +99,7 @@ export function FilterBar({
         </select>
         <button type="button" onClick={() => setOpen((v) => !v)} className={cn("btn-secondary", (open || detailCount > 0) && "border-ink")} aria-expanded={open}>
           <SlidersHorizontal className="h-4 w-4" /> {quick.more}
-          {detailCount > 0 && <span className="rounded bg-ink px-1.5 text-[11px] text-white tnum">{detailCount}</span>}
+          {detailCount > 0 && <span className="rounded bg-ink px-1.5 text-[11px] text-on-ink tnum">{detailCount}</span>}
         </button>
         <a href={`/api/export?${sp.toString()}`} className="btn-ghost" title={labels.export}>
           <Download className="h-4 w-4" /> <span className="hidden sm:inline">{labels.export}</span>
@@ -117,7 +117,7 @@ export function FilterBar({
             aria-selected={activeQuick === x.key}
             className={cn(
               "inline-flex h-8 items-center rounded-full border px-3.5 text-[13px] transition-colors",
-              activeQuick === x.key ? "border-ink bg-ink text-white" : "border-line-strong bg-surface text-muted hover:border-ink hover:text-ink",
+              activeQuick === x.key ? "border-ink bg-ink text-on-ink" : "border-line-strong bg-surface text-muted hover:border-ink hover:text-ink",
             )}
           >
             {quick[x.key]}

@@ -18,7 +18,8 @@ function window(s: Scope, previous = false) {
   return { start, end };
 }
 
-function cond(s: Scope, previous = false) {
+/** SQL WHERE for a scope's current (or previous equal) window. */
+export function cond(s: Scope, previous = false) {
   const { start, end } = window(s, previous);
   const parts = [
     Prisma.sql`m."organizationId" = ${s.orgId}`,
@@ -69,6 +70,7 @@ export async function getKpis(s: Scope) {
   const delta = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : Math.round(((a - b) / b) * 100));
   return {
     ...current,
+    previousMentions: previous.mentions,
     deltas: {
       mentions: delta(current.mentions, previous.mentions),
       engagement: delta(current.engagement, previous.engagement),

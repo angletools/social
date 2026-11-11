@@ -90,7 +90,7 @@ export function Chat({ threadId: initialThread, initial, enabled, t }: { threadI
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div dir="auto" className="max-w-[85%] rounded-2xl rounded-ee-md bg-ink px-4 py-2.5 text-[14.5px] leading-relaxed text-white">
+              <div dir="auto" className="max-w-[85%] rounded-2xl rounded-ee-md bg-ink px-4 py-2.5 text-[14.5px] leading-relaxed text-on-ink">
                 {m.text}
               </div>
             </div>

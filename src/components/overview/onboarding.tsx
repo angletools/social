@@ -35,7 +35,7 @@ export function Onboarding({ steps, labels }: { steps: Step[]; labels: { title: 
               <span
                 className={cn(
                   "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tnum",
-                  s.done ? "border-brand-600 bg-brand-600 text-white" : "border-line-strong text-muted group-hover:border-ink group-hover:text-ink",
+                  s.done ? "border-brand-600 bg-brand-600 text-on-ink" : "border-line-strong text-muted group-hover:border-ink group-hover:text-ink",
                 )}
               >
                 {s.done ? <Check className="h-3.5 w-3.5" /> : i + 1}

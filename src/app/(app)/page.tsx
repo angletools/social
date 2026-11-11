@@ -176,7 +176,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           </Card>
           <Card
             title={t.inbox.title}
-            description={t.inbox.subtitle}
             bodyClassName="p-0 pt-2"
             actions={
               <Link href="/inbox" className="btn-ghost btn-sm">
@@ -250,9 +249,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                 center={`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`}
                 caption={t.sentiment.net}
                 data={[
-                  { name: t.sentiment.POSITIVE, value: kpis.positive, color: "#2e8b57" },
-                  { name: t.sentiment.NEUTRAL, value: kpis.neutral, color: "#c9ccd1" },
-                  { name: t.sentiment.NEGATIVE, value: kpis.negative, color: "#c8452f" },
+                  { name: t.sentiment.POSITIVE, value: kpis.positive, color: "var(--color-pos)" },
+                  { name: t.sentiment.NEUTRAL, value: kpis.neutral, color: "var(--color-neu)" },
+                  { name: t.sentiment.NEGATIVE, value: kpis.negative, color: "var(--color-neg)" },
                 ]}
               />
               <ul className="space-y-3">

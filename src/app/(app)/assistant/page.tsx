@@ -19,7 +19,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title={t.assistant.title} subtitle={t.assistant.subtitle} />
+      <PageHeader title={t.assistant.title} />
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
         <aside className="hidden lg:block">
           <Link href="/assistant" className="btn-primary mb-4 w-full">
@@ -31,7 +31,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
               <li key={th.id}>
                 <Link
                   href={`/assistant?thread=${th.id}`}
-                  className={cn("block rounded-xl px-3 py-2 text-sm hover:bg-white", th.id === threadId && "bg-white ring-1 ring-line")}
+                  className={cn("block rounded-xl px-3 py-2 text-sm hover:bg-surface", th.id === threadId && "bg-surface ring-1 ring-line")}
                 >
                   <span dir="auto" className="line-clamp-1">{th.title}</span>
                   <span className="text-xs text-muted">{timeAgo(th.updatedAt, locale)}</span>

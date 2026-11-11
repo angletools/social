@@ -249,6 +249,24 @@ export async function createBrief(): Promise<ActionResult> {
   return { ok: true, id: r.id };
 }
 
+/**
+ * Rebuilds the Intelligence hub brief. Runs in the worker when it's up;
+ * otherwise inline, so the page never waits on a missing worker.
+ */
+export async function refreshIntelligenceBrief(days: number): Promise<ActionResult> {
+  const user = await requireRole("ANALYST");
+  const d = [1, 7, 30, 90].includes(days) ? days : 7;
+  const { getWorkerStatus } = await import("@/lib/system");
+  if ((await getWorkerStatus()).alive) {
+    await enqueue(QUEUES.intelligence, { organizationId: user.organizationId, days: d }, `intel:${user.organizationId}:${d}`);
+    return { ok: true, message: "queued" };
+  }
+  const { generateIntelligenceBrief } = await import("@/lib/ai/intelligence");
+  await generateIntelligenceBrief(user.organizationId, d);
+  revalidatePath("/intelligence");
+  return { ok: true, message: "done" };
+}
+
 export async function deleteReport(id: string) {
   const user = await requireRole("ANALYST");
   await db.report.deleteMany({ where: { id, organizationId: user.organizationId } });
@@ -394,14 +412,14 @@ export async function addLexiconTerm(_: unknown, form: FormData): Promise<Action
     update: { meaning: d.meaning, dialect: (d.dialect as Dialect) ?? null, sentimentHint: (d.sentimentHint as Sentiment) ?? null },
   });
   await audit(user, "lexicon.upsert", d.term);
-  revalidatePath("/dialect");
+  revalidatePath("/intelligence");
   return { ok: true };
 }
 
 export async function deleteLexiconTerm(id: string) {
   const user = await requireRole("ANALYST");
   await db.lexiconTerm.deleteMany({ where: { id, organizationId: user.organizationId } });
-  revalidatePath("/dialect");
+  revalidatePath("/intelligence");
 }
 
 // ---------- content studio ----------

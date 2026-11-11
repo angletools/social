@@ -21,12 +21,19 @@ export function Avatar({ name, seed, size = 32, className }: { name: string; see
   const clean = name.replace(/[@|·].*$/, "").trim() || name;
   const parts = clean.split(/\s+/).filter(Boolean);
   const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : clean.slice(0, 2)).toUpperCase();
-  const [bg, fg] = TONES[hash(seed ?? name) % TONES.length];
+  const [, fg] = TONES[hash(seed ?? name) % TONES.length];
   return (
     <span
       aria-hidden
       className={cn("inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold", className)}
-      style={{ width: size, height: size, background: bg, color: fg, fontSize: size * 0.38 }}
+      style={{
+        width: size,
+        height: size,
+        // Tinted from the tone so it reads in light and dark themes.
+        background: `color-mix(in oklab, ${fg} 15%, var(--color-surface))`,
+        color: `color-mix(in oklab, ${fg} var(--avatar-ink), var(--color-ink))`,
+        fontSize: size * 0.38,
+      }}
     >
       {initials}
     </span>

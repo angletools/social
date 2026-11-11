@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "@fontsource/urbanist/400.css";
+@import "@fontsource/urbanist/500.css";
+@import "@fontsource/urbanist/600.css";
+@import "@fontsource/urbanist/700.css";
 @import "@fontsource/ibm-plex-sans-arabic/300.css";
 @import "@fontsource/ibm-plex-sans-arabic/400.css";
 @import "@fontsource/ibm-plex-sans-arabic/500.css";
@@ -9,14 +13,17 @@
  * Rasd design tokens.
  * Warm paper canvas, near-black ink for actions, deep palm green for data and
  * focus, sand as a quiet highlight. Colour is reserved for meaning.
+ * Urbanist sets Latin text and numbers; IBM Plex Sans Arabic covers Arabic,
+ * which Urbanist has no glyphs for. Dark values live below @theme.
  */
 @theme {
-  --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Urbanist", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
 
   --color-canvas: #f6f5f1;
   --color-surface: #ffffff;
   --color-sunken: #efede7;
   --color-ink: #15181b;
+  --color-on-ink: #ffffff;
   --color-muted: #5f646b;
   --color-faint: #8d9198;
   --color-line: #e6e3dc;
@@ -44,6 +51,76 @@
 
   --radius-card: 14px;
   --shadow-pop: 0 1px 2px rgb(21 24 27 / 0.04), 0 12px 32px -8px rgb(21 24 27 / 0.16);
+}
+
+/* Dark theme: explicit choice via data-theme, otherwise follow the system. */
+:root {
+  color-scheme: light;
+  --avatar-ink: 100%;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0f1113;
+  --color-surface: #16191c;
+  --color-sunken: #1d2125;
+  --color-ink: #eceef0;
+  --color-on-ink: #0f1113;
+  --color-muted: #a3a9b1;
+  --color-faint: #747b84;
+  --color-line: #252a2f;
+  --color-line-strong: #333940;
+  --color-brand-50: #11231c;
+  --color-brand-100: #163126;
+  --color-brand-200: #1f4636;
+  --color-brand-500: #34b88c;
+  --color-brand-600: #3cc295;
+  --color-brand-700: #62d0a8;
+  --color-brand-900: #a6e6cc;
+  --color-sand-50: #251f15;
+  --color-sand-100: #3a301e;
+  --color-sand-500: #d3a75c;
+  --color-sand-700: #e2bd7c;
+  --color-pos: #52b67f;
+  --color-neu: #6c727a;
+  --color-neg: #ea7760;
+  --color-warn: #e2a843;
+  --color-info: #74a3e6;
+  --color-plum: #c985b6;
+  --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px -10px rgb(0 0 0 / 0.65);
+  --avatar-ink: 45%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-canvas: #0f1113;
+    --color-surface: #16191c;
+    --color-sunken: #1d2125;
+    --color-ink: #eceef0;
+    --color-on-ink: #0f1113;
+    --color-muted: #a3a9b1;
+    --color-faint: #747b84;
+    --color-line: #252a2f;
+    --color-line-strong: #333940;
+    --color-brand-50: #11231c;
+    --color-brand-100: #163126;
+    --color-brand-200: #1f4636;
+    --color-brand-500: #34b88c;
+    --color-brand-600: #3cc295;
+    --color-brand-700: #62d0a8;
+    --color-brand-900: #a6e6cc;
+    --color-sand-50: #251f15;
+    --color-sand-100: #3a301e;
+    --color-sand-500: #d3a75c;
+    --color-sand-700: #e2bd7c;
+    --color-pos: #52b67f;
+    --color-neu: #6c727a;
+    --color-neg: #ea7760;
+    --color-warn: #e2a843;
+    --color-info: #74a3e6;
+    --color-plum: #c985b6;
+    --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px -10px rgb(0 0 0 / 0.65);
+    --avatar-ink: 45%;
+  }
 }
 
 html {
@@ -96,10 +173,10 @@ h3 {
   @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-[10px] px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45;
 }
 @utility btn-primary {
-  @apply btn bg-ink text-white hover:bg-black;
+  @apply btn bg-ink text-on-ink hover:bg-ink/85;
 }
 @utility btn-brand {
-  @apply btn bg-brand-700 text-white hover:bg-brand-900;
+  @apply btn bg-brand-700 text-on-ink hover:bg-brand-900;
 }
 @utility btn-secondary {
   @apply btn border border-line-strong bg-surface text-ink hover:bg-sunken;
@@ -160,7 +237,7 @@ h3 {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-surface) 60%, transparent), transparent);
   animation: shimmer 1.4s infinite;
 }
 

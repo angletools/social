@@ -271,7 +271,7 @@ export function VoiceList({
                   <h3 className="text-lg font-semibold" dir="auto">{v.name}</h3>
                   <p className="text-xs text-muted">
                     {dialects[v.dialect as Dialect]}
-                    {v.isDefault && <span className="ms-2 rounded-full bg-brand-600 px-2 py-0.5 text-white">{labels.isDefault}</span>}
+                    {v.isDefault && <span className="ms-2 rounded-full bg-brand-600 px-2 py-0.5 text-on-ink">{labels.isDefault}</span>}
                   </p>
                 </div>
                 {canEdit && (

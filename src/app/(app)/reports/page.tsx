@@ -20,7 +20,7 @@ export default async function ReportsPage() {
 
   return (
     <>
-      <PageHeader title={t.reports.title} subtitle={t.reports.subtitle} />
+      <PageHeader title={t.reports.title} />
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <Card bodyClassName="p-0">
           {reports.length === 0 ? (

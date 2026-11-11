@@ -123,7 +123,7 @@ export function DraftEditor({
             status === "DRAFT" && "bg-sunken",
             status === "IN_REVIEW" && "bg-info/[0.07] text-info",
             status === "APPROVED" && "bg-pos/[0.07] text-pos",
-            status === "PUBLISHED" && "bg-brand-600 text-white",
+            status === "PUBLISHED" && "bg-brand-600 text-on-ink",
           )}
         >
           {d.status[status as keyof typeof d.status] ?? status}
@@ -273,7 +273,7 @@ export function DraftEditor({
               {c.shots.map((s, i) => (
                 <div key={i} className="card p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-sm font-semibold text-white">{s.n}</span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-sm font-semibold text-on-ink">{s.n}</span>
                     <span className="text-xs font-semibold tracking-wide text-muted">{s.type.replace(/_/g, " ")}</span>
                     <span className="ms-auto text-xs text-muted ltr-nums">{s.duration}s</span>
                   </div>

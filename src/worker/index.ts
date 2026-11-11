@@ -13,6 +13,7 @@ import { scanWatch } from "../lib/trends/scan";
 import { generateDraft } from "../lib/ai/studio";
 import { workerBeat } from "../lib/system";
 import { runDueWeeklyReports } from "../lib/weekly";
+import { generateIntelligenceBrief } from "../lib/ai/intelligence";
 
 async function main() {
   const boss = new PgBoss({ connectionString: process.env.DATABASE_URL! });
@@ -92,6 +93,11 @@ async function main() {
       });
       throw e;
     }
+  });
+
+  await boss.work<{ organizationId: string; days: number }>(QUEUES.intelligence, async ([job]) => {
+    await generateIntelligenceBrief(job.data.organizationId, job.data.days);
+    console.log(`[worker] intelligence brief ${job.data.organizationId} (${job.data.days}d)`);
   });
 
   // Hourly: send weekly reports that are due (08:00+ Riyadh on the chosen day).

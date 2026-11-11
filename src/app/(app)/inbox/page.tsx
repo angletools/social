@@ -64,7 +64,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHeader title={t.inbox.title} subtitle={t.inbox.subtitle} />
+      <PageHeader title={t.inbox.title} />
       <div className="mb-6 grid grid-cols-3 gap-4">
         <KpiCard label={t.inbox.awaiting} value={formatNumber(stats.awaiting, locale)} />
         <KpiCard label={t.inbox.repliedToday} value={formatNumber(stats.repliedToday, locale)} />

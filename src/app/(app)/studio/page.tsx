@@ -50,7 +50,6 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader
         title={s.title}
-        subtitle={s.subtitle}
         actions={
           <>
             {lastScan && <span className="text-xs text-muted">{s.lastScan}: {timeAgo(lastScan, locale)}</span>}
@@ -326,7 +325,7 @@ async function DraftsTab({ orgId, locale, t }: { orgId: string; locale: string; 
     DRAFT: "bg-sunken text-ink/80",
     IN_REVIEW: "bg-info/[0.07] text-info",
     APPROVED: "bg-pos/[0.07] text-pos",
-    PUBLISHED: "bg-brand-600 text-white",
+    PUBLISHED: "bg-brand-600 text-on-ink",
     FAILED: "bg-neg/[0.06] text-neg",
   };
   if (drafts.length === 0) return <p className="card p-10 text-center text-sm text-muted">{s.draft.empty}</p>;

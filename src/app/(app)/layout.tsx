@@ -15,6 +15,8 @@ import { GlobalSearch } from "@/components/shell/search";
 import { UserMenu } from "@/components/shell/user-menu";
 import { FeedbackHost } from "@/components/feedback";
 import { ClientDictProvider } from "@/components/client-dict";
+import { cookies } from "next/headers";
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 function Brand({ name, org }: { name: string; org: string }) {
   return (
@@ -134,7 +136,9 @@ export default async function AppLayout({
                   name={user.name}
                   email={user.email}
                   role={t.settings.roles[user.role]}
+                  theme={parseTheme((await cookies()).get(THEME_COOKIE)?.value)}
                   labels={{
+                    theme: t.nav.theme,
                     profile: t.nav.profile,
                     settings: t.nav.settings,
                     logout: t.nav.logout,
@@ -144,7 +148,7 @@ export default async function AppLayout({
             </div>
           </header>
           {!worker.alive && hasRole(user, "ADMIN") && (
-            <div className="flex items-start gap-2.5 border-b border-warn/30 bg-[#fbf3e2] px-4 py-2.5 text-[13px] text-[#7a5410] lg:px-8">
+            <div className="flex items-start gap-2.5 border-b border-warn/30 bg-warn/10 px-4 py-2.5 text-[13px] text-ink lg:px-8">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{t.nav.workerDown}</span>
             </div>

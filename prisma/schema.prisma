@@ -152,6 +152,7 @@ model Organization {
   trendPosts    TrendPost[]
   trendFormats  TrendFormat[]
   drafts        ContentDraft[]
+  briefs        IntelligenceBrief[]
 }
 
 model User {
@@ -601,4 +602,20 @@ model LoginAttempt {
   createdAt DateTime @default(now())
 
   @@index([key, createdAt])
+}
+
+/// Cached "customer voice" brief for the Intelligence hub, one per org and range.
+model IntelligenceBrief {
+  id             String   @id @default(cuid())
+  organizationId String
+  days           Int
+  summaryAr      String
+  summaryEn      String
+  themes         Json // BriefTheme[]
+  source         String   @default("ai") // "ai" | "fallback"
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, days, createdAt])
 }

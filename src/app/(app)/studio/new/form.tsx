@@ -65,7 +65,7 @@ export function NewDraftForm({
           <label className="label">{t.goal}</label>
           <div className="flex flex-wrap gap-2">
             {Object.entries(t.goals).map(([v, l], i) => (
-              <label key={v} className="cursor-pointer rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white">
+              <label key={v} className="cursor-pointer rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-on-ink">
                 <input type="radio" name="goal" value={v} defaultChecked={i === 0} className="sr-only" />
                 {l}
               </label>
@@ -122,7 +122,7 @@ export function NewDraftForm({
           <input type="hidden" name="durationSec" value={duration} />
           <div className="grid grid-cols-5 gap-1.5">
             {DURATIONS.map((d) => (
-              <button type="button" key={d} onClick={() => setDuration(d)} className={cn("rounded-lg border py-2 text-sm ltr-nums", duration === d ? "border-ink bg-ink font-medium text-white" : "border-line")}>
+              <button type="button" key={d} onClick={() => setDuration(d)} className={cn("rounded-lg border py-2 text-sm ltr-nums", duration === d ? "border-ink bg-ink font-medium text-on-ink" : "border-line")}>
                 {d}s
               </button>
             ))}

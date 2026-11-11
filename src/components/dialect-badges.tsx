@@ -8,10 +8,10 @@ export const DIALECT_COLORS: Record<Dialect, string> = {
   LEVANTINE: "#7a5aa6",
   IRAQI: "#a8524a",
   MAGHREBI: "#6b7f3a",
-  MSA: "#5f646b",
+  MSA: "var(--color-muted)",
   ARABIZI: "#8a3f74",
   ENGLISH: "#2f64a8",
-  OTHER: "#a3a8af",
+  OTHER: "var(--color-neu)",
 };
 
 export function DialectBadge({ dialect, label }: { dialect: Dialect; label: string }) {
@@ -24,7 +24,7 @@ export function DialectBadge({ dialect, label }: { dialect: Dialect; label: stri
 }
 
 const INTENT_STYLE: Partial<Record<Intent, string>> = {
-  CHURN_RISK: "bg-neg text-white",
+  CHURN_RISK: "bg-neg text-on-ink",
   COMPLAINT: "bg-neg/[0.07] text-neg",
   QUESTION: "bg-info/[0.08] text-info",
   PURCHASE_INTENT: "bg-brand-50 text-brand-700",

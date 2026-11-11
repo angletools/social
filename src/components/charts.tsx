@@ -10,13 +10,15 @@ import {
   Legend,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-const C = { pos: "#2e8b57", neu: "#b4b8be", neg: "#c8452f", brand: "#12735a", grid: "#ece9e2", axis: "#8d9198", ink: "#15181b" };
+// CSS variables so charts follow the light / dark theme.
+const C = { pos: "var(--color-pos)", neu: "var(--color-neu)", neg: "var(--color-neg)", brand: "var(--color-brand-600)", grid: "var(--color-line)", axis: "var(--color-faint)", ink: "var(--color-ink)", sunken: "var(--color-sunken)", muted: "var(--color-line-strong)" };
 
 type Point = { t: string; positive: number; negative: number; neutral: number; total: number };
 
@@ -29,7 +31,7 @@ function fmtTick(t: string, unit: string, locale: string) {
   }).format(d);
 }
 
-const tooltipStyle = { borderRadius: 10, border: "1px solid #e6e3dc", fontSize: 12, boxShadow: "0 12px 32px -8px rgba(21,24,27,.18)", padding: "8px 10px" };
+const tooltipStyle = { borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-surface)", color: "var(--color-ink)", fontSize: 12, boxShadow: "var(--shadow-pop)", padding: "8px 10px" };
 
 /** Charts stay left-to-right in both languages so time reads consistently. */
 export function VolumeChart({
@@ -99,13 +101,37 @@ export function ShareOfVoiceChart({ data }: { data: { name: string; share: numbe
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 40, left: 0, bottom: 0 }}>
           <XAxis type="number" hide domain={[0, 100]} />
           <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12, fill: C.ink }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} cursor={{ fill: "#f6f5f1" }} />
-          <Bar animationDuration={500} dataKey="share" radius={[0, 6, 6, 0]} barSize={18} label={{ position: "right", fontSize: 12, formatter: (v: unknown) => `${v}%` }}>
+          <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} cursor={{ fill: C.sunken }} />
+          <Bar animationDuration={500} dataKey="share" radius={[0, 6, 6, 0]} barSize={18} label={{ position: "right", fontSize: 12, fill: C.ink, formatter: (v: unknown) => `${v}%` }}>
             {data.map((d) => (
-              <Cell key={d.name} fill={d.isCompetitor ? "#d6d2c8" : C.brand} />
+              <Cell key={d.name} fill={d.isCompetitor ? C.muted : C.brand} />
             ))}
           </Bar>
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Net sentiment line (−100..100) with a zero baseline. */
+export function NetTrendChart({ points, unit, locale, height = 220 }: { points: { t: string; net: number; total: number }[]; unit: string; locale: string; height?: number }) {
+  return (
+    <div dir="ltr" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={points} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="g-net" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.brand} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={C.brand} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke={C.grid} vertical={false} />
+          <XAxis dataKey="t" tickFormatter={(t) => fmtTick(t, unit, locale)} tick={{ fontSize: 11, fill: C.axis }} axisLine={false} tickLine={false} minTickGap={28} />
+          <YAxis domain={[-100, 100]} ticks={[-100, -50, 0, 50, 100]} tick={{ fontSize: 11, fill: C.axis }} axisLine={false} tickLine={false} />
+          <ReferenceLine y={0} stroke={C.axis} strokeDasharray="3 3" />
+          <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => fmtTick(String(t), unit, locale)} formatter={(v) => [v, ""]} separator="" />
+          <Area type="monotone" dataKey="net" stroke={C.brand} fill="url(#g-net)" strokeWidth={2} animationDuration={500} connectNulls />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

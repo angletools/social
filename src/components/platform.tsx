@@ -3,9 +3,9 @@ import { siFacebook, siInstagram, siTiktok, siX, siYoutube } from "simple-icons"
 import { cn } from "@/lib/utils";
 
 export const PLATFORM_COLORS: Record<Platform, string> = {
-  X: "#15181b",
+  X: "var(--color-ink)",
   INSTAGRAM: "#d6336c",
-  TIKTOK: "#15181b",
+  TIKTOK: "var(--color-ink)",
   YOUTUBE: "#e5322d",
   FACEBOOK: "#1f6feb",
   LINKEDIN: "#0a66c2",

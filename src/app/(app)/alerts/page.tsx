@@ -28,7 +28,7 @@ export default async function AlertsPage() {
 
   return (
     <>
-      <PageHeader title={t.alerts.title} subtitle={t.alerts.subtitle} />
+      <PageHeader title={t.alerts.title} />
       <div className="grid gap-6 lg:grid-cols-[1fr_23rem]">
         <div className="space-y-6">
           <Card title={t.alerts.title} bodyClassName="p-0">

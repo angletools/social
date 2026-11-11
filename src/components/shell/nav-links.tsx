@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Clapperboard, FileText, Inbox, Languages, LayoutGrid, MessagesSquare, Radar, Settings, MessageCircleQuestion } from "lucide-react";
+import { Bell, Clapperboard, FileText, Inbox, Sparkles, LayoutGrid, MessagesSquare, Radar, Settings, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Item = { href: string; key: string; icon: React.ElementType };
@@ -13,7 +13,7 @@ export const NAV_GROUPS: { group?: string; items: Item[] }[] = [
     group: "listen",
     items: [
       { href: "/mentions", key: "mentions", icon: MessagesSquare },
-      { href: "/dialect", key: "dialect", icon: Languages },
+      { href: "/intelligence", key: "intelligence", icon: Sparkles },
       { href: "/monitors", key: "monitors", icon: Radar },
     ],
   },

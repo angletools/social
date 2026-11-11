@@ -115,7 +115,7 @@ export function MonitorWizard({
             <span
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                i < step ? "bg-brand-600 text-white" : i === step ? "bg-brand-100 text-brand-700 ring-2 ring-brand-500" : "bg-sunken text-muted",
+                i < step ? "bg-brand-600 text-on-ink" : i === step ? "bg-brand-100 text-brand-700 ring-2 ring-brand-500" : "bg-sunken text-muted",
               )}
             >
               {i < step ? <Check className="h-4 w-4" /> : i + 1}
@@ -142,7 +142,7 @@ export function MonitorWizard({
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", type === ty ? "bg-brand-600 text-white" : "bg-canvas text-muted")}>
+                    <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", type === ty ? "bg-brand-600 text-on-ink" : "bg-canvas text-muted")}>
                       <Icon className="h-5 w-5" />
                     </span>
                     <span className="font-semibold">{t.types[ty]}</span>
@@ -192,7 +192,7 @@ export function MonitorWizard({
                     type="button"
                     key={o.l}
                     onClick={() => setLanguages(o.v)}
-                    className={cn("rounded-xl border px-4 py-2 text-sm", languages.join() === o.v.join() ? "border-ink bg-ink text-white" : "border-line")}
+                    className={cn("rounded-xl border px-4 py-2 text-sm", languages.join() === o.v.join() ? "border-ink bg-ink text-on-ink" : "border-line")}
                   >
                     {o.l}
                   </button>

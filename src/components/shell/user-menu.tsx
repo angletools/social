@@ -5,8 +5,22 @@ import Link from "next/link";
 import { LogOut, Settings, UserRound } from "lucide-react";
 import { logout } from "@/app/actions";
 import { Avatar } from "@/components/avatar";
+import type { Theme } from "@/lib/theme";
+import { ThemeToggle } from "./theme-toggle";
 
-export function UserMenu({ name, email, role, labels }: { name: string; email: string; role: string; labels: { profile: string; settings: string; logout: string } }) {
+export function UserMenu({
+  name,
+  email,
+  role,
+  theme,
+  labels,
+}: {
+  name: string;
+  email: string;
+  role: string;
+  theme: Theme;
+  labels: { profile: string; settings: string; logout: string; theme: Record<Theme, string> & { title: string } };
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -25,6 +39,9 @@ export function UserMenu({ name, email, role, labels }: { name: string; email: s
             <div className="truncate text-[13.5px] font-medium">{name}</div>
             <div className="truncate text-xs text-muted ltr-nums">{email}</div>
             <div className="mt-1 text-xs text-faint">{role}</div>
+          </div>
+          <div className="border-b border-line p-1">
+            <ThemeToggle initial={theme} labels={labels.theme} />
           </div>
           <div className="p-1">
             <Link href="/settings#profile" onClick={() => setOpen(false)} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] hover:bg-sunken">

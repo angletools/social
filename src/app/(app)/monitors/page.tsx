@@ -30,7 +30,6 @@ export default async function MonitorsPage() {
     <>
       <PageHeader
         title={t.monitors.title}
-        subtitle={t.monitors.subtitle}
         actions={
           canEdit && (
             <Link href="/monitors/new" className="btn-primary">
