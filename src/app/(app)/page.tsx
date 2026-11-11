@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Radar, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Radar } from "lucide-react";
 import type { Platform } from "@prisma/client";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getDict } from "@/lib/i18n";
+import { fmt, getDict } from "@/lib/i18n";
 import { formatDate, formatNumber, hourIn, timeAgo } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import {
@@ -17,14 +17,13 @@ import {
   inboxPriority,
   parseDays,
 } from "@/lib/analytics";
-import { Card, EmptyState, KpiCard, Meter, PageHeader } from "@/components/ui";
+import { Card, EmptyState, KpiCard, Meter } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
 import { ShareOfVoiceChart, VolumeChart } from "@/components/charts";
 import { Donut } from "@/components/donut";
 import { PLATFORM_COLORS, PlatformIcon } from "@/components/platform";
 import { SentimentBar } from "@/components/sentiment";
 import { Avatar } from "@/components/avatar";
-import { IntentBadge } from "@/components/dialect-badges";
 import { Onboarding } from "@/components/overview/onboarding";
 import { BriefCard } from "./brief-card";
 import type { ReportContent } from "@/lib/ai/report";
@@ -59,19 +58,20 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const showOnboarding = !org.onboardingDoneAt && steps.some((s) => !s.done) && hasRole(user, "ADMIN");
 
   const header = (
-    <PageHeader
-      eyebrow={`${greeting}، ${firstName}`.replace("، ", locale === "ar" ? "، " : ", ")}
-      title={t.overview.title}
-      subtitle={formatDate(new Date(), locale, { dateStyle: "full" }, tz)}
-      actions={monitorCount > 0 ? <RangeTabs days={days} labels={t.common.range} basePath="/" /> : undefined}
-    />
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+      <div>
+        <div className="text-sm text-faint">{formatDate(new Date(), locale, { dateStyle: "full" }, tz)}</div>
+        <h1 className="mt-1 text-[28px] font-semibold leading-tight md:text-[30px]">{`${greeting}${locale === "ar" ? "، " : ", "}${firstName}`}</h1>
+      </div>
+      {monitorCount > 0 && <RangeTabs days={days} labels={t.common.range} basePath="/" />}
+    </div>
   );
 
   if (monitorCount === 0) {
     return (
       <>
         {header}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {showOnboarding && <Onboarding steps={steps} labels={t.onboarding} />}
           <EmptyState icon={<Radar className="h-5 w-5" />} title={t.overview.emptyTitle} body={t.overview.emptyBody} cta={{ href: "/monitors/new", label: t.overview.emptyCta }} />
         </div>
@@ -80,7 +80,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   }
 
   const scope = { orgId, days, tz };
-  const [kpis, series, platforms, topics, sov, authors, attentionPool, brief] = await Promise.all([
+  const [kpis, series, platforms, topics, sov, authors, attentionPool, brief, waiting] = await Promise.all([
     getKpis(scope),
     getTimeseries(scope),
     getPlatformBreakdown(scope),
@@ -100,6 +100,16 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       take: 150,
     }),
     db.report.findFirst({ where: { organizationId: orgId, kind: "brief" }, orderBy: { createdAt: "desc" } }),
+    db.mention.count({
+      where: {
+        organizationId: orgId,
+        relevant: true,
+        repliedAt: null,
+        status: { not: "ARCHIVED" },
+        publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
+        OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
+      },
+    }),
   ]);
   const attention = attentionPool
     .map((m) => ({ m, p: inboxPriority(m) }))
@@ -120,13 +130,27 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
         <BriefCard
           aiOn={aiEnabled()}
+          fallback={
+            <>
+              {fmt(t.overview.autoBrief, {
+                change:
+                  Math.abs(kpis.deltas.mentions) < 3
+                    ? t.overview.steady
+                    : fmt(kpis.deltas.mentions > 0 ? t.overview.up : t.overview.down, { n: formatNumber(Math.abs(kpis.deltas.mentions), locale) }),
+                net: `${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`,
+              })}{" "}
+              {waiting > 0 && (
+                <Link href="/inbox" className="font-medium text-ink underline decoration-1 underline-offset-[6px]">
+                  {fmt(t.overview.waitingLine, { n: fmt(t.overview.people, { n: formatNumber(waiting, locale) }) })}
+                </Link>
+              )}
+            </>
+          }
           brief={brief ? { status: brief.status, headline: briefContent?.headline, summary: briefContent?.summary, when: timeAgo(brief.createdAt, locale) } : null}
           labels={{
-            title: t.overview.aiBrief,
-            empty: t.overview.aiBriefEmpty,
-            generate: t.overview.generateBrief,
+            title: t.overview.generateBrief,
+            generate: t.overview.refreshBrief,
             generating: t.reports.generating,
-            disabled: t.assistant.disabled,
             failed: t.reports.failed,
           }}
         />
@@ -136,7 +160,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             label={t.overview.mentions}
             value={formatNumber(kpis.mentions, locale)}
             delta={kpis.deltas.mentions}
-            vsLabel={t.overview.vsPrev}
             trend={pts.map((p) => p.total)}
             href={`/mentions?days=${days}`}
           />
@@ -145,8 +168,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             value={`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`}
             delta={kpis.deltas.netSentiment}
             deltaSuffix=""
-            help={t.sentiment.help}
-            vsLabel={t.overview.vsPrev}
             trend={pts.map((p) => p.net)}
             trendColor={kpis.netSentiment >= 0 ? "var(--color-pos)" : "var(--color-neg)"}
           />
@@ -154,7 +175,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             label={t.overview.engagement}
             value={formatNumber(kpis.engagement, locale)}
             delta={kpis.deltas.engagement}
-            vsLabel={t.overview.vsPrev}
             trend={pts.map((p) => p.engagement)}
             trendColor="var(--color-sand-500)"
           />
@@ -163,7 +183,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             value={formatNumber(kpis.risks, locale)}
             delta={kpis.deltas.risks}
             invert
-            vsLabel={t.overview.vsPrev}
             trend={pts.map((p) => p.risks)}
             trendColor="var(--color-neg)"
             href={`/mentions?risk=1&days=${days}`}
@@ -186,24 +205,19 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             {attention.length === 0 ? (
               <p className="px-5 pb-6 pt-4 text-[13px] text-muted">{t.inbox.empty}</p>
             ) : (
-              <ul className="divide-y divide-line">
+              <ul className="px-2 pb-2">
                 {attention.map((m) => (
                   <li key={m.id}>
-                    <Link prefetch={false} href={`/inbox?m=${m.id}`} className="flex gap-3 px-5 py-3 transition-colors hover:bg-canvas">
-                      <Avatar name={m.authorName ?? m.authorHandle ?? "?"} seed={m.authorHandle ?? undefined} size={28} />
+                    <Link prefetch={false} href={`/inbox?m=${m.id}`} className="flex gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-panel">
+                      <span className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${m.isRisk || m.intent === "CHURN_RISK" ? "bg-neg" : m.intent === "COMPLAINT" ? "bg-warn" : m.intent === "QUESTION" ? "bg-info" : "bg-faint"}`} />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-xs">
+                        <div className="flex items-baseline justify-between gap-2 text-[14px]">
                           <span className="truncate font-medium">{m.authorName ?? m.authorHandle}</span>
-                          <PlatformIcon platform={m.platform} size="xs" />
-                          <span className="ms-auto shrink-0 text-faint">{timeAgo(m.publishedAt, locale)}</span>
+                          <span className="shrink-0 text-xs text-faint">{timeAgo(m.publishedAt, locale)}</span>
                         </div>
-                        <p dir="auto" className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink/85">
+                        <p dir="auto" className="mt-0.5 line-clamp-2 text-[13.5px] leading-relaxed text-muted">
                           {m.text}
                         </p>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          {m.isRisk && <ShieldAlert className="h-3.5 w-3.5 text-neg" />}
-                          {m.intent && <IntentBadge intent={m.intent} label={t.intents[m.intent]} />}
-                        </div>
                       </div>
                     </Link>
                   </li>

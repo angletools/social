@@ -5,7 +5,7 @@ import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatNumber, timeAgo } from "@/lib/utils";
 import { getTopSlang, parseDays } from "@/lib/analytics";
 import { fallbackBrief, getIntelligence, readBrief, type BriefTheme, type Driver } from "@/lib/intelligence";
-import { Card, Delta, Meter, PageHeader } from "@/components/ui";
+import { Card, Delta, Meter } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
 import { NetTrendChart } from "@/components/charts";
 import { SentimentBar } from "@/components/sentiment";
@@ -43,15 +43,13 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
     </div>
   );
   const header = (
-    <PageHeader
-      title={T.title}
-      actions={
-        <>
-          {tabs}
-          <RangeTabs days={days} labels={t.common.range} basePath="/intelligence" params={{ tab: tab === "language" ? "language" : undefined }} />
-        </>
-      }
-    />
+    <div className="mb-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+      <h1 className="text-[28px] font-semibold leading-tight">{T.title}</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        {tabs}
+        <RangeTabs days={days} labels={t.common.range} basePath="/intelligence" params={{ tab: tab === "language" ? "language" : undefined }} />
+      </div>
+    </div>
   );
 
   if (tab === "language") {
@@ -70,7 +68,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               <ul className="divide-y divide-line">
                 {slang.map((s) => (
                   <li key={s.term}>
-                    <Link prefetch={false} href={q({ q: s.term })} className="flex items-center gap-4 px-5 py-2.5 hover:bg-sunken/60">
+                    <Link prefetch={false} href={q({ q: s.term })} className="flex items-center gap-4 px-5 py-2.5 hover:bg-panel">
                       <b dir="auto" className="w-36 shrink-0 text-base font-medium">{s.term}</b>
                       <span dir="ltr" className="flex-1 text-start text-sm text-muted">{s.gloss}</span>
                       <span className="w-20">
@@ -125,70 +123,49 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
   return (
     <>
       {header}
-      <div className="space-y-6">
-        {/* Customer voice brief */}
-        <section className="card overflow-hidden">
-          <div className="grid gap-8 p-6 lg:grid-cols-[1fr_auto] lg:p-8">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
-                <span className="font-medium text-ink">{T.brief}</span>
-                {stored && <span>{fmt(T.updated, { when: timeAgo(stored.createdAt, locale) })}</span>}
-                {fromNumbers && <span className="text-faint">· {T.numbersOnly}</span>}
-                {hasRole(user, "ANALYST") && (
-                  <span className="ms-auto">
-                    <RefreshBrief days={days} stamp={stored?.id ?? null} labels={{ refresh: T.refresh, refreshing: T.refreshing, queued: T.queued }} />
-                  </span>
-                )}
-              </div>
-              <p dir="auto" className="mt-3 max-w-3xl text-[19px] leading-[1.7] text-ink">
-                {ar ? brief.summaryAr : brief.summaryEn}
-              </p>
-            </div>
-            <dl className="grid grid-cols-3 gap-6 self-start lg:w-[22rem]">
-              <Stat label={T.netSentiment} value={`${intel.kpis.netSentiment > 0 ? "+" : ""}${intel.kpis.netSentiment}`} delta={cmp && <Delta value={intel.kpis.deltas.netSentiment} suffix="" />} />
-              <Stat label={T.mentions} value={formatNumber(intel.kpis.mentions, locale)} delta={cmp && <Delta value={intel.kpis.deltas.mentions} />} />
-              <Stat
-                label={T.churn}
-                value={formatNumber(intel.churn.count, locale)}
-                delta={cmp && intel.churn.change !== null && <Delta value={churnDelta} invert />}
-                href={q({ intent: "CHURN_RISK" })}
-              />
-            </dl>
+      <div className="space-y-8">
+        {/* Customer voice: one plain sentence, set large */}
+        <section aria-label={T.brief} className="max-w-[920px]">
+          <p dir="auto" className="text-[21px] leading-[1.65] md:text-[25px]">{ar ? brief.summaryAr : brief.summaryEn}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-faint">
+            {stored && <span>{fmt(T.updated, { when: timeAgo(stored.createdAt, locale) })}</span>}
+            {fromNumbers && <span>· {T.numbersOnly}</span>}
+            {hasRole(user, "ANALYST") && (
+              <RefreshBrief days={days} stamp={stored?.id ?? null} labels={{ refresh: T.refresh, refreshing: T.refreshing, queued: T.queued }} />
+            )}
           </div>
-          {brief.themes.length > 0 && (
-            <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2 xl:grid-cols-3">
-              {brief.themes.map((th, i) => (
-                <ThemeItem key={i} th={th} ar={ar} href={th.topicKey ? q({ topic: th.topicKey }) : null} labels={{ doNext: T.doNext }} />
-              ))}
-            </ul>
-          )}
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-          <Card title={T.trend}>
-            <NetTrendChart points={intel.trend} unit={intel.unit} locale={locale} />
-          </Card>
-          <Card title={T.emerging} bodyClassName="p-0 pb-2">
-            {intel.emerging.length === 0 ? (
-              <p className="px-5 pb-4 text-sm text-muted">{T.empty}</p>
-            ) : (
-              <ul>
-                {intel.emerging.map((e) => (
-                  <li key={e.key}>
-                    <Link prefetch={false} href={q({ topic: e.key })} className="flex items-center gap-3 px-5 py-2.5 hover:bg-sunken/60">
-                      <span className={cn("h-2 w-2 shrink-0 rounded-full", e.net < -10 ? "bg-neg" : e.net > 10 ? "bg-pos" : "bg-neu")} />
-                      <span className="flex-1 truncate text-[14px]">{label(e)}</span>
-                      <span className="text-[13px] text-muted ltr-nums">{e.count}</span>
-                      <span className="w-14 text-end text-[13px] font-medium ltr-nums">
-                        {e.change === null ? <span className="text-brand-700">{T.isNew}</span> : <span className="text-ink">+{e.change}%</span>}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <section className="card px-6 pt-6 pb-3">
+            <div className="flex flex-wrap items-baseline gap-x-3">
+              <h2 className="text-[15px] text-muted">{T.netSentiment}</h2>
+              <span className="text-[32px] font-semibold leading-none tracking-tight ltr-nums">
+                {intel.kpis.netSentiment > 0 ? "+" : ""}
+                {intel.kpis.netSentiment}
+              </span>
+              {cmp && <Delta value={intel.kpis.deltas.netSentiment} suffix="" />}
+            </div>
+            <div className="mt-3">
+              <NetTrendChart points={intel.trend} unit={intel.unit} locale={locale} />
+            </div>
+          </section>
+          <div className="grid grid-cols-2 gap-5 lg:grid-cols-1">
+            <Stat label={T.churn} value={formatNumber(intel.churn.count, locale)} delta={cmp && intel.churn.change !== null && <Delta value={churnDelta} invert />} href={q({ intent: "CHURN_RISK" })} />
+            <Stat label={T.mentions} value={formatNumber(intel.kpis.mentions, locale)} delta={cmp && <Delta value={intel.kpis.deltas.mentions} />} href={q({})} />
+          </div>
         </div>
+
+        {brief.themes.length > 0 && (
+          <section aria-labelledby="saying" className="space-y-2">
+            <h2 id="saying" className="mb-3 text-[18px] font-semibold">{T.saying}</h2>
+            <ul className="space-y-2">
+              {brief.themes.map((th, i) => (
+                <ThemeItem key={i} th={th} ar={ar} href={th.topicKey ? q({ topic: th.topicKey }) : null} labels={{ doNext: T.doNext }} max={Math.max(...brief.themes.map((x) => x.sharePct))} />
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-2">
           <DriverList comparable={cmp} title={T.frustrations} items={intel.negative} tone="neg" ar={ar} hrefFor={(k) => q({ topic: k, sentiment: "NEGATIVE" })} empty={T.empty} sub={T.ofNegative} newLabel={T.isNew} />
@@ -203,7 +180,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
               <ul className="divide-y divide-line">
                 {intel.complaints.map((c) => (
                   <li key={c.key}>
-                    <Link prefetch={false} href={q({ topic: c.key, intent: "COMPLAINT" })} className="block px-5 py-3.5 hover:bg-sunken/60">
+                    <Link prefetch={false} href={q({ topic: c.key, intent: "COMPLAINT" })} className="block px-5 py-3.5 hover:bg-panel">
                       <div className="flex items-baseline gap-3">
                         <span className="flex-1 text-[14px] font-medium">{label(c)}</span>
                         {c.churn > 0 && (
@@ -223,11 +200,31 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
             )}
           </Card>
           <div className="space-y-6">
+            <Card title={T.emerging} bodyClassName="p-0 pb-2">
+              {intel.emerging.length === 0 ? (
+                <p className="px-5 pb-4 text-sm text-muted">{T.empty}</p>
+              ) : (
+                <ul>
+                  {intel.emerging.map((e) => (
+                    <li key={e.key}>
+                      <Link prefetch={false} href={q({ topic: e.key })} className="flex items-center gap-3 px-5 py-2.5 hover:bg-panel">
+                        <span className={cn("h-2 w-2 shrink-0 rounded-full", e.net < -10 ? "bg-neg" : e.net > 10 ? "bg-pos" : "bg-neu")} />
+                        <span className="flex-1 truncate text-[14px]">{label(e)}</span>
+                        <span className="text-[13px] text-muted ltr-nums">{e.count}</span>
+                        <span className="w-14 text-end text-[13px] font-medium ltr-nums">
+                          {e.change === null ? <span className="text-brand-700">{T.isNew}</span> : <span className="text-ink">+{e.change}%</span>}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
             <Card title={T.intents} bodyClassName="p-0 pb-2">
               <ul>
                 {intel.intents.map((i) => (
                   <li key={i.intent}>
-                    <Link prefetch={false} href={q({ intent: i.intent })} className="flex items-center gap-3 px-5 py-2 hover:bg-sunken/60">
+                    <Link prefetch={false} href={q({ intent: i.intent })} className="flex items-center gap-3 px-5 py-2 hover:bg-panel">
                       <span className="flex-1 text-[14px]">{t.intents[i.intent]}</span>
                       <span className={cn("w-12 text-end text-[13px] ltr-nums", i.net >= 0 ? "text-pos" : "text-neg")}>
                         {i.net > 0 ? "+" : ""}
@@ -264,50 +261,49 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
   );
 }
 
-function Stat({ label, value, delta, href }: { label: string; value: string; delta: React.ReactNode; href?: string }) {
-  const body = (
-    <>
-      <dt className="text-[12.5px] text-muted">{label}</dt>
-      <dd className="mt-1 text-[26px] font-semibold leading-none tracking-tight ltr-nums">{value}</dd>
-      <dd className="mt-1.5">{delta}</dd>
-    </>
-  );
-  return href ? (
-    <Link prefetch={false} href={href} className="block rounded-lg hover:opacity-80">
-      {body}
+function Stat({ label, value, delta, href }: { label: string; value: string; delta: React.ReactNode; href: string }) {
+  return (
+    <Link prefetch={false} href={href} className="card flex flex-col justify-center gap-1.5 px-6 py-5 transition-colors hover:bg-panel">
+      <span className="text-[14px] text-muted">{label}</span>
+      <span className="flex items-baseline gap-2.5">
+        <span className="text-[28px] font-semibold leading-none tracking-tight ltr-nums">{value}</span>
+        {delta}
+      </span>
     </Link>
-  ) : (
-    <div>{body}</div>
   );
 }
 
-function ThemeItem({ th, ar, href, labels }: { th: BriefTheme; ar: boolean; href: string | null; labels: { doNext: string } }) {
+function ThemeItem({ th, ar, href, labels, max }: { th: BriefTheme; ar: boolean; href: string | null; labels: { doNext: string }; max: number }) {
+  const rec = ar ? th.recommendation_ar : th.recommendation_en;
   const inner = (
-    <>
-      <div className="flex items-center gap-2">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", TONE[th.sentiment] ?? "bg-neu")} />
-        <h3 className="flex-1 truncate text-[14.5px] font-semibold">{ar ? th.title_ar : th.title_en}</h3>
-        <span className="text-[12.5px] text-muted ltr-nums">{th.sharePct}%</span>
-      </div>
-      <p dir="auto" className="mt-2 text-[13.5px] leading-relaxed text-muted">
-        {ar ? th.summary_ar : th.summary_en}
-      </p>
-      {(ar ? th.recommendation_ar : th.recommendation_en) && (
-        <p dir="auto" className="mt-3 text-[13.5px] leading-relaxed text-ink">
-          <span className="text-faint">{labels.doNext} · </span>
-          {ar ? th.recommendation_ar : th.recommendation_en}
+    <div className="grid grid-cols-[10px_minmax(0,1fr)] items-start gap-x-4 gap-y-2 px-6 py-5 sm:grid-cols-[10px_minmax(0,1fr)_140px_52px] sm:items-center">
+      <span className={cn("mt-1.5 h-2.5 w-2.5 rounded-full sm:mt-0", TONE[th.sentiment] ?? "bg-neu")} />
+      <div className="min-w-0">
+        <h3 className="text-[16px] font-semibold">{ar ? th.title_ar : th.title_en}</h3>
+        <p dir="auto" className="mt-1 text-[14px] leading-relaxed text-muted">
+          {ar ? th.summary_ar : th.summary_en}
         </p>
-      )}
-    </>
+        {rec && (
+          <p dir="auto" className="mt-2 text-[14px] leading-relaxed">
+            <span className="text-faint">{labels.doNext} · </span>
+            {rec}
+          </p>
+        )}
+      </div>
+      <span className="col-start-2 h-1.5 overflow-hidden rounded-full bg-sunken sm:col-start-auto">
+        <span className={cn("block h-full rounded-full", TONE[th.sentiment] ?? "bg-neu")} style={{ width: `${Math.max(6, (th.sharePct / Math.max(1, max)) * 100)}%` }} />
+      </span>
+      <span className="hidden text-end text-[14px] font-semibold ltr-nums sm:block">{th.sharePct}%</span>
+    </div>
   );
   return (
-    <li className="bg-surface">
+    <li className="card overflow-hidden">
       {href ? (
-        <Link prefetch={false} href={href} className="block h-full p-5 transition-colors hover:bg-sunken/50">
+        <Link prefetch={false} href={href} className="block transition-colors hover:bg-panel">
           {inner}
         </Link>
       ) : (
-        <div className="h-full p-5">{inner}</div>
+        inner
       )}
     </li>
   );

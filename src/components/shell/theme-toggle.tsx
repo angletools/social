@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { THEME_COOKIE, type Theme } from "@/lib/theme";
+import { applyTheme, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /** Light / dark / system switch. Applies instantly and remembers the choice in a cookie. */
 export function ThemeToggle({ initial, labels }: { initial: Theme; labels: Record<Theme, string> & { title: string } }) {
   const [theme, setTheme] = useState<Theme>(initial);
+  useEffect(() => {
+    const on = (e: Event) => setTheme((e as CustomEvent<Theme>).detail);
+    window.addEventListener("rasd-theme", on);
+    return () => window.removeEventListener("rasd-theme", on);
+  }, []);
   const pick = (v: Theme) => {
     setTheme(v);
-    const el = document.documentElement;
-    if (v === "system") delete el.dataset.theme;
-    else el.dataset.theme = v;
-    document.cookie = `${THEME_COOKIE}=${v}; path=/; max-age=${365 * 86400}; samesite=lax`;
+    applyTheme(v);
   };
   const opts: [Theme, React.ElementType][] = [
     ["light", Sun],

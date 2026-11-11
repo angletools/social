@@ -6,7 +6,9 @@ import { LogOut, Settings, UserRound } from "lucide-react";
 import { logout } from "@/app/actions";
 import { Avatar } from "@/components/avatar";
 import type { Theme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
+import { SECONDARY } from "./nav-links";
 
 export function UserMenu({
   name,
@@ -14,12 +16,18 @@ export function UserMenu({
   role,
   theme,
   labels,
+  placement = "below",
+  extra = null,
 }: {
   name: string;
   email: string;
   role: string;
   theme: Theme;
   labels: { profile: string; settings: string; logout: string; theme: Record<Theme, string> & { title: string } };
+  /** "rail": opens beside the rail, anchored to the bottom. "below": drops down from the top bar. */
+  placement?: "rail" | "below";
+  /** Labels for the secondary pages; when given they are listed (phones, where there is no rail). */
+  extra?: Record<string, string> | null;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -31,10 +39,15 @@ export function UserMenu({
   return (
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center rounded-full" aria-label={name} aria-expanded={open}>
-        <Avatar name={name} seed={email} size={32} />
+        <Avatar name={name} seed={email} size={34} />
       </button>
       {open && (
-        <div className="animate-rise absolute end-0 top-11 z-40 w-60 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-pop)]">
+        <div
+          className={cn(
+            "animate-rise absolute z-50 w-64 overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]",
+            placement === "rail" ? "start-full bottom-0 ms-4" : "end-0 top-11",
+          )}
+        >
           <div className="border-b border-line px-4 py-3">
             <div className="truncate text-[13.5px] font-medium">{name}</div>
             <div className="truncate text-xs text-muted ltr-nums">{email}</div>
@@ -43,6 +56,15 @@ export function UserMenu({
           <div className="border-b border-line p-1">
             <ThemeToggle initial={theme} labels={labels.theme} />
           </div>
+          {extra && (
+            <div className="border-b border-line p-1">
+              {SECONDARY.map((x) => (
+                <Link key={x.href} href={x.href} onClick={() => setOpen(false)} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] hover:bg-sunken">
+                  <x.icon className="h-4 w-4 text-faint" strokeWidth={1.6} /> {extra[x.key]}
+                </Link>
+              ))}
+            </div>
+          )}
           <div className="p-1">
             <Link href="/settings#profile" onClick={() => setOpen(false)} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] hover:bg-sunken">
               <UserRound className="h-4 w-4 text-faint" /> {labels.profile}

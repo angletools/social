@@ -2,21 +2,24 @@
 
 import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
 import { createBrief } from "@/app/actions";
 
+/** The one-sentence read of the day, set large at the top of Home. Falls back to a sentence built from the numbers. */
 export function BriefCard({
   brief,
+  fallback,
   labels,
   aiOn,
 }: {
   brief: { status: string; headline?: string; summary?: string; when: string } | null;
-  labels: { title: string; empty: string; generate: string; generating: string; disabled: string; failed: string };
+  fallback: React.ReactNode;
+  labels: { title: string; generate: string; generating: string; failed: string };
   aiOn: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const generating = brief?.status === "GENERATING" || pending;
+  const ready = brief?.status === "READY" && brief.headline;
 
   useEffect(() => {
     if (brief?.status !== "GENERATING") return;
@@ -25,35 +28,29 @@ export function BriefCard({
   }, [brief?.status, router]);
 
   return (
-    <section className="card relative overflow-hidden">
-      <span className="absolute inset-y-0 start-0 w-[3px] bg-sand-500" />
-      <div className="flex flex-wrap items-start gap-x-6 gap-y-3 px-6 py-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-sand-50 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-sand-700">AI</span>
-            <h2 className="text-[13px] font-semibold">{labels.title}</h2>
-            {brief?.when && <span className="text-xs text-faint">· {brief.when}</span>}
-          </div>
-          {generating ? (
-            <div className="mt-3 space-y-2">
-              <div className="skeleton h-4 w-3/4" />
-              <div className="skeleton h-3.5 w-1/2" />
-            </div>
-          ) : brief?.status === "READY" ? (
-            <>
-              <p className="mt-2.5 text-[16px] font-medium leading-relaxed">{brief.headline}</p>
-              <p className="mt-1.5 max-w-4xl text-[13.5px] leading-relaxed text-muted">{brief.summary}</p>
-            </>
-          ) : (
-            <p className="mt-2.5 text-[13.5px] text-muted">{brief?.status === "FAILED" ? (aiOn ? labels.failed : labels.disabled) : aiOn ? labels.empty : labels.disabled}</p>
-          )}
+    <section aria-label={labels.title} className="max-w-[900px]">
+      {generating ? (
+        <div className="space-y-3 py-1">
+          <div className="skeleton h-6 w-3/4" />
+          <div className="skeleton h-6 w-1/2" />
         </div>
+      ) : ready ? (
+        <>
+          <p className="text-[21px] font-medium leading-[1.6] md:text-[24px]">{brief.headline}</p>
+          {brief.summary && <p className="mt-2 text-[15.5px] leading-relaxed text-muted">{brief.summary}</p>}
+        </>
+      ) : (
+        <p className="text-[20px] leading-[1.65] text-muted md:text-[22px]">{fallback}</p>
+      )}
+      <div className="mt-3 flex items-center gap-3 text-[13px] text-faint">
+        {ready && brief.when && <span>{brief.when}</span>}
+        {brief?.status === "FAILED" && aiOn && <span>{labels.failed}</span>}
         {aiOn && !generating && (
-          <button type="button" className="btn-secondary" onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            {labels.generate}
+          <button type="button" className="text-brand-700 hover:text-ink" onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
+            {ready ? labels.generate : labels.title}
           </button>
         )}
+        {generating && <span className="animate-pulse">{labels.generating}</span>}
       </div>
     </section>
   );

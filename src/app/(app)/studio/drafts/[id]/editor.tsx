@@ -34,7 +34,7 @@ function Editable({ value, onChange, disabled, className, multiline }: { value: 
       value={value}
       onChange={(e) => onChange(e.target.value)}
       rows={1}
-      className={cn("w-full resize-none rounded-lg [field-sizing:content] border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-line focus:border-brand-500 focus:bg-white", className)}
+      className={cn("w-full resize-none rounded-lg [field-sizing:content] border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-line focus:border-brand-500 focus:bg-surface", className)}
     />
   ) : (
     <input
@@ -42,7 +42,7 @@ function Editable({ value, onChange, disabled, className, multiline }: { value: 
       disabled={disabled}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={cn("w-full rounded-lg border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-line focus:border-brand-500 focus:bg-white", className)}
+      className={cn("w-full rounded-lg border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-line focus:border-brand-500 focus:bg-surface", className)}
     />
   );
 }
