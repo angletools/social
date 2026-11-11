@@ -11,6 +11,9 @@ import { evaluateAlerts } from "../lib/alerts";
 import { generateReport } from "../lib/ai/report";
 import { scanWatch } from "../lib/trends/scan";
 import { generateDraft } from "../lib/ai/studio";
+import { workerBeat } from "../lib/system";
+import { runDueWeeklyReports } from "../lib/weekly";
+import { generateIntelligenceBrief } from "../lib/ai/intelligence";
 
 async function main() {
   const boss = new PgBoss({ connectionString: process.env.DATABASE_URL! });
@@ -92,8 +95,37 @@ async function main() {
     }
   });
 
+  await boss.work<{ organizationId: string; days: number }>(QUEUES.intelligence, async ([job]) => {
+    await generateIntelligenceBrief(job.data.organizationId, job.data.days);
+    console.log(`[worker] intelligence brief ${job.data.organizationId} (${job.data.days}d)`);
+  });
+
+  // Hourly: send weekly reports that are due (08:00+ Riyadh on the chosen day).
+  await boss.schedule(QUEUES.weekly, "5 * * * *");
+  await boss.work(QUEUES.weekly, async () => {
+    const sent = await runDueWeeklyReports();
+    if (sent.length) console.log(`[worker] weekly reports sent: ${sent.join(", ")}`);
+  });
+
+  // Nightly housekeeping at 03:00 Riyadh (00:00 UTC).
+  await boss.schedule(QUEUES.maintenance, "0 0 * * *");
+  await boss.work(QUEUES.maintenance, async () => {
+    const day = 86400_000;
+    const [a, sess, n] = await Promise.all([
+      db.loginAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - day) } } }),
+      db.session.deleteMany({ where: { expiresAt: { lt: new Date() } } }),
+      db.notification.deleteMany({ where: { readAt: { not: null }, createdAt: { lt: new Date(Date.now() - 90 * day) } } }),
+    ]);
+    console.log(`[worker] maintenance: ${a.count} attempts, ${sess.count} sessions, ${n.count} notifications removed`);
+  });
+
+  // Heartbeat so the app can tell admins when background processing is down.
+  await workerBeat();
+  const beat = setInterval(() => workerBeat().catch((e) => console.error("[worker] heartbeat failed", e)), 30_000);
+
   console.log("[worker] running");
   const stop = async () => {
+    clearInterval(beat);
     await boss.stop({ graceful: true, timeout: 20_000 });
     process.exit(0);
   };

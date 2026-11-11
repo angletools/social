@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   if (!user) return new Response("unauthorized", { status: 401 });
   const sp = Object.fromEntries(new URL(req.url).searchParams);
   const rows = await db.mention.findMany({
-    where: mentionWhere(filtersFromParams(user.organizationId, sp)),
+    where: mentionWhere(filtersFromParams(user.organizationId, sp, user.id)),
     orderBy: { publishedAt: "desc" },
     take: MAX_ROWS,
     include: { monitor: { select: { name: true } } },

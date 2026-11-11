@@ -2,57 +2,57 @@ import type { Dialect, Intent } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 export const DIALECT_COLORS: Record<Dialect, string> = {
-  SAUDI: "#0b8a6b",
-  KHALEEJI: "#0e7490",
-  EGYPTIAN: "#b45309",
-  LEVANTINE: "#7c3aed",
-  IRAQI: "#be123c",
-  MAGHREBI: "#4d7c0f",
-  MSA: "#475569",
-  ARABIZI: "#db2777",
-  ENGLISH: "#2563eb",
-  OTHER: "#94a3b8",
+  SAUDI: "#12735a",
+  KHALEEJI: "#3a7f8c",
+  EGYPTIAN: "#b98a3e",
+  LEVANTINE: "#7a5aa6",
+  IRAQI: "#a8524a",
+  MAGHREBI: "#6b7f3a",
+  MSA: "var(--color-muted)",
+  ARABIZI: "#8a3f74",
+  ENGLISH: "#2f64a8",
+  OTHER: "var(--color-neu)",
 };
 
 export function DialectBadge({ dialect, label }: { dialect: Dialect; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-line">
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: DIALECT_COLORS[dialect] }} />
+    <span className="inline-flex items-center gap-1.5 text-muted">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: DIALECT_COLORS[dialect] }} aria-hidden />
       {label}
     </span>
   );
 }
 
 const INTENT_STYLE: Partial<Record<Intent, string>> = {
-  CHURN_RISK: "bg-red-600 text-white",
-  COMPLAINT: "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
-  QUESTION: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
-  PURCHASE_INTENT: "bg-emerald-600 text-white",
-  PRAISE: "bg-green-50 text-green-700 ring-1 ring-green-200",
-  SUGGESTION: "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
+  CHURN_RISK: "bg-neg/[0.1] text-neg",
+  COMPLAINT: "bg-neg/[0.07] text-neg",
+  QUESTION: "bg-info/[0.08] text-info",
+  PURCHASE_INTENT: "bg-brand-50 text-brand-700",
+  PRAISE: "bg-pos/[0.08] text-pos",
+  SUGGESTION: "bg-sand-50 text-sand-700",
 };
 
 export function IntentBadge({ intent, label }: { intent: Intent; label: string }) {
-  return <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", INTENT_STYLE[intent] ?? "bg-slate-100 text-slate-600")}>{label}</span>;
+  return <span className={cn("inline-flex h-6 items-center rounded-[7px] px-2 text-[12.5px] font-semibold", INTENT_STYLE[intent] ?? "bg-sunken text-muted")}>{label}</span>;
 }
 
 export function SarcasmBadge({ label, help }: { label: string; help: string }) {
   return (
-    <span title={help} className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700 ring-1 ring-fuchsia-200">
-      🙃 {label}
+    <span title={help} className="inline-flex items-center text-plum">
+      {label}
     </span>
   );
 }
 
 export function SlangChips({ items }: { items: { term: string; gloss: string }[] }) {
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 rounded-xl bg-panel px-4 py-3 text-[13px] leading-5">
       {items.map((s) => (
-        <span key={s.term} className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-900" title={s.gloss}>
-          <b dir="auto">{s.term}</b>
-          <span className="text-amber-700/80" dir="ltr">· {s.gloss}</span>
-        </span>
+        <div key={s.term} className="contents">
+          <dt dir="auto" className="font-semibold text-ink">{s.term}</dt>
+          <dd dir="ltr" className="text-muted rtl:text-right">{s.gloss}</dd>
+        </div>
       ))}
-    </div>
+    </dl>
   );
 }

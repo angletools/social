@@ -38,6 +38,18 @@ async function main() {
     update: {},
   });
 
+  // Two teammates so assignment and roles can be demoed.
+  for (const [name, mail, role] of [
+    ["Noura Al-Harbi", "noura@rasd.local", "ANALYST"],
+    ["Omar Saleh", "omar@rasd.local", "VIEWER"],
+  ] as const) {
+    await db.user.upsert({
+      where: { email: mail },
+      create: { organizationId: org.id, email: mail, name, role, locale: "ar", passwordHash: await bcrypt.hash(password, 12) },
+      update: {},
+    });
+  }
+
   const existing = await db.monitor.count({ where: { organizationId: org.id } });
   if (existing === 0) {
     const all = ["X", "INSTAGRAM", "TIKTOK", "YOUTUBE"] as const;
@@ -117,6 +129,18 @@ async function seedDialectAndStudio(organizationId: string) {
       });
       await db.mention.update({ where: { id: m.id }, data: { repliedAt, status: "REVIEWED" } });
     }
+  }
+
+  // Assign a few urgent posts to the analyst.
+  const analyst = await db.user.findUnique({ where: { email: "noura@rasd.local" } });
+  if (analyst && (await db.mention.count({ where: { organizationId, assignedToId: { not: null } } })) === 0) {
+    const urgent = await db.mention.findMany({
+      where: { organizationId, intent: "CHURN_RISK", repliedAt: null },
+      orderBy: { publishedAt: "desc" },
+      take: 4,
+      select: { id: true },
+    });
+    await db.mention.updateMany({ where: { id: { in: urgent.map((u) => u.id) } }, data: { assignedToId: analyst.id } });
   }
 
   let voice = await db.brandVoice.findFirst({ where: { organizationId } });

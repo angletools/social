@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/components/feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, ImagePlus, Loader2, Pause, Play, X } from "lucide-react";
 import type { Dict } from "@/lib/i18n/en";
@@ -40,7 +41,7 @@ function drawTextBlock(
   opts: { size: number; weight: number; bg: string; color: string; maxWidth: number },
 ) {
   if (!text.trim()) return;
-  ctx.font = `${opts.weight} ${opts.size}px "IBM Plex Sans Arabic", system-ui, sans-serif`;
+  ctx.font = `${opts.weight} ${opts.size}px Urbanist, "Vazirmatn Variable", system-ui, sans-serif`;
   ctx.direction = isArabic(text) ? "rtl" : "ltr";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -120,7 +121,7 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = "rgba(255,255,255,.55)";
-        ctx.font = `600 22px "IBM Plex Sans Arabic", system-ui, sans-serif`;
+        ctx.font = `600 22px Urbanist, "Vazirmatn Variable", system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.direction = "ltr";
         ctx.fillText(`SHOT ${beat.shot}${shot ? ` · ${shot.type.replace(/_/g, " ")}` : ""}`, W / 2, H * 0.5 - 70);
@@ -139,7 +140,7 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
   );
 
   useEffect(() => {
-    void document.fonts?.load(`700 40px "IBM Plex Sans Arabic"`).then(() => draw(timeRef.current, false));
+    void document.fonts?.load(`700 40px "Vazirmatn Variable"`).then(() => draw(timeRef.current, false));
   }, [draw]);
 
   useEffect(() => {
@@ -225,9 +226,9 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
 
   const exportVideo = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || typeof MediaRecorder === "undefined" || !canvas.captureStream) return alert(t.unsupported);
+    if (!canvas || typeof MediaRecorder === "undefined" || !canvas.captureStream) return toast(t.unsupported, "error");
     const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m));
-    if (!mime) return alert(t.unsupported);
+    if (!mime) return toast(t.unsupported, "error");
     stopLoop();
     const stream = canvas.captureStream(30);
     const videos = Object.values(mediaRef.current).map((m) => m.el).filter((el): el is HTMLVideoElement => el instanceof HTMLVideoElement);
@@ -259,7 +260,7 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
   return (
     <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
       <div>
-        <canvas ref={canvasRef} width={W} height={H} className="w-full max-w-[18rem] rounded-2xl bg-black shadow-lg" />
+        <canvas ref={canvasRef} width={W} height={H} className="w-full max-w-[18rem] rounded-xl bg-black shadow-lg" />
         <div className="mt-3 flex items-center gap-2">
           <button type="button" className="btn-primary" onClick={toggle} disabled={exporting}>
             {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {playing ? t.pause : t.play}
@@ -290,7 +291,7 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
                 activeBeatRef.current = -1;
                 setTime(b.start + 0.01);
               }}
-              className={cn("relative min-w-0 border-e border-white/40 px-1 text-start text-[10px] leading-tight text-white", i === current && "ring-2 ring-inset ring-amber-300")}
+              className={cn("relative min-w-0 border-e border-white/40 px-1 text-start text-[10px] leading-tight text-white", i === current && "ring-2 ring-inset ring-sand-500")}
               style={{ width: `${(b.duration / total) * 100}%`, background: SHOT_COLORS[(b.shot - 1 + SHOT_COLORS.length) % SHOT_COLORS.length] }}
             >
               <span className="block font-semibold">{b.shot}</span>
@@ -313,11 +314,11 @@ export function RoughCut({ beats, shots, title, t }: { beats: Beat[]; shots: Sho
                   <p className="truncate text-xs text-muted">{m ? m.name : shot?.description}</p>
                 </div>
                 {m ? (
-                  <button type="button" className="btn-ghost px-2 py-1" onClick={() => removeMedia(n)} aria-label={t.remove}>
+                  <button type="button" className="btn-ghost btn-sm w-7 px-0" onClick={() => removeMedia(n)} aria-label={t.remove}>
                     <X className="h-4 w-4" />
                   </button>
                 ) : (
-                  <label className="btn-secondary cursor-pointer px-2.5 py-1.5 text-xs">
+                  <label className="btn-secondary btn-sm cursor-pointer">
                     <ImagePlus className="h-3.5 w-3.5" /> {t.add}
                     <input type="file" accept="video/*,image/*" className="sr-only" onChange={(e) => e.target.files?.[0] && addMedia(n, e.target.files[0])} />
                   </label>

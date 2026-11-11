@@ -1,104 +1,133 @@
-import { LogOut } from "lucide-react";
-import { requireUser } from "@/lib/auth";
+import Link from "next/link";
+import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { timeAgo } from "@/lib/utils";
 import { dataSource } from "@/lib/ingest/sync";
 import { INBOX_INTENTS } from "@/lib/analytics";
-import { logout } from "@/app/actions";
-import { NavLinks } from "@/components/shell/nav-links";
+import { getWorkerStatus } from "@/lib/system";
+import { HistoryArrows, Sidebar, TabBar } from "@/components/shell/nav-links";
 import { LangToggle } from "@/components/shell/lang-toggle";
 import { Notifications } from "@/components/shell/notifications";
-import { MobileNav } from "@/components/shell/mobile-nav";
+import { GlobalSearch } from "@/components/shell/search";
+import { UserMenu } from "@/components/shell/user-menu";
+import { FeedbackHost } from "@/components/feedback";
+import { ClientDictProvider } from "@/components/client-dict";
+import { cookies } from "next/headers";
+import { SIDEBAR_COOKIE, THEME_COOKIE, parseTheme } from "@/lib/theme";
 
-function Brand({ name, org }: { name: string; org: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icon.svg" alt="" className="h-9 w-9" />
-      <div className="leading-tight">
-        <div className="text-lg font-bold">{name}</div>
-        <div className="max-w-[10rem] truncate text-xs text-muted">{org}</div>
-      </div>
-    </div>
-  );
-}
-
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = await requireUser();
-  const { t, locale } = await getDict();
-  const notes = await db.notification.findMany({
-    where: { organizationId: user.organizationId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const { t, locale, dir } = await getDict();
+  const orgId = user.organizationId;
+  const [notes, awaiting, worker, monitors] = await Promise.all([
+    db.notification.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [{ userId: null }, { userId: user.id }],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+    db.mention.count({
+      where: {
+        organizationId: orgId,
+        relevant: true,
+        repliedAt: null,
+        status: { not: "ARCHIVED" },
+        publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
+        OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
+      },
+    }),
+    getWorkerStatus(),
+    db.monitor.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, name: true, type: true, isCompetitor: true, status: true },
+      orderBy: [{ isCompetitor: "asc" }, { createdAt: "asc" }],
+      take: 8,
+    }),
+  ]);
   const unread = notes.filter((n) => !n.readAt).length;
-  const awaiting = await db.mention.count({
-    where: {
-      organizationId: user.organizationId,
-      relevant: true,
-      repliedAt: null,
-      status: { not: "ARCHIVED" },
-      publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
-      OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
-    },
-  });
-  const brand = <Brand name={t.app.name} org={user.organization.name} />;
   const labels = t.nav as unknown as Record<string, string>;
   const badges = { alerts: unread, inbox: awaiting };
+  const demo = dataSource() === "demo";
+  const jar = await cookies();
+  const theme = parseTheme(jar.get(THEME_COOKIE)?.value);
+  const account = {
+    name: user.name,
+    email: user.email,
+    role: t.settings.roles[user.role],
+    theme,
+    labels: { theme: t.nav.theme, profile: t.nav.profile, settings: t.nav.settings, logout: t.nav.logout },
+  };
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-e border-line p-4 lg:flex">
-        <div className="mb-8 px-1">{brand}</div>
-        <NavLinks labels={labels} badges={badges} />
-        <div className="mt-auto space-y-3">
-          {dataSource() === "demo" && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
-              <b>{t.common.demoMode}</b>
-              <p className="mt-1">{t.common.demoModeHint}</p>
+    <ClientDictProvider value={{ locale, toasts: t.toasts, common: t.common }}>
+      <div className="flex min-h-dvh bg-black">
+        <FeedbackHost labels={{ confirm: t.common.confirm, cancel: t.common.cancel }} />
+        <Sidebar
+          dir={dir}
+          labels={labels}
+          themeLabels={{ light: t.nav.theme.light, dark: t.nav.theme.dark }}
+          badges={badges}
+          org={user.organization.name}
+          monitors={monitors.map((m) => ({ id: m.id, name: m.name, type: m.type, competitor: m.isCompetitor, live: m.status === "ACTIVE" }))}
+          initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "collapsed"}
+          account={account}
+        />
+
+        <div className="app-col flex min-w-0 flex-1 flex-col bg-black">
+          <header className="no-print sticky top-0 z-30 flex h-[60px] shrink-0 items-center gap-1.5 bg-black px-3 md:px-[18px]">
+            <Link href="/" aria-label={t.app.name} className="me-2 text-[20px] font-semibold tracking-[-0.03em] text-white md:hidden">
+              <span dir="ltr">
+                angle<span className="font-normal text-[#7a7a7a]"> /social</span>
+              </span>
+            </Link>
+            <HistoryArrows dir={dir} labels={{ back: t.nav.back, forward: t.nav.forward }} />
+            <div className="ms-auto flex min-w-0 items-center gap-1.5 md:gap-2.5">
+              {demo && (
+                <Link href="/settings#connections" title={t.common.demoModeHint} className="hidden h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-[#8f8f8f] hover:text-white lg:inline-flex">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sand-500" />
+                  {t.common.demoMode}
+                </Link>
+              )}
+              <div className="hidden sm:block sm:w-[320px]">
+                <GlobalSearch placeholder={t.nav.search} />
+              </div>
+              <LangToggle locale={locale} label={t.nav.language} compact />
+              <Notifications
+                labels={{ title: t.nav.notifications, empty: t.nav.noNotifications, markAll: t.nav.markAllRead }}
+                items={notes.map((n) => ({
+                  id: n.id,
+                  title: locale === "ar" ? n.titleAr : n.titleEn,
+                  body: locale === "ar" ? n.bodyAr : n.bodyEn,
+                  link: n.link,
+                  severity: n.severity,
+                  unread: !n.readAt,
+                  when: timeAgo(n.createdAt, locale),
+                }))}
+              />
+              <div className="md:hidden">
+                <UserMenu {...account} placement="below" extra={labels} />
+              </div>
             </div>
-          )}
-          <div className="flex items-center gap-3 rounded-xl bg-white p-3 ring-1 ring-line">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700">
-              {user.name.slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="truncate text-sm font-medium">{user.name}</div>
-              <div className="text-xs text-muted">{t.settings.roles[user.role]}</div>
-            </div>
-            <form action={logout}>
-              <button className="btn-ghost px-2 py-2" title={t.nav.logout} aria-label={t.nav.logout}>
-                <LogOut className="h-4 w-4 rtl:rotate-180" />
-              </button>
-            </form>
+          </header>
+          <div className="sheet flex min-h-0 flex-1 flex-col bg-canvas md:rounded-ss-[26px]">
+            {!worker.alive && hasRole(user, "ADMIN") && (
+              <div className="no-print mx-4 mt-4 flex items-center gap-2 text-[12.5px] text-muted md:mx-10">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />
+                <span className="truncate" title={t.nav.workerDown}>{t.nav.workerDown}</span>
+              </div>
+            )}
+            <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 pt-6 pb-28 md:px-10 md:pt-9 md:pb-12">{children}</main>
           </div>
         </div>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-canvas/85 px-4 py-3 backdrop-blur lg:justify-end lg:px-8">
-          <div className="flex items-center gap-3 lg:hidden">
-            <MobileNav labels={labels} badges={badges} brand={brand} />
-            <span className="font-bold">{t.app.name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <LangToggle locale={locale} label={t.nav.language} />
-            <Notifications
-              labels={{ title: t.nav.notifications, empty: t.nav.noNotifications, markAll: t.nav.markAllRead }}
-              items={notes.map((n) => ({
-                id: n.id,
-                title: locale === "ar" ? n.titleAr : n.titleEn,
-                body: locale === "ar" ? n.bodyAr : n.bodyEn,
-                link: n.link,
-                severity: n.severity,
-                unread: !n.readAt,
-                when: timeAgo(n.createdAt, locale),
-              }))}
-            />
-          </div>
-        </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+        <TabBar labels={labels} badges={badges} />
       </div>
-    </div>
+    </ClientDictProvider>
   );
 }

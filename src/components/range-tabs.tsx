@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** Period switcher that keeps other query params. */
+/** Segmented period switcher that keeps other query params. */
 export function RangeTabs({
   days,
   labels,
@@ -14,16 +14,18 @@ export function RangeTabs({
   params?: Record<string, string | undefined>;
 }) {
   return (
-    <div className="inline-flex rounded-xl border border-line bg-white p-1">
+    <div className="inline-flex rounded-[10px] bg-sunken p-0.5">
       {["1", "7", "30", "90"].map((d) => {
         const qs = new URLSearchParams({ ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)), days: d } as Record<string, string>);
+        const active = String(days) === d;
         return (
           <Link
             key={d}
             href={`${basePath}?${qs}`}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm transition",
-              String(days) === d ? "bg-brand-600 font-medium text-white" : "text-muted hover:text-ink",
+              "rounded-[8px] px-3 py-1.5 text-[13px] transition",
+              active ? "bg-surface font-medium text-ink shadow-[0_1px_2px_rgb(21_24_27/0.08)]" : "text-muted hover:text-ink",
             )}
           >
             {labels[d]}

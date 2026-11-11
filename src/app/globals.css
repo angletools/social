@@ -1,26 +1,148 @@
 @import "tailwindcss";
-@import "@fontsource/ibm-plex-sans-arabic/300.css";
-@import "@fontsource/ibm-plex-sans-arabic/400.css";
-@import "@fontsource/ibm-plex-sans-arabic/500.css";
-@import "@fontsource/ibm-plex-sans-arabic/600.css";
-@import "@fontsource/ibm-plex-sans-arabic/700.css";
+@import "@fontsource/urbanist/400.css";
+@import "@fontsource/urbanist/500.css";
+@import "@fontsource/urbanist/600.css";
+@import "@fontsource/urbanist/700.css";
+@import "@fontsource-variable/vazirmatn/wght.css";
 
+/*
+ * angle social design tokens (v2).
+ * Calm slate on a cool grey canvas. Flat surfaces, no borders or shadows
+ * where the space between cards can do the work. Colour is kept for meaning.
+ * Urbanist sets Latin text and numbers; Vazirmatn covers Arabic,
+ * which Urbanist has no glyphs for. Dark values live below @theme.
+ */
 @theme {
-  --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #ecfdf8;
-  --color-brand-100: #d1faee;
-  --color-brand-200: #a6f2dc;
-  --color-brand-500: #13a37f;
-  --color-brand-600: #0b8a6b;
-  --color-brand-700: #0a6e57;
-  --color-brand-900: #073f33;
-  --color-ink: #0f1a17;
-  --color-muted: #5b6965;
-  --color-line: #e6ebe9;
-  --color-canvas: #f6f8f7;
-  --color-pos: #16a34a;
-  --color-neu: #94a3b8;
-  --color-neg: #dc2626;
+  /* Spacing is a true 4px grid (4/8/12/16/24/32/40), independent of the 14px root font size. */
+  --spacing: 4px;
+  --font-sans: "Urbanist", "Vazirmatn Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #e9e8e4;
+  --color-surface: #f3f2ef;
+  --color-panel: #e9e8e4;
+  --color-sunken: #dedcd6;
+  --color-ink: #161616;
+  --color-on-ink: #ffffff;
+  --color-muted: #6f6e69;
+  --color-faint: #9b9993;
+  --color-line: #d9d8d3;
+  --color-line-strong: #cfcdc7;
+  --color-selected: #e2e1e6;
+  --color-rail: #000000;
+  --color-tip: #26282d;
+  --color-chart: #e8775e;
+  --color-dot-track: #dedcd6;
+
+  --color-brand-50: #e4e3df;
+  --color-brand-100: #dcdad5;
+  --color-brand-200: #cfcdc7;
+  --color-brand-500: #6f6e69;
+  --color-brand-600: #3a3a38;
+  --color-brand-700: #2a2a28;
+  --color-brand-900: #161616;
+
+  --color-sand-50: #f8f3ea;
+  --color-sand-100: #efe4cf;
+  --color-sand-500: #b98a3e;
+  --color-sand-700: #8a6424;
+
+  --color-pos: #2f8f5b;
+  --color-neu: #a9a7a1;
+  --color-neg: #d4503f;
+  --color-warn: #c98a1a;
+  --color-info: #3d6aa8;
+  --color-plum: #8a4f86;
+
+  --radius-card: 18px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --shadow-pop: 0 1px 2px rgb(28 34 48 / 0.05), 0 14px 36px -10px rgb(28 34 48 / 0.2);
+}
+
+/* Dark theme: explicit choice via data-theme, otherwise follow the system. */
+:root {
+  color-scheme: light;
+  --avatar-ink: 100%;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #151514;
+  --color-surface: #1d1c1b;
+  --color-panel: #151514;
+  --color-sunken: #262523;
+  --color-ink: #ecebe7;
+  --color-on-ink: #151514;
+  --color-muted: #a3a19b;
+  --color-faint: #6f6d68;
+  --color-line: #2b2a28;
+  --color-line-strong: #36342f;
+  --color-selected: #24232a;
+  --color-rail: #000000;
+  --color-tip: #2e2f34;
+  --color-chart: #ee8a72;
+  --color-dot-track: #262523;
+  --color-brand-50: #222120;
+  --color-brand-100: #2a2927;
+  --color-brand-200: #36342f;
+  --color-brand-500: #a3a19b;
+  --color-brand-600: #cfcdc7;
+  --color-brand-700: #dcdad5;
+  --color-brand-900: #ecebe7;
+  --color-sand-50: #231e15;
+  --color-sand-100: #362d1d;
+  --color-sand-500: #d3a75c;
+  --color-sand-700: #e2bd7c;
+  --color-pos: #5cc08a;
+  --color-neu: #5f5d58;
+  --color-neg: #ef7a6a;
+  --color-warn: #e8b45a;
+  --color-info: #86a9dc;
+  --color-plum: #c38bbf;
+  --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px -10px rgb(0 0 0 / 0.65);
+  --avatar-ink: 45%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-canvas: #151514;
+    --color-surface: #1d1c1b;
+    --color-panel: #151514;
+    --color-sunken: #262523;
+    --color-ink: #ecebe7;
+    --color-on-ink: #151514;
+    --color-muted: #a3a19b;
+    --color-faint: #6f6d68;
+    --color-line: #2b2a28;
+    --color-line-strong: #36342f;
+    --color-selected: #24232a;
+    --color-rail: #000000;
+    --color-tip: #2e2f34;
+    --color-chart: #ee8a72;
+    --color-dot-track: #262523;
+    --color-brand-50: #222120;
+    --color-brand-100: #2a2927;
+    --color-brand-200: #36342f;
+    --color-brand-500: #a3a19b;
+    --color-brand-600: #cfcdc7;
+    --color-brand-700: #dcdad5;
+    --color-brand-900: #ecebe7;
+    --color-sand-50: #231e15;
+    --color-sand-100: #362d1d;
+    --color-sand-500: #d3a75c;
+    --color-sand-700: #e2bd7c;
+    --color-pos: #5cc08a;
+    --color-neu: #5f5d58;
+    --color-neg: #ef7a6a;
+    --color-warn: #e8b45a;
+    --color-info: #86a9dc;
+    --color-plum: #c38bbf;
+    --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px -10px rgb(0 0 0 / 0.65);
+    --avatar-ink: 45%;
+  }
+}
+
+html {
+  font-size: 14px;
 }
 
 html,
@@ -32,42 +154,184 @@ body {
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Arabic typesetting. Tracking breaks the joins between Arabic letters, so
+ * RTL pages never letter-space (this overrides tracking utilities too).
+ * Arabic also needs more leading than Latin. :where() keeps these at zero
+ * specificity so explicit leading-* utilities still win.
+ */
+[dir="rtl"],
+[dir="rtl"] * {
+  letter-spacing: 0 !important;
+}
+:where([dir="rtl"]) body {
+  line-height: 1.6;
+}
+:where([dir="rtl"]) :where(p, li, dd, blockquote) {
+  line-height: 1.75;
+}
+:where([dir="rtl"]) :where(h1, h2, h3) {
+  line-height: 1.35;
+}
+body {
+  font-synthesis: none;
+}
+
+/*
+ * Mixed-language content (an Arabic post in the English UI, or the reverse)
+ * keeps its own reading direction but lines up with the page's edge, so a
+ * name and the post under it share one alignment line. Form fields are left
+ * alone: typing should follow the text.
+ */
+/* Taps fire immediately (no double-tap-zoom wait) and long-press doesn't select button text. */
+@layer base {
+  :where(a, button, [role="button"], [role="tab"], [role="radio"], label, summary) {
+    touch-action: manipulation;
+  }
+  :where(button, [role="button"], [role="tab"]) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+@layer base {
+  :where(p, span, div, li, dd, dt, blockquote, b, strong, a, h1, h2, h3, h4)[dir="auto"] {
+    text-align: left;
+    unicode-bidi: plaintext;
+  }
+  :where([dir="rtl"]) :where(p, span, div, li, dd, dt, blockquote, b, strong, a, h1, h2, h3, h4)[dir="auto"] {
+    text-align: right;
+  }
+}
+
+::selection {
+  background: var(--color-brand-100);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* Keep numbers and handles readable inside RTL text */
 .ltr-nums {
   direction: ltr;
   unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 @utility card {
-  @apply rounded-2xl border border-line bg-white;
+  @apply rounded-[var(--radius-card)] bg-surface;
 }
 
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-[12px] px-4 text-[13.5px] font-medium whitespace-nowrap transition-[background-color,border-color,color,transform] duration-150 ease-(--ease-out) select-none active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100;
 }
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  @apply btn bg-ink text-on-ink hover:bg-ink/85;
+}
+@utility btn-brand {
+  @apply btn bg-brand-700 text-on-ink hover:bg-brand-900;
 }
 @utility btn-secondary {
-  @apply btn border border-line bg-white text-ink hover:bg-canvas;
+  @apply btn border border-line bg-transparent text-ink hover:bg-sunken;
 }
 @utility btn-ghost {
-  @apply btn text-muted hover:bg-canvas hover:text-ink;
+  @apply btn text-muted hover:bg-sunken hover:text-ink;
 }
 @utility btn-danger {
-  @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50;
+  @apply btn border border-line-strong bg-surface text-neg hover:border-neg/40 hover:bg-neg/5;
+}
+@utility btn-sm {
+  @apply h-7 gap-1.5 rounded-lg px-2.5 text-xs;
 }
 
 @utility input {
-  @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-100;
+  @apply w-full rounded-[12px] border border-line bg-surface px-3 py-2 text-[16px] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-faint md:text-[13.5px] focus:border-brand-500 focus:bg-surface focus:ring-[3px] focus:ring-brand-100 disabled:bg-sunken disabled:text-faint;
 }
 @utility label {
-  @apply mb-1.5 block text-sm font-medium text-ink;
+  @apply mb-1.5 block text-[13px] font-medium text-ink;
 }
 @utility hint {
-  @apply mt-1.5 text-xs text-muted;
+  @apply mt-1.5 text-xs leading-relaxed text-muted;
+}
+@utility eyebrow {
+  @apply text-[11px] font-medium tracking-wide text-faint;
+}
+@utility chip {
+  @apply inline-flex h-6 items-center gap-1 rounded-md bg-sunken px-2 text-xs text-muted;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.2s var(--ease-out) both;
+}
+
+/* Popovers grow from their trigger; modals stay centred. */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.animate-pop {
+  animation: pop 0.16s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-pop {
+    animation: fade-in 0.15s ease both;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-sunken);
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-surface) 60%, transparent), transparent);
+  animation: shimmer 1.4s infinite;
 }
 
 @media print {
@@ -97,3 +361,117 @@ body {
 .prose-chat table { width: 100%; font-size: 0.875rem; border-collapse: collapse; margin: 0.5rem 0 0.75rem; }
 .prose-chat th, .prose-chat td { border: 1px solid var(--color-line); padding: 0.35rem 0.6rem; text-align: start; }
 .prose-chat code { background: var(--color-canvas); padding: 0.1rem 0.3rem; border-radius: 0.3rem; font-size: 0.85em; }
+
+/* Pages that own the whole content area (the inbox) opt out of the centred column. */
+main:has(> .full-bleed) {
+  max-width: none;
+  padding-inline: 0;
+  padding-top: 0;
+}
+@media (min-width: 768px) {
+  .app-col:has(main > .full-bleed) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .sheet:has(> main > .full-bleed) {
+    overflow: hidden;
+  }
+  main:has(> .full-bleed) {
+    padding-bottom: 0;
+    min-height: 0;
+    display: flex;
+  }
+}
+
+/* Dot-matrix bars: a colour gradient seen through a grid of round holes. */
+.dot-bar {
+  --dot-dir: to right;
+  background: var(--dot-fill);
+  -webkit-mask: radial-gradient(circle at center, #000 2px, transparent 2.45px) 0 0 / 6px 8px;
+  mask: radial-gradient(circle at center, #000 2px, transparent 2.45px) 0 0 / 6px 8px;
+}
+[dir="rtl"] .dot-bar {
+  --dot-dir: to left;
+  -webkit-mask-position: right top;
+  mask-position: right top;
+}
+
+/*
+ * Chart tokens for Bklit UI (src/components/charts). They point at the app
+ * tokens above, so they follow light / dark automatically.
+ */
+:root {
+  --background: var(--color-surface);
+  --foreground: var(--color-ink);
+  --border: var(--color-line);
+  --muted-foreground: var(--color-muted);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+  --radius-xl: 14px;
+
+  --chart-1: var(--color-chart);
+  --chart-2: var(--color-ink);
+  --chart-3: var(--color-info);
+  --chart-4: var(--color-faint);
+  --chart-5: var(--color-pos);
+  --chart-positive: var(--color-pos);
+  --chart-negative: var(--color-neg);
+  --chart-background: var(--color-surface);
+  --chart-foreground: var(--color-ink);
+  --chart-foreground-muted: var(--color-muted);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-2);
+  --chart-crosshair: var(--color-faint);
+  --chart-grid: var(--color-line);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: color-mix(in oklab, var(--color-surface) 94%, transparent);
+  --chart-tooltip-foreground: var(--color-ink);
+  --chart-tooltip-muted: var(--color-muted);
+  --chart-marker-background: var(--color-surface);
+  --chart-marker-border: var(--color-line-strong);
+  --chart-marker-foreground: var(--color-ink);
+  --chart-marker-badge-background: var(--color-ink);
+  --chart-marker-badge-foreground: var(--color-on-ink);
+  --chart-indicator-color: var(--color-ink);
+  --chart-indicator-secondary-color: var(--color-line);
+  --chart-segment-background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+  --chart-segment-line: color-mix(in oklab, var(--color-ink) 25%, transparent);
+  --chart-label: var(--color-faint);
+  --chart-scale-mix: var(--color-surface);
+  --chart-scale-01: var(--color-sunken);
+  --chart-scale-02: color-mix(in oklab, var(--chart-1) 35%, var(--chart-scale-mix));
+  --chart-scale-03: color-mix(in oklab, var(--chart-1) 55%, var(--chart-scale-mix));
+  --chart-scale-04: color-mix(in oklab, var(--chart-1) 78%, var(--chart-scale-mix));
+  --chart-scale-05: var(--chart-1);
+  --chart-scale-pattern-color: var(--color-surface);
+  --chart-pill-bg: var(--color-ink);
+  --chart-pill-fg: var(--color-on-ink);
+
+  --legend: var(--color-surface);
+  --legend-foreground: var(--color-ink);
+  --legend-muted: var(--color-sunken);
+  --legend-muted-foreground: var(--color-muted);
+  --legend-track: var(--color-line);
+}
+
+@theme inline {
+  --color-foreground: var(--foreground);
+  --color-chart-line-primary: var(--chart-line-primary);
+  --color-chart-line-secondary: var(--chart-line-secondary);
+  --color-chart-brush-border: var(--chart-brush-border);
+  --color-chart-label: var(--chart-label);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-positive: var(--chart-positive);
+  --color-chart-negative: var(--chart-negative);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-legend: var(--legend);
+  --color-legend-foreground: var(--legend-foreground);
+  --color-legend-muted: var(--legend-muted);
+  --color-legend-muted-foreground: var(--legend-muted-foreground);
+  --color-legend-track: var(--legend-track);
+}

@@ -4,11 +4,11 @@ import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
-import { formatDate, formatNumber, timeAgo } from "@/lib/utils";
+import { formatDate, formatNumber, signed, timeAgo } from "@/lib/utils";
 import { getKpis, getTimeseries, getTopTopics, parseDays } from "@/lib/analytics";
 import { Card, KpiCard, PageHeader } from "@/components/ui";
 import { RangeTabs } from "@/components/range-tabs";
-import { VolumeChart } from "@/components/charts";
+import { VolumeChart } from "@/components/app-charts";
 import { PlatformIcon } from "@/components/platform";
 import { SentimentBar } from "@/components/sentiment";
 import { MentionCard } from "@/components/mention-card";
@@ -60,14 +60,14 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
         }
       />
       {sp.created === "1" && (
-        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-pos/25 bg-pos/[0.07] px-4 py-3 text-sm text-pos">
           <CheckCircle2 className="h-5 w-5" /> {t.monitors.wizard.created}
         </div>
       )}
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {monitor.platforms.map((p) => (
-          <span key={p} className="flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-xs ring-1 ring-line">
+          <span key={p} className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-1.5 text-xs ring-1 ring-line">
             <PlatformIcon platform={p} size="sm" /> {t.platforms[p]}
           </span>
         ))}
@@ -82,21 +82,21 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
 
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <KpiCard label={t.overview.mentions} value={formatNumber(kpis.mentions, locale)} delta={kpis.deltas.mentions} vsLabel={t.overview.vsPrev} />
-          <KpiCard label={t.sentiment.net} value={`${kpis.netSentiment > 0 ? "+" : ""}${kpis.netSentiment}`} delta={kpis.deltas.netSentiment} deltaSuffix="" help={t.sentiment.help} vsLabel={t.overview.vsPrev} />
-          <KpiCard label={t.overview.reach} value={formatNumber(kpis.reach, locale)} delta={kpis.deltas.reach} vsLabel={t.overview.vsPrev} />
-          <KpiCard label={t.overview.risks} value={formatNumber(kpis.risks, locale)} delta={kpis.deltas.risks} invert vsLabel={t.overview.vsPrev} icon={<ShieldAlert className="h-4 w-4" />} />
+          <KpiCard label={t.overview.mentions} value={formatNumber(kpis.mentions, locale)} delta={kpis.deltas.mentions} />
+          <KpiCard label={t.sentiment.net} value={signed(kpis.netSentiment)} delta={kpis.deltas.netSentiment} deltaSuffix="" help={t.sentiment.help} />
+          <KpiCard label={t.overview.reach} value={formatNumber(kpis.reach, locale)} delta={kpis.deltas.reach} />
+          <KpiCard label={t.overview.risks} value={formatNumber(kpis.risks, locale)} delta={kpis.deltas.risks} invert icon={<ShieldAlert className="h-4 w-4" />} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card title={t.overview.volume} className="lg:col-span-2">
-            <VolumeChart points={series.points} unit={series.unit} locale={locale} labels={{ positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
+            <VolumeChart points={series.points} unit={series.unit} locale={locale} labels={{ total: t.overview.mentions, positive: t.sentiment.POSITIVE, neutral: t.sentiment.NEUTRAL, negative: t.sentiment.NEGATIVE }} />
           </Card>
           <Card title={t.overview.topTopics}>
             <ul className="space-y-3.5">
               {topics.map((tp) => (
                 <li key={tp.key}>
-                  <Link href={`/mentions?monitor=${id}&topic=${tp.key}&days=${days}`} className="group block">
+                  <Link prefetch={false} href={`/mentions?monitor=${id}&topic=${tp.key}&days=${days}`} className="group block">
                     <div className="mb-1.5 flex justify-between text-sm">
                       <span className="group-hover:text-brand-700">{locale === "ar" ? tp.labelAr : tp.labelEn}</span>
                       <span className="text-muted ltr-nums">{tp.count}</span>
@@ -116,7 +116,7 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
           <div className="space-y-3 lg:col-span-2">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{t.overview.latest}</h2>
-              <Link href={`/mentions?monitor=${id}`} className="text-sm text-brand-700 hover:underline">{t.common.viewAll}</Link>
+              <Link prefetch={false} href={`/mentions?monitor=${id}`} className="text-sm text-brand-700 hover:underline">{t.common.viewAll}</Link>
             </div>
             {mentions.map((m) => (
               <MentionCard key={m.id} m={m} t={t} locale={locale} topicLabels={topicLabels} canAct={hasRole(user, "ANALYST")} />
@@ -126,28 +126,28 @@ export default async function MonitorPage({ params, searchParams }: { params: Pr
           <Card title={t.monitors.detail.syncHistory} bodyClassName="p-0">
             <ul className="divide-y divide-line text-sm">
               {runs.map((r) => (
-                <li key={r.id} className="flex items-start gap-3 px-5 py-3">
+                <li key={r.id} className="flex items-start gap-3 px-6 py-3">
                   <PlatformIcon platform={r.platform} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-muted">{formatDate(r.startedAt, locale, { dateStyle: "short", timeStyle: "short" })}</span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          r.status === "SUCCESS" ? "bg-green-50 text-green-700" : r.status === "FAILED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+                        className={`inline-flex h-6 items-center rounded-[7px] px-2 text-[12px] font-semibold ${
+                          r.status === "SUCCESS" ? "bg-pos/[0.07] text-pos" : r.status === "FAILED" ? "bg-neg/[0.06] text-neg" : "bg-sand-50 text-sand-700"
                         }`}
                       >
-                        {r.status}
+                        {t.monitors.detail.runStatus[r.status] ?? r.status}
                       </span>
                     </div>
                     <div className="mt-0.5 text-xs">
                       <span className="ltr-nums">{r.itemsFetched}</span> {t.monitors.detail.fetched} · <span className="ltr-nums">{r.itemsNew}</span> {t.monitors.detail.new}
-                      {r.source === "demo" && <span className="text-amber-700"> · {t.common.demoMode}</span>}
+                      {r.source === "demo" && <span className="text-sand-700"> · {t.common.demoMode}</span>}
                     </div>
-                    {r.error && <p className="mt-1 break-words text-xs text-red-600" dir="ltr">{r.error}</p>}
+                    {r.error && <p className="mt-1 break-words text-xs text-neg" dir="ltr">{r.error}</p>}
                   </div>
                 </li>
               ))}
-              {runs.length === 0 && <li className="px-5 py-6 text-center text-muted">{t.monitors.detail.noRuns}</li>}
+              {runs.length === 0 && <li className="px-6 py-6 text-center text-muted">{t.monitors.detail.noRuns}</li>}
             </ul>
           </Card>
         </div>

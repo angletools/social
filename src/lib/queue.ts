@@ -9,6 +9,9 @@ export const QUEUES = {
   trendDaily: "trend-daily",
   trendScan: "trend-scan",
   draft: "studio-draft",
+  maintenance: "maintenance",
+  weekly: "weekly-report",
+  intelligence: "intelligence-brief",
 } as const;
 
 const g = globalThis as unknown as { __boss?: Promise<PgBoss> };

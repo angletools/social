@@ -2,58 +2,55 @@
 
 import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, RefreshCw } from "lucide-react";
 import { createBrief } from "@/app/actions";
 
+/** The one-sentence read of the day, set large at the top of Home. Falls back to a sentence built from the numbers. */
 export function BriefCard({
   brief,
+  fallback,
   labels,
   aiOn,
 }: {
   brief: { status: string; headline?: string; summary?: string; when: string } | null;
-  labels: { title: string; empty: string; generate: string; generating: string; disabled: string; failed: string };
+  fallback: React.ReactNode;
+  labels: { title: string; generate: string; generating: string; failed: string };
   aiOn: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const generating = brief?.status === "GENERATING";
+  const generating = brief?.status === "GENERATING" || pending;
+  const ready = brief?.status === "READY" && brief.headline;
 
   useEffect(() => {
-    if (!generating) return;
+    if (brief?.status !== "GENERATING") return;
     const id = setInterval(() => router.refresh(), 4000);
     return () => clearInterval(id);
-  }, [generating, router]);
+  }, [brief?.status, router]);
 
   return (
-    <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-start gap-4 bg-gradient-to-l from-brand-50 to-white p-5 rtl:bg-gradient-to-r">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white">
-          <Sparkles className="h-5 w-5" />
+    <section aria-label={labels.title} className="max-w-[900px]">
+      {generating ? (
+        <div className="space-y-3 py-1">
+          <div className="skeleton h-6 w-3/4" />
+          <div className="skeleton h-6 w-1/2" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">{labels.title}</h2>
-            {brief?.when && <span className="text-xs text-muted">· {brief.when}</span>}
-          </div>
-          {generating ? (
-            <p className="mt-2 animate-pulse text-sm text-muted">{labels.generating}</p>
-          ) : brief?.status === "READY" ? (
-            <>
-              <p className="mt-2 text-base font-medium leading-relaxed">{brief.headline}</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{brief.summary}</p>
-            </>
-          ) : brief?.status === "FAILED" ? (
-            <p className="mt-2 text-sm text-red-700">{aiOn ? labels.failed : labels.disabled}</p>
-          ) : (
-            <p className="mt-2 text-sm text-muted">{aiOn ? labels.empty : labels.disabled}</p>
-          )}
-        </div>
+      ) : ready ? (
+        <>
+          <p className="text-[21px] font-medium leading-[1.6] md:text-[24px]">{brief.headline}</p>
+          {brief.summary && <p className="mt-2 text-[15.5px] leading-relaxed text-muted">{brief.summary}</p>}
+        </>
+      ) : (
+        <p className="text-[20px] leading-[1.65] text-muted md:text-[22px]">{fallback}</p>
+      )}
+      <div className="mt-3 flex items-center gap-3 text-[13px] text-faint">
+        {ready && brief.when && <span>{brief.when}</span>}
+        {brief?.status === "FAILED" && aiOn && <span>{labels.failed}</span>}
         {aiOn && !generating && (
-          <button type="button" className="btn-secondary" disabled={pending} onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
-            <RefreshCw className={pending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-            {labels.generate}
+          <button type="button" className="text-brand-700 hover:text-ink" onClick={() => start(async () => { await createBrief(); router.refresh(); })}>
+            {ready ? labels.generate : labels.title}
           </button>
         )}
+        {generating && <span className="animate-pulse">{labels.generating}</span>}
       </div>
     </section>
   );

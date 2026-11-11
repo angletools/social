@@ -1,39 +1,59 @@
 import type { Platform } from "@prisma/client";
+import { siFacebook, siInstagram, siTiktok, siX, siYoutube } from "simple-icons";
 import { cn } from "@/lib/utils";
 
-const STYLE: Record<Platform, { bg: string; label: string }> = {
-  X: { bg: "bg-black text-white", label: "𝕏" },
-  INSTAGRAM: { bg: "bg-gradient-to-br from-amber-400 via-pink-500 to-purple-600 text-white", label: "IG" },
-  TIKTOK: { bg: "bg-[#111] text-[#25F4EE]", label: "TT" },
-  YOUTUBE: { bg: "bg-[#FF0033] text-white", label: "▶" },
-  FACEBOOK: { bg: "bg-[#1877F2] text-white", label: "f" },
-  LINKEDIN: { bg: "bg-[#0A66C2] text-white", label: "in" },
-};
-
 export const PLATFORM_COLORS: Record<Platform, string> = {
-  X: "#111827",
-  INSTAGRAM: "#E1306C",
-  TIKTOK: "#25C2C9",
-  YOUTUBE: "#FF0033",
-  FACEBOOK: "#1877F2",
-  LINKEDIN: "#0A66C2",
+  X: "var(--color-ink)",
+  INSTAGRAM: "#d6336c",
+  TIKTOK: "var(--color-ink)",
+  YOUTUBE: "#e5322d",
+  FACEBOOK: "#1f6feb",
+  LINKEDIN: "#0a66c2",
 };
 
-export function PlatformIcon({ platform, size = "md", title }: { platform: Platform; size?: "sm" | "md" | "lg"; title?: string }) {
-  const s = STYLE[platform];
+// LinkedIn's mark isn't in simple-icons; a neutral "in" tile is drawn instead.
+const LINKEDIN_PATH =
+  "M3 1h18a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Zm3.1 7.4V19h3.2V8.4H6.1Zm1.6-5.2a1.85 1.85 0 1 0 0 3.7 1.85 1.85 0 0 0 0-3.7ZM11.4 8.4V19h3.2v-5.6c0-1.5.3-2.9 2.1-2.9 1.8 0 1.8 1.7 1.8 3V19h3.2v-6.2c0-3-.7-5.3-4.2-5.3-1.7 0-2.8.9-3.2 1.8h-.1V8.4h-2.8Z";
+
+const PATHS: Record<Platform, string> = {
+  X: siX.path,
+  INSTAGRAM: siInstagram.path,
+  TIKTOK: siTiktok.path,
+  YOUTUBE: siYoutube.path,
+  FACEBOOK: siFacebook.path,
+  LINKEDIN: LINKEDIN_PATH,
+};
+
+const SIZE = { xs: 12, sm: 14, md: 16, lg: 20 } as const;
+
+/** Monochrome platform mark in the platform's colour. `tile` puts it on a soft square. */
+export function PlatformIcon({
+  platform,
+  size = "md",
+  title,
+  tile,
+  className,
+}: {
+  platform: Platform;
+  size?: keyof typeof SIZE;
+  title?: string;
+  tile?: boolean;
+  className?: string;
+}) {
+  const px = SIZE[size];
+  const svg = (
+    <svg viewBox="0 0 24 24" width={px} height={px} fill={PLATFORM_COLORS[platform]} role="img" aria-label={title ?? platform} className="shrink-0">
+      {title && <title>{title}</title>}
+      <path d={PATHS[platform]} />
+    </svg>
+  );
+  if (!tile) return <span className={cn("inline-flex shrink-0", className)}>{svg}</span>;
   return (
     <span
-      title={title}
-      aria-label={title ?? platform}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-lg font-bold leading-none",
-        s.bg,
-        size === "sm" && "h-5 w-5 rounded-md text-[10px]",
-        size === "md" && "h-7 w-7 text-xs",
-        size === "lg" && "h-10 w-10 rounded-xl text-sm",
-      )}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded-lg border border-line bg-surface", className)}
+      style={{ width: px + 14, height: px + 14 }}
     >
-      {s.label}
+      {svg}
     </span>
   );
 }

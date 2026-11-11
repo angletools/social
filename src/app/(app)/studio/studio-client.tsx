@@ -1,7 +1,9 @@
 "use client";
 
+import { useClientDict } from "@/components/client-dict";
+import { confirmDialog, toast } from "@/components/feedback";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Bookmark, EyeOff, Loader2, RefreshCw, Sparkles, Star, Trash2 } from "lucide-react";
+import { Bookmark, EyeOff, Loader2, RefreshCw, ScanText, Star, Trash2 } from "lucide-react";
 import type { BrandVoice, Dialect, Platform } from "@prisma/client";
 import type { Dict } from "@/lib/i18n/en";
 import {
@@ -17,9 +19,9 @@ import {
 import { PlatformIcon } from "@/components/platform";
 import { cn } from "@/lib/utils";
 
-export function ScanButton({ ids, label, done }: { ids: string[]; label: string; done: string }) {
+export function ScanButton({ ids, label }: { ids: string[]; label: string; done?: string }) {
   const [pending, start] = useTransition();
-  const [sent, setSent] = useState(false);
+  const { toasts } = useClientDict();
   return (
     <>
       <button
@@ -29,25 +31,25 @@ export function ScanButton({ ids, label, done }: { ids: string[]; label: string;
         onClick={() =>
           start(async () => {
             for (const id of ids) await scanTrendWatch(id);
-            setSent(true);
+            toast(toasts.scanQueued, "info");
           })
         }
       >
         <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} /> {label}
       </button>
-      {sent && <span className="text-xs text-green-700">{done}</span>}
     </>
   );
 }
 
 export function FormatActions({ id, saved, labels }: { id: string; saved: boolean; labels: { save: string; saved: string; hide: string } }) {
   const [pending, start] = useTransition();
+  const { toasts } = useClientDict();
   return (
     <>
-      <button type="button" className={cn("btn-secondary", saved && "border-brand-500 text-brand-700")} disabled={pending} onClick={() => start(() => setFormatFlag(id, "saved", !saved))}>
+      <button type="button" className={cn("btn-secondary", saved && "border-brand-500 text-brand-700")} disabled={pending} onClick={() => start(async () => { await setFormatFlag(id, "saved", !saved); if (!saved) toast(toasts.formatSaved); })}>
         <Bookmark className={cn("h-4 w-4", saved && "fill-brand-600")} /> {saved ? labels.saved : labels.save}
       </button>
-      <button type="button" className="btn-ghost" disabled={pending} onClick={() => start(() => setFormatFlag(id, "dismissed", true))}>
+      <button type="button" className="btn-ghost" disabled={pending} onClick={() => start(async () => { await setFormatFlag(id, "dismissed", true); toast(toasts.formatHidden); })}>
         <EyeOff className="h-4 w-4" /> {labels.hide}
       </button>
     </>
@@ -72,7 +74,7 @@ export function WatchRow({
       <div className="flex items-center gap-2">
         <ScanButton ids={[id]} label={labels.scan} done={labels.done} />
         {canEdit && (
-          <button type="button" className="btn-ghost px-2" disabled={pending} onClick={() => confirm(labels.confirm) && start(() => deleteTrendWatch(id))} aria-label={labels.delete}>
+          <button type="button" className="btn-ghost w-9 px-0" disabled={pending} onClick={async () => (await confirmDialog(labels.confirm, { danger: true, confirmLabel: labels.delete })) && start(() => deleteTrendWatch(id))} aria-label={labels.delete}>
             <Trash2 className="h-4 w-4" />
           </button>
         )}
@@ -84,9 +86,14 @@ export function WatchRow({
 export function WatchForm({ labels, platformLabels, platforms }: { labels: Dict["studio"]["watch"]; platformLabels: Dict["platforms"]; platforms: Platform[] }) {
   const [state, action, pending] = useActionState(createTrendWatch, null);
   const ref = useRef<HTMLFormElement>(null);
+  const { toasts, common } = useClientDict();
   useEffect(() => {
-    if (state?.ok) ref.current?.reset();
-  }, [state]);
+    if (!state) return;
+    if (state.ok) {
+      ref.current?.reset();
+      toast(toasts.scanQueued, "info");
+    } else toast(common.failed, "error");
+  }, [state, toasts.scanQueued, common.failed]);
   return (
     <form ref={ref} action={action} className="space-y-4">
       <div>
@@ -106,7 +113,7 @@ export function WatchForm({ labels, platformLabels, platforms }: { labels: Dict[
         <label className="label">{labels.platforms}</label>
         <div className="grid grid-cols-2 gap-2">
           {platforms.map((p) => (
-            <label key={p} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+            <label key={p} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm has-[:checked]:border-ink has-[:checked]:shadow-[0_0_0_1px_var(--color-ink)]">
               <input type="checkbox" name="platforms" value={p} defaultChecked={p === "TIKTOK" || p === "INSTAGRAM"} className="accent-brand-600" />
               <PlatformIcon platform={p} size="sm" /> {platformLabels[p]}
             </label>
@@ -144,10 +151,10 @@ export function LearnVoiceForm({
           ))}
         </select>
       </div>
-      {!aiOn && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">{labels.aiOff}</p>}
-      {state && !state.ok && <p className="text-sm text-red-600">{state.error}</p>}
+      {!aiOn && <p className="rounded-xl bg-sand-50 px-3 py-2 text-xs text-sand-700">{labels.aiOff}</p>}
+      {state && !state.ok && <p className="text-sm text-neg">{state.error}</p>}
       <button className="btn-primary" disabled={pending || !aiOn}>
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {pending ? labels.learning : labels.submit}
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanText className="h-4 w-4" />} {pending ? labels.learning : labels.submit}
       </button>
     </form>
   );
@@ -167,9 +174,13 @@ export function VoiceForm({
   onSaved?: () => void;
 }) {
   const [state, action, pending] = useActionState(saveVoice, null);
+  const { toasts } = useClientDict();
   useEffect(() => {
-    if (state?.ok) onSaved?.();
-  }, [state, onSaved]);
+    if (state?.ok) {
+      toast(toasts.voiceSaved);
+      onSaved?.();
+    }
+  }, [state, onSaved, toasts.voiceSaved]);
   const list = (name: string, label: string, value?: string[]) => (
     <div>
       <label className="label">{label}</label>
@@ -221,7 +232,7 @@ export function VoiceForm({
         <label className="label">{labels.examples}</label>
         <textarea name="examples" defaultValue={voice?.examples.join("\n")} className="input min-h-24" placeholder={labels.listHint} dir="auto" />
       </div>
-      {state && !state.ok && <p className="text-sm text-red-600">{state.error}</p>}
+      {state && !state.ok && <p className="text-sm text-neg">{state.error}</p>}
       <button className="btn-primary" disabled={pending}>{saveLabel}</button>
     </form>
   );
@@ -250,7 +261,7 @@ export function VoiceList({
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       {voices.map((v) => (
-        <article key={v.id} className={cn("card p-5", v.isDefault && "ring-2 ring-brand-500")}>
+        <article key={v.id} className={cn("card p-6", v.isDefault && "ring-2 ring-brand-500")}>
           {editing === v.id ? (
             <VoiceForm voice={v} labels={labels} dialects={dialects} saveLabel={saveLabel} onSaved={() => setEditing(null)} />
           ) : (
@@ -260,24 +271,24 @@ export function VoiceList({
                   <h3 className="text-lg font-semibold" dir="auto">{v.name}</h3>
                   <p className="text-xs text-muted">
                     {dialects[v.dialect as Dialect]}
-                    {v.isDefault && <span className="ms-2 rounded-full bg-brand-600 px-2 py-0.5 text-white">{labels.isDefault}</span>}
+                    {v.isDefault && <span className="ms-2 rounded-full bg-brand-600 px-2 py-0.5 text-on-ink">{labels.isDefault}</span>}
                   </p>
                 </div>
                 {canEdit && (
                   <div className="flex gap-1">
                     {!v.isDefault && (
-                      <button type="button" className="btn-ghost px-2 py-1 text-xs" disabled={pending} onClick={() => start(() => setDefaultVoice(v.id))}>
+                      <button type="button" className="btn-ghost btn-sm" disabled={pending} onClick={() => start(() => setDefaultVoice(v.id))}>
                         <Star className="h-3.5 w-3.5" /> {labels.makeDefault}
                       </button>
                     )}
-                    <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setEditing(v.id)}>{editLabel}</button>
-                    <button type="button" className="btn-ghost px-2 py-1" disabled={pending} onClick={() => start(() => deleteVoice(v.id))} aria-label={deleteLabel}>
+                    <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(v.id)}>{editLabel}</button>
+                    <button type="button" className="btn-ghost btn-sm w-7 px-0" disabled={pending} onClick={() => start(() => deleteVoice(v.id))} aria-label={deleteLabel}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 )}
               </div>
-              <p dir="auto" className="mt-3 text-sm leading-relaxed text-slate-700">{v.summary}</p>
+              <p dir="auto" className="mt-3 text-sm leading-relaxed text-ink/80">{v.summary}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {v.traits.map((x) => (
                   <span key={x} dir="auto" className="rounded-full bg-brand-50 px-2.5 py-1 text-xs text-brand-700">{x}</span>
@@ -285,11 +296,11 @@ export function VoiceList({
               </div>
               <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
                 <div>
-                  <h4 className="mb-1 text-xs font-medium text-green-700">✓ {labels.dos}</h4>
+                  <h4 className="mb-1 text-xs font-medium text-pos">✓ {labels.dos}</h4>
                   <ul className="space-y-1" dir="auto">{v.dos.map((x) => <li key={x}>{x}</li>)}</ul>
                 </div>
                 <div>
-                  <h4 className="mb-1 text-xs font-medium text-red-700">✕ {labels.donts}</h4>
+                  <h4 className="mb-1 text-xs font-medium text-neg">✕ {labels.donts}</h4>
                   <ul className="space-y-1" dir="auto">{[...v.donts, ...v.bannedWords.map((w) => `«${w}»`)].map((x) => <li key={x}>{x}</li>)}</ul>
                 </div>
               </div>

@@ -16,13 +16,7 @@ export type NotificationItem = {
   when: string;
 };
 
-export function Notifications({
-  items,
-  labels,
-}: {
-  items: NotificationItem[];
-  labels: { title: string; empty: string; markAll: string };
-}) {
+export function Notifications({ items, labels }: { items: NotificationItem[]; labels: { title: string; empty: string; markAll: string } }) {
   const [open, setOpen] = useState(false);
   const [, start] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
@@ -30,51 +24,49 @@ export function Notifications({
 
   useEffect(() => {
     const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
   }, []);
 
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="btn-secondary relative px-2.5 py-2" aria-label={labels.title}>
-        <Bell className="h-4 w-4" />
-        {unread > 0 && (
-          <span className="absolute -end-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
+      <button type="button" onClick={() => setOpen((v) => !v)} className="relative flex h-[38px] w-[38px] items-center justify-center rounded-[11px] text-[#bdbdbd] transition-[background-color,color,transform] duration-150 ease-(--ease-out) hover:bg-[#161616] hover:text-white active:scale-[0.96]" aria-label={labels.title} aria-expanded={open}>
+        <Bell className="h-[19px] w-[19px]" strokeWidth={1.5} />
+        {unread > 0 && <span className="absolute end-2 top-2 h-2 w-2 rounded-full bg-chart ring-2 ring-black" />}
       </button>
       {open && (
-        <div className="absolute end-0 top-12 z-40 w-[22rem] overflow-hidden rounded-2xl border border-line bg-white shadow-xl">
+        <div className="animate-pop absolute end-0 top-11 z-40 ltr:origin-top-right rtl:origin-top-left w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-surface text-ink shadow-[var(--shadow-pop)]">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-sm font-semibold">{labels.title}</span>
+            <span className="text-[13.5px] font-semibold">{labels.title}</span>
             {unread > 0 && (
               <button type="button" className="text-xs text-brand-700 hover:underline" onClick={() => start(() => markNotificationsRead())}>
                 {labels.markAll}
               </button>
             )}
           </div>
-          <div className="max-h-96 overflow-y-auto">
-            {items.length === 0 && <p className="px-4 py-8 text-center text-sm text-muted">{labels.empty}</p>}
+          <div className="max-h-[26rem] overflow-y-auto">
+            {items.length === 0 && <p className="px-4 py-10 text-center text-[13px] text-muted">{labels.empty}</p>}
             {items.map((n) => (
               <Link
-                key={n.id}
-                href={n.link ?? "/alerts"}
+                key={n.id} prefetch={false} href={n.link ?? "/alerts"}
                 onClick={() => setOpen(false)}
-                className={cn("block border-b border-line px-4 py-3 last:border-0 hover:bg-canvas", n.unread && "bg-brand-50/40")}
+                className="flex gap-3 border-b border-line px-4 py-3 last:border-0 hover:bg-canvas"
               >
-                <div className="flex items-start gap-2">
-                  <span
-                    className={cn(
-                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                      n.severity === "CRITICAL" ? "bg-red-500" : n.severity === "WARNING" ? "bg-amber-500" : "bg-sky-500",
-                    )}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{n.title}</p>
-                    <p dir="auto" className="mt-0.5 line-clamp-2 text-xs text-muted">{n.body}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">{n.when}</p>
-                  </div>
+                <span
+                  className={cn(
+                    "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                    !n.unread ? "bg-line-strong" : n.severity === "CRITICAL" ? "bg-neg" : n.severity === "WARNING" ? "bg-warn" : "bg-brand-600",
+                  )}
+                />
+                <div className="min-w-0">
+                  <p className={cn("text-[13px] leading-snug", n.unread ? "font-medium" : "text-muted")}>{n.title}</p>
+                  <p dir="auto" className="mt-0.5 line-clamp-2 text-xs text-muted">{n.body}</p>
+                  <p className="mt-1 text-[11px] text-faint">{n.when}</p>
                 </div>
               </Link>
             ))}

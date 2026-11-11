@@ -30,7 +30,6 @@ export default async function MonitorsPage() {
     <>
       <PageHeader
         title={t.monitors.title}
-        subtitle={t.monitors.subtitle}
         actions={
           canEdit && (
             <Link href="/monitors/new" className="btn-primary">
@@ -47,7 +46,7 @@ export default async function MonitorsPage() {
             const total = c24.get(m.id) ?? 0;
             const neg = n24.get(m.id) ?? 0;
             return (
-              <Link key={m.id} href={`/monitors/${m.id}`} className="card group flex flex-col p-5 transition hover:border-brand-500 hover:shadow-sm">
+              <Link key={m.id} href={`/monitors/${m.id}`} className="card group flex flex-col p-6 transition hover:border-line-strong">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold group-hover:text-brand-700">{m.name}</h3>
@@ -56,7 +55,7 @@ export default async function MonitorsPage() {
                       {m.isCompetitor && <> · {t.monitors.competitor}</>}
                     </p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600"}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.status === "ACTIVE" ? "bg-pos/[0.07] text-pos" : "bg-sunken text-muted"}`}>
                     {m.status === "ACTIVE" ? t.common.active : t.common.paused}
                   </span>
                 </div>
@@ -71,10 +70,10 @@ export default async function MonitorsPage() {
                     <div className="text-2xl font-semibold ltr-nums">{formatNumber(total, locale)}</div>
                     <div className="text-xs text-muted">
                       {t.monitors.mentions24h}
-                      {neg > 0 && <span className="text-red-600"> · <span className="ltr-nums">{neg}</span> {t.sentiment.NEGATIVE}</span>}
+                      {neg > 0 && <span className="text-neg"> · <span className="ltr-nums">{neg}</span> {t.sentiment.NEGATIVE}</span>}
                     </div>
                   </div>
-                  <div className="flex -space-x-1 rtl:space-x-reverse">
+                  <div className="flex items-center gap-1.5">
                     {m.platforms.map((p) => (
                       <PlatformIcon key={p} platform={p} size="sm" title={t.platforms[p]} />
                     ))}

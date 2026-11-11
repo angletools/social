@@ -7,7 +7,7 @@ import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatNumber, timeAgo } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import { TREND_PLATFORMS } from "@/lib/monid/sources";
-import { HelpTip, PageHeader } from "@/components/ui";
+import { HelpTip, PageHeader, Meter } from "@/components/ui";
 import { PlatformIcon } from "@/components/platform";
 import { FormatActions, ScanButton, VoiceList, WatchForm, WatchRow, LearnVoiceForm, VoiceForm } from "./studio-client";
 
@@ -21,11 +21,11 @@ function MomentumBadge({ m, label }: { m: string; label: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-        m === "RISING" && "bg-green-600 text-white",
-        m === "NEW" && "bg-sky-100 text-sky-800",
-        m === "PEAKING" && "bg-amber-100 text-amber-800",
-        m === "FADING" && "bg-slate-100 text-slate-600",
+        "inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium",
+        m === "RISING" && "bg-pos/10 text-pos",
+        m === "NEW" && "bg-info/[0.08] text-info",
+        m === "PEAKING" && "bg-sand-50 text-sand-700",
+        m === "FADING" && "bg-sunken text-muted",
       )}
     >
       <Icon className="h-3 w-3" /> {label}
@@ -50,7 +50,6 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader
         title={s.title}
-        subtitle={s.subtitle}
         actions={
           <>
             {lastScan && <span className="text-xs text-muted">{s.lastScan}: {timeAgo(lastScan, locale)}</span>}
@@ -66,9 +65,8 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-line">
         {TABS.map((k) => (
           <Link
-            key={k}
-            href={`/studio?tab=${k}`}
-            className={cn("whitespace-nowrap border-b-2 px-4 py-2.5 text-sm", tab === k ? "border-brand-600 font-medium text-brand-700" : "border-transparent text-muted hover:text-ink")}
+            key={k} prefetch={false} href={`/studio?tab=${k}`}
+            className={cn("whitespace-nowrap border-b-2 px-4 py-2.5 text-sm", tab === k ? "border-ink font-medium text-ink" : "border-transparent text-muted hover:text-ink")}
           >
             {s.tabs[k]}
           </Link>
@@ -82,7 +80,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
         <div className="space-y-6">
           {isAdmin && (
             <div className="grid gap-6 lg:grid-cols-2">
-              <section className="card p-5">
+              <section className="card p-6">
                 <h2 className="mb-1 font-semibold">{s.voice.learn}</h2>
                 <p className="mb-4 text-sm text-muted">{s.voice.learnHint}</p>
                 <LearnVoiceForm
@@ -91,7 +89,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
                   aiOn={aiEnabled()}
                 />
               </section>
-              <section className="card p-5">
+              <section className="card p-6">
                 <h2 className="mb-4 font-semibold">{s.voice.new}</h2>
                 <VoiceForm labels={s.voice} dialects={t.dialects} saveLabel={t.common.save} />
               </section>
@@ -136,13 +134,13 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
                     <span>≥ {formatNumber(w.minViews, locale)} {s.views}</span>
                     <span>· {s.lastScan}: {w.lastScanAt ? timeAgo(w.lastScanAt, locale) : t.common.never}</span>
                   </div>
-                  {w.lastScanError && <p className="mt-1 text-xs text-red-600" dir="ltr">{w.lastScanError}</p>}
+                  {w.lastScanError && <p className="mt-1 text-xs text-neg" dir="ltr">{w.lastScanError}</p>}
                 </div>
               </WatchRow>
             ))}
           </section>
           {isAdmin && (
-            <section className="card h-fit p-5">
+            <section className="card h-fit p-6">
               <h2 className="mb-4 font-semibold">{s.watch.new}</h2>
               <WatchForm labels={s.watch} platformLabels={t.platforms} platforms={TREND_PLATFORMS} />
             </section>
@@ -167,7 +165,7 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
     return (
       <div className="card p-10 text-center">
         <p className="text-sm text-muted">{s.noFormats}</p>
-        {!aiEnabled() && <p className="mx-auto mt-3 max-w-lg text-xs text-amber-700">{s.needsAi}</p>}
+        {!aiEnabled() && <p className="mx-auto mt-3 max-w-lg text-xs text-sand-700">{s.needsAi}</p>}
         {!hasWatches && canEdit && (
           <Link href="/studio?tab=watches" className="btn-primary mt-5">
             <Plus className="h-4 w-4" /> {s.watch.new}
@@ -180,10 +178,11 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       {formats.map((f) => {
+        const maxScore = Math.max(1, ...formats.map((x) => x.score));
         const structure = f.structure as { label: string; description: string; labelAr?: string; descriptionAr?: string }[];
         const ar = locale === "ar";
         return (
-          <article key={f.id} className="card flex flex-col p-5">
+          <article key={f.id} className="card flex flex-col p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
@@ -199,7 +198,7 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
               </div>
               <div className="shrink-0 text-end">
                 <div className="flex items-center gap-1 text-lg font-semibold ltr-nums">
-                  <Flame className="h-4 w-4 text-orange-500" />
+                  <Flame className="h-4 w-4 text-sand-500" />
                   {f.score.toFixed(0)}
                 </div>
                 <div className="text-xs text-muted ltr-nums">
@@ -207,7 +206,10 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
                 </div>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-slate-700">{locale === "ar" ? f.summaryAr : f.summaryEn}</p>
+            <div className="mt-3">
+              <Meter value={f.score} max={maxScore} color={f.momentum === "FADING" ? "var(--color-faint)" : "var(--color-chart)"} />
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-ink/80">{locale === "ar" ? f.summaryAr : f.summaryEn}</p>
             <dl className="mt-4 space-y-2 text-sm">
               <div className="rounded-xl bg-canvas px-3 py-2">
                 <dt className="text-xs font-medium text-muted">{s.hookPattern}</dt>
@@ -225,7 +227,7 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
                   <li key={i} className="flex gap-2">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-700">{i + 1}</span>
                     <span dir="auto">
-                      <b>{ar ? b.labelAr ?? b.label : b.label}</b> — {ar ? b.descriptionAr ?? b.description : b.description}
+                      <b>{ar ? b.labelAr ?? b.label : b.label}</b>: {ar ? b.descriptionAr ?? b.description : b.description}
                     </span>
                   </li>
                 ))}
@@ -249,7 +251,7 @@ async function FormatsTab({ orgId, locale, t, canEdit, hasWatches }: { orgId: st
             </details>
             <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
               {canEdit && (
-                <Link href={`/studio/new?format=${f.id}`} className="btn-primary">
+                <Link prefetch={false} href={`/studio/new?format=${f.id}`} className="btn-primary">
                   {s.useFormat}
                 </Link>
               )}
@@ -299,8 +301,15 @@ async function PostsTab({ orgId, locale, t }: { orgId: string; locale: string; t
                 </p>
               </td>
               <td className="px-4 py-3 text-end ltr-nums">{formatNumber(p.views, locale)}</td>
-              <td className={cn("px-4 py-3 text-end font-medium ltr-nums", p.outlierRatio >= 10 && "text-green-700")}>{p.outlierRatio}×</td>
-              <td className="px-4 py-3 text-end ltr-nums">{p.viralityScore}</td>
+              <td className={cn("px-4 py-3 text-end font-medium ltr-nums", p.outlierRatio >= 10 && "text-pos")}>{p.outlierRatio}×</td>
+              <td className="px-4 py-3">
+                <div className="flex items-center justify-end gap-2.5">
+                  <div className="w-16">
+                    <Meter value={p.viralityScore} max={Math.max(1, ...posts.map((x) => x.viralityScore))} />
+                  </div>
+                  <span className="w-8 text-end ltr-nums">{p.viralityScore}</span>
+                </div>
+              </td>
             </tr>
           ))}
           {posts.length === 0 && (
@@ -323,19 +332,19 @@ async function DraftsTab({ orgId, locale, t }: { orgId: string; locale: string; 
     include: { format: { select: { nameEn: true, nameAr: true } } },
   });
   const tone: Record<string, string> = {
-    GENERATING: "bg-amber-50 text-amber-700 animate-pulse",
-    DRAFT: "bg-slate-100 text-slate-700",
-    IN_REVIEW: "bg-sky-50 text-sky-700",
-    APPROVED: "bg-green-50 text-green-700",
-    PUBLISHED: "bg-brand-600 text-white",
-    FAILED: "bg-red-50 text-red-700",
+    GENERATING: "bg-sand-50 text-sand-700 animate-pulse",
+    DRAFT: "bg-sunken text-ink/80",
+    IN_REVIEW: "bg-info/[0.07] text-info",
+    APPROVED: "bg-pos/[0.07] text-pos",
+    PUBLISHED: "bg-brand-600 text-on-ink",
+    FAILED: "bg-neg/[0.06] text-neg",
   };
   if (drafts.length === 0) return <p className="card p-10 text-center text-sm text-muted">{s.draft.empty}</p>;
   return (
     <ul className="card divide-y divide-line">
       {drafts.map((d) => (
         <li key={d.id}>
-          <Link href={`/studio/drafts/${d.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-canvas">
+          <Link prefetch={false} href={`/studio/drafts/${d.id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-canvas">
             <PlatformIcon platform={d.platform} />
             <div className="min-w-0 flex-1">
               <div dir="auto" className="truncate font-medium">{d.title}</div>

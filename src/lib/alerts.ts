@@ -1,6 +1,7 @@
 import type { AlertRule, Severity } from "@prisma/client";
 import { db } from "./db";
 import { sendEmail } from "./email";
+import { postWebhook } from "./webhooks";
 
 type Hit = { severity: Severity; titleEn: string; titleAr: string; bodyEn: string; bodyAr: string; link: string };
 
@@ -39,7 +40,7 @@ async function check(rule: AlertRule): Promise<Hit | null> {
       return {
         severity: pct >= rule.threshold * 1.5 ? "CRITICAL" : "WARNING",
         titleEn: `${rule.name}: ${pct}% negative`,
-        titleAr: `${rule.name}: ${pct}٪ سلبي`,
+        titleAr: `${rule.name}: ${pct}% سلبي`,
         bodyEn: `${neg} of ${total} recent mentions are negative.`,
         bodyAr: `${neg} من أصل ${total} إشارة حديثة سلبية.`,
         link: `${link}${link.includes("?") ? "&" : "?"}sentiment=NEGATIVE`,
@@ -109,11 +110,18 @@ export async function evaluateAlerts(organizationId: string) {
       db.notification.create({ data: { organizationId, ruleId: rule.id, ...hit } }),
       db.alertRule.update({ where: { id: rule.id }, data: { lastTriggeredAt: new Date() } }),
     ]);
+    if (rule.webhookUrl) {
+      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+      const icon = hit.severity === "CRITICAL" ? "🔴" : hit.severity === "WARNING" ? "🟠" : "🔵";
+      await postWebhook(rule.webhookUrl, `${icon} *${hit.titleEn}*\n${hit.titleAr}\n> ${hit.bodyEn.replace(/\n/g, " ")}\n${appUrl}${hit.link}`).catch((e) =>
+        console.error("alert webhook failed", e),
+      );
+    }
     if (rule.notifyEmail && rule.emails.length) {
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
       await sendEmail(
         rule.emails,
-        `[Rasd] ${hit.titleEn}`,
+        `[angle social] ${hit.titleEn}`,
         `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`,
       ).catch((e) => console.error("alert email failed", e));
     }

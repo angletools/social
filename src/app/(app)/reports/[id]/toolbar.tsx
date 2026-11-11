@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/feedback";
 import Link from "next/link";
 import { useTransition } from "react";
 import { ArrowLeft, Printer, Trash2 } from "lucide-react";
@@ -16,7 +17,7 @@ export function ReportToolbar({ id, labels }: { id: string; labels: { back: stri
         <button type="button" className="btn-secondary" onClick={() => window.print()}>
           <Printer className="h-4 w-4" /> {labels.print}
         </button>
-        <button type="button" className="btn-danger" disabled={pending} onClick={() => confirm(labels.confirm) && start(() => deleteReport(id))} aria-label={labels.delete}>
+        <button type="button" className="btn-danger" disabled={pending} onClick={async () => (await confirmDialog(labels.confirm, { danger: true, confirmLabel: labels.delete })) && start(() => deleteReport(id))} aria-label={labels.delete}>
           <Trash2 className="h-4 w-4" />
         </button>
       </div>

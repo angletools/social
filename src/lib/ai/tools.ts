@@ -13,6 +13,7 @@ import {
   getTopTopics,
   mentionWhere,
 } from "../analytics";
+import { getIntelligence, readBrief } from "../intelligence";
 
 const DIALECTS = ["SAUDI", "KHALEEJI", "EGYPTIAN", "LEVANTINE", "IRAQI", "MAGHREBI", "MSA", "ARABIZI", "ENGLISH", "OTHER"] as const;
 const INTENTS = ["COMPLAINT", "QUESTION", "PRAISE", "PURCHASE_INTENT", "CHURN_RISK", "SUGGESTION", "OTHER"] as const;
@@ -140,6 +141,28 @@ export function assistantTools(orgId: string, onTool?: (name: string) => void) {
           return rows.map((r) => ({ ...r, text: r.text.slice(0, 600), monitor: r.monitor.name }));
         },
       ),
+    }),
+    betaZodTool({
+      name: "get_customer_intelligence",
+      description:
+        "The Intelligence hub for a period: net sentiment trend, what drives negative and positive sentiment (topics with share and change vs the previous period), emerging themes, recurring complaints with an example post, intent mix with sentiment, dialects, churn-risk count and trend, plus the latest saved customer-voice brief (summary and themes) if one exists. Start here for questions like 'what are customers unhappy about', 'why did sentiment drop', 'what should we fix first'. Changes are null when the previous period has too little data.",
+      inputSchema: z.object({ days, monitorId }),
+      run: wrap("get_customer_intelligence", async (i: { days: number; monitorId?: string }) => {
+        const [intel, brief] = await Promise.all([
+          getIntelligence({ orgId, ...i }),
+          i.monitorId
+            ? null
+            : db.intelligenceBrief.findFirst({ where: { organizationId: orgId, days: i.days }, orderBy: { createdAt: "desc" } }),
+        ]);
+        const { trend, ...rest } = intel;
+        // Keep the trend compact: at most ~45 points.
+        const step = Math.max(1, Math.ceil(trend.length / 45));
+        return {
+          ...rest,
+          trend: trend.filter((_, k) => k % step === 0 || k === trend.length - 1),
+          brief: brief ? { createdAt: brief.createdAt, ...readBrief(brief) } : null,
+        };
+      }),
     }),
     betaZodTool({
       name: "get_dialect_insights",

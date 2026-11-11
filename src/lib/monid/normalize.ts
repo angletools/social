@@ -47,7 +47,7 @@ function date(v: unknown): Date | null {
 }
 
 /**
- * Maps a raw scraper item to Rasd's common post shape. Field names differ per
+ * Maps a raw scraper item to angle social's common post shape. Field names differ per
  * scraper, so each value is looked up from a list of known aliases.
  */
 export function normalizeItem(platform: Platform, raw: unknown): NormalizedPost | null {

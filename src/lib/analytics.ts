@@ -1,7 +1,10 @@
 import { Prisma, type Dialect, type Intent, type Platform, type Sentiment } from "@prisma/client";
 import { db } from "./db";
 
-export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform };
+export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform; tz?: string };
+
+const DEFAULT_TZ = "Asia/Riyadh";
+const safeTz = (tz?: string) => (tz && /^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/.test(tz) ? tz : DEFAULT_TZ);
 
 export const RANGES = [1, 7, 30, 90] as const;
 export const parseDays = (v?: string | string[]) => {
@@ -15,7 +18,8 @@ function window(s: Scope, previous = false) {
   return { start, end };
 }
 
-function cond(s: Scope, previous = false) {
+/** SQL WHERE for a scope's current (or previous equal) window. */
+export function cond(s: Scope, previous = false) {
   const { start, end } = window(s, previous);
   const parts = [
     Prisma.sql`m."organizationId" = ${s.orgId}`,
@@ -66,6 +70,7 @@ export async function getKpis(s: Scope) {
   const delta = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : Math.round(((a - b) / b) * 100));
   return {
     ...current,
+    previousMentions: previous.mentions,
     deltas: {
       mentions: delta(current.mentions, previous.mentions),
       engagement: delta(current.engagement, previous.engagement),
@@ -76,33 +81,54 @@ export async function getKpis(s: Scope) {
   };
 }
 
+/**
+ * Mentions per hour (1-day range) or per day, bucketed in the organization's
+ * timezone so "today" means today in Riyadh, not in UTC. Empty buckets are
+ * included. `t` is the local wall-clock start of the bucket (no offset).
+ */
 export async function getTimeseries(s: Scope) {
   const unit = s.days <= 1 ? "hour" : "day";
-  const rows = await db.$queryRaw<{ bucket: Date; pos: bigint; neg: bigint; neu: bigint; total: bigint }[]>`
-    SELECT date_trunc(${unit}, m."publishedAt") AS bucket,
-           count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
-           count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
-           count(*) FILTER (WHERE m.sentiment = 'NEUTRAL' OR m.sentiment IS NULL) AS neu,
-           count(*) AS total
-    FROM "Mention" m WHERE ${cond(s)}
-    GROUP BY 1 ORDER BY 1`;
-  // Fill gaps so charts don't skip empty periods.
-  const step = unit === "hour" ? 3600_000 : 86400_000;
+  const tz = safeTz(s.tz);
   const { start, end } = window(s);
-  const byKey = new Map(rows.map((r) => [new Date(r.bucket).getTime(), r]));
-  const out: { t: string; positive: number; negative: number; neutral: number; total: number }[] = [];
-  const first = unit === "hour" ? Math.floor(start.getTime() / step) * step : Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
-  for (let t = first; t < end.getTime(); t += step) {
-    const r = byKey.get(t);
-    out.push({
-      t: new Date(t).toISOString(),
-      positive: Number(r?.pos ?? 0),
-      negative: Number(r?.neg ?? 0),
-      neutral: Number(r?.neu ?? 0),
-      total: Number(r?.total ?? 0),
-    });
-  }
-  return { unit, points: out };
+  const local = (col: Prisma.Sql) => Prisma.sql`date_trunc(${unit}, (${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})`;
+  const rows = await db.$queryRaw<
+    { t: string; pos: bigint; neg: bigint; neu: bigint; total: bigint; eng: bigint | null; risks: bigint }[]
+  >`
+    WITH buckets AS (
+      SELECT generate_series(
+        ${local(Prisma.sql`${start}::timestamp`)},
+        ${local(Prisma.sql`${end}::timestamp`)},
+        ${`1 ${unit}`}::interval
+      ) AS b
+    )
+    SELECT to_char(buckets.b, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
+           count(m.id) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
+           count(m.id) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
+           count(m.id) FILTER (WHERE m.sentiment = 'NEUTRAL' OR (m.id IS NOT NULL AND m.sentiment IS NULL)) AS neu,
+           count(m.id) AS total,
+           sum(m.likes + m.comments + m.shares) AS eng,
+           count(m.id) FILTER (WHERE m."isRisk") AS risks
+    FROM buckets
+    LEFT JOIN "Mention" m ON ${local(Prisma.sql`m."publishedAt"`)} = buckets.b AND ${cond(s)}
+    GROUP BY buckets.b ORDER BY buckets.b`;
+  return {
+    unit,
+    points: rows.map((r) => {
+      const total = Number(r.total);
+      const pos = Number(r.pos);
+      const neg = Number(r.neg);
+      return {
+        t: r.t,
+        positive: pos,
+        negative: neg,
+        neutral: Number(r.neu),
+        total,
+        engagement: Number(r.eng ?? 0),
+        risks: Number(r.risks),
+        net: total ? Math.round(((pos - neg) / total) * 100) : 0,
+      };
+    }),
+  };
 }
 
 export async function getPlatformBreakdown(s: Scope) {
@@ -188,6 +214,8 @@ export type MentionFilters = {
   dialect?: Dialect;
   intent?: Intent;
   sarcasm?: boolean;
+  assignedToId?: string;
+  needsReply?: boolean;
 };
 
 export function mentionWhere(f: MentionFilters): Prisma.MentionWhereInput {
@@ -203,6 +231,8 @@ export function mentionWhere(f: MentionFilters): Prisma.MentionWhereInput {
     ...(f.dialect && { dialect: f.dialect }),
     ...(f.intent && { intent: f.intent }),
     ...(f.sarcasm && { sarcasm: true }),
+    ...(f.assignedToId && { assignedToId: f.assignedToId }),
+    ...(f.needsReply && { repliedAt: null, intent: { in: INBOX_INTENTS } }),
     ...(f.status && ["NEW", "REVIEWED", "FLAGGED", "ARCHIVED"].includes(f.status)
       ? { status: f.status as never }
       : { status: { not: "ARCHIVED" as const } }),
@@ -288,4 +318,22 @@ export function inboxPriority(m: { intent: Intent | null; isRisk: boolean; autho
   const ageH = (Date.now() - m.publishedAt.getTime()) / 3600_000;
   const fresh = Math.max(0, 20 - ageH); // decays over the first 20h
   return intentW + (m.isRisk ? 30 : 0) + (m.sentiment === "NEGATIVE" ? 5 : 0) + reach + fresh;
+}
+
+/**
+ * When people post: mention counts by local weekday (0 = Sunday) and hour,
+ * in the org timezone. Uses at least four weeks so the pattern is stable.
+ */
+export async function getPostingHeatmap(s: Scope): Promise<number[][]> {
+  const tz = safeTz(s.tz);
+  const scope = { ...s, days: Math.max(28, s.days) };
+  const rows = await db.$queryRaw<{ dow: number; hr: number; n: bigint }[]>`
+    SELECT extract(dow FROM (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::int AS dow,
+           extract(hour FROM (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::int AS hr,
+           count(*) AS n
+    FROM "Mention" m WHERE ${cond(scope)}
+    GROUP BY 1, 2`;
+  const grid = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
+  for (const r of rows) grid[r.dow][r.hr] = Number(r.n);
+  return grid;
 }

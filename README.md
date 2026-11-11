@@ -1,4 +1,4 @@
-# Rasd · رصد
+# angle /social
 
 A bilingual (Arabic / English) social listening platform built for non-technical teams. It monitors brands, hashtags, accounts and topics across X, Instagram, TikTok, YouTube, Facebook and LinkedIn. Claude classifies every post (sentiment, topics, risk), answers questions about the data in chat, and writes management reports.
 
@@ -17,7 +17,7 @@ A bilingual (Arabic / English) social listening platform built for non-technical
 
 ### Dialect-native suite
 
-Generic AI tools misread Gulf Arabic. Rasd's classifier follows a regional language guide (`src/lib/ai/dialect.ts`) and an editable per-client glossary.
+Generic AI tools misread Gulf Arabic. angle social's classifier follows a regional language guide (`src/lib/ai/dialect.ts`) and an editable per-client glossary.
 
 | Area | What it does |
 |---|---|
@@ -38,6 +38,30 @@ Generic AI tools misread Gulf Arabic. Rasd's classifier follows a regional langu
 | **Brand voice** | Learned from 5–20 sample posts or from your own account monitor, or written by hand: summary, dialect, traits, always/never rules, banned words, CTA and emoji style, examples. |
 | **Drafts** | Pick a format, a brief, a goal, a platform, a dialect and a length, and AI writes: 3 hook options, a beat-by-beat script (spoken lines in dialect, on-screen text, visuals), a shot list for the crew, an edit plan (music, pacing, transitions, captions, SFX), caption, hashtags and CTA. It adds a **compliance check** (pass / needs review / must fix) and a **brand-voice match score**. Everything can be edited inline. You can also refine with one click ("punchier hook", "more Saudi dialect", "shorter") and keep a version history. Workflow: draft → review → approved (admin) → published. |
 | **Rough cut** | In-browser editor: drop clips or photos on each shot to preview the timeline in 9:16 with on-screen text and voice-over subtitles. You can export a **.webm video** with the clips' audio. Captions export as **.srt**, the shot list as **.csv**. Files never leave the browser. |
+
+### Built for in-house teams
+
+| Area | What it does |
+|---|---|
+| **Getting started** | New organizations see a 5-step checklist on the Overview (company context, first monitor, an alert, the team, brand voice). Each step links straight to where it's done. |
+| **One place to look first** | The Overview leads with the AI brief, KPIs with trend lines, and "Needs your attention": the most urgent posts (people threatening to leave, risks, influencers) to answer now. |
+| **Quick views** | Mentions open with one-click views (Needs a reply · Negative · Risks · Sarcastic · Assigned to me). Detailed filters sit behind *More filters*. Press `/` anywhere to search. |
+| **Assignment** | Assign any post to a teammate from the inbox. They get a personal notification, and *Mine* shows their queue. |
+| **Slack & Teams** | Any alert can post to a Slack or Microsoft Teams channel through an incoming-webhook link. Only known webhook hosts are accepted; add more with `WEBHOOK_ALLOWED_HOSTS`. |
+| **Weekly report email** | Admins pick recipients, a day and a language. Every week management gets the AI headline, summary and recommendations, with a link to the full report. |
+| **Feedback** | Every action confirms itself with a toast. Destructive actions use an in-app confirmation dialog. |
+
+### Reliability
+
+- **Timezone-correct:** dates and daily/hourly buckets use the organization's timezone (default `Asia/Riyadh`), computed in Postgres.
+- **Worker heartbeat:** admins see a banner if background processing stops, and Settings → Data & AI connections shows worker, email and API status.
+- **Sign-in throttling** is stored in the database (8 failures per email or 40 per IP per 15 minutes), so it holds across restarts and multiple instances. Changing your password signs out your other sessions.
+- **Friendly error and 404 screens:** an error never shows raw stack traces.
+- **Nightly housekeeping** removes old sign-in attempts, expired sessions and old read notifications.
+
+## Design
+
+Calm and editorial rather than template SaaS. The canvas is warm paper; primary actions are near-black ink; a deep palm green marks data and the current page; sand is a quiet highlight. Colour is reserved for meaning (sentiment, risk, intent). Type is IBM Plex Sans Arabic throughout, bundled with the app, with tabular figures for numbers. Platform logos are real; authors get initial avatars. Layouts mirror correctly in Arabic, and charts keep time reading left to right. Tokens live in `src/app/globals.css`.
 
 ## Architecture
 
@@ -95,6 +119,8 @@ Or with Docker: `docker compose up -d --build`.
 Classification runs in batches of 25 posts at low effort. By default every AI feature uses `claude-opus-5-5`. Classification is the high-volume part: set `AI_ENRICH_MODEL=claude-haiku-5-5` to cut its cost sharply, and spot-check quality on your own data first. Requests opt in to server-side refusal fallback on supported models.
 
 ## Production checklist
+
+- Set `APP_URL`, `SMTP_URL` and `EMAIL_FROM` so alert emails and weekly reports go out.
 
 - Host Postgres + app in-Kingdom if the client requires PDPL data residency.
 - Put the app behind HTTPS (cookies are `secure` in production) and set `APP_URL`.

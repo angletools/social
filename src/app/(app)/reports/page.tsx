@@ -16,11 +16,11 @@ export default async function ReportsPage() {
     db.monitor.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true } }),
   ]);
   const status = (s: string) =>
-    s === "READY" ? "bg-green-50 text-green-700" : s === "FAILED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700 animate-pulse";
+    s === "READY" ? "bg-pos/[0.07] text-pos" : s === "FAILED" ? "bg-neg/[0.06] text-neg" : "bg-sand-50 text-sand-700 animate-pulse";
 
   return (
     <>
-      <PageHeader title={t.reports.title} subtitle={t.reports.subtitle} />
+      <PageHeader title={t.reports.title} />
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <Card bodyClassName="p-0">
           {reports.length === 0 ? (
@@ -29,7 +29,7 @@ export default async function ReportsPage() {
             <ul className="divide-y divide-line">
               {reports.map((r) => (
                 <li key={r.id}>
-                  <Link href={`/reports/${r.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-canvas">
+                  <Link prefetch={false} href={`/reports/${r.id}`} className="flex items-center gap-4 px-6 py-4 hover:bg-canvas">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
                       <FileText className="h-5 w-5" />
                     </div>
@@ -48,7 +48,7 @@ export default async function ReportsPage() {
         </Card>
         {hasRole(user, "ANALYST") && (
           <Card title={t.reports.new} className="h-fit">
-            {!aiEnabled() && <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">{t.assistant.disabled}</p>}
+            {!aiEnabled() && <p className="mb-4 rounded-xl bg-sand-50 px-3 py-2 text-xs text-sand-700">{t.assistant.disabled}</p>}
             <ReportForm
               monitors={monitors}
               locale={locale}

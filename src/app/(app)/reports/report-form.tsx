@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Sparkles } from "lucide-react";
+import { FileText } from "lucide-react";
 import { createReport } from "@/app/actions";
 
 export function ReportForm({
@@ -43,7 +43,7 @@ export function ReportForm({
         </select>
       </div>
       <button className="btn-primary w-full" disabled={pending}>
-        <Sparkles className="h-4 w-4" /> {labels.submit}
+        <FileText className="h-4 w-4" /> {labels.submit}
       </button>
     </form>
   );
