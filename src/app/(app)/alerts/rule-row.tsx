@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { confirmDialog, toast } from "@/components/feedback";
-import { deleteAlert, toggleAlert } from "@/app/actions";
+import { deleteAlert, toggleAlert, previewAlert } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { useClientDict } from "@/components/client-dict";
 
@@ -43,6 +43,7 @@ export function Switch({
 }
 
 export function RuleControls({
+  locale,
   id,
   name,
   enabled,
@@ -50,6 +51,7 @@ export function RuleControls({
   canEdit,
   labels,
 }: {
+  locale: string;
   id: string;
   name: string;
   enabled: boolean;
@@ -58,9 +60,12 @@ export function RuleControls({
   labels: { delete: string; confirm: string; confirmLabel: string };
 }) {
   const [pending, start] = useTransition();
+  const [preview, setPreview] = useState<string | null>(null);
+  const ar = locale === "ar";
   const { toasts, common } = useClientDict();
   return (
     <>
+      <details className="relative"><summary className="btn-ghost cursor-pointer text-xs">{ar ? "معاينة" : "Preview"}</summary><div className="absolute end-0 top-full z-20 mt-2 w-64 rounded-xl border border-line bg-surface p-4 text-sm shadow-lg"><p className="mb-2 text-xs text-muted">{ar ? "معاينة للفترة الحالية دون إرسال؛ يتجاهل وقت الانتظار السابق." : "Checks the current window without sending; ignores the previous cooldown."}</p><button className="btn-secondary" disabled={pending} onClick={() => start(async () => { try { const p = await previewAlert(id); setPreview(`${p.hit ? (ar ? p.hit.bodyAr : p.hit.bodyEn) : (ar ? "لا توجد نتائج مطابقة حاليًا." : "No matches in the current window.")} ${ar ? "الحد الأدنى للتنبيهات النسبية" : "Minimum for percentage alerts"}: ${p.minimumVolume}. ${ar ? "وقت الانتظار بالدقائق" : "Cooldown in minutes"}: ${p.cooldownMinutes}.`); } catch { setPreview(common.failed); } })}>{ar ? "تشغيل المعاينة" : "Run preview"}</button><p role="status" className="mt-3 break-words">{preview}</p></div></details>
       <Switch
         on={enabled}
         label={name}

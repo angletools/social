@@ -1,3 +1,4 @@
+import { countUniqueMentions, uniqueMentionsSql } from "./mention-query";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
 
@@ -15,11 +16,11 @@ export function inboxWhere(orgId: string, options: Options = {}): Prisma.Mention
 /** Rank the complete unresolved backlog in SQL before paging, with stable ties. */
 export async function getInboxPage(orgId: string, options: Options & { page?: number; pageSize?: number } = {}) {
   const pageSize = Math.max(1, Math.min(60, options.pageSize ?? 60));
-  const total = await db.mention.count({ where: inboxWhere(orgId, options) });
+  const total = await countUniqueMentions(inboxWhere(orgId, options));
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(pages, Math.max(1, Number.isSafeInteger(options.page) ? options.page! : 1));
   const ids = await db.$queryRaw<{ id: string }[]>`
-    SELECT m.id FROM "Mention" m JOIN "Monitor" mo ON mo.id = m."monitorId"
+    SELECT m.id FROM ${uniqueMentionsSql(inboxWhere(orgId, options))} m JOIN "Monitor" mo ON mo.id = m."monitorId"
     WHERE m."organizationId" = ${orgId} AND m.relevant AND m."repliedAt" IS NULL AND m.status != 'ARCHIVED'
       AND (m.intent IN ('CHURN_RISK','COMPLAINT','QUESTION','PURCHASE_INTENT') OR m."isRisk")
       ${options.allMonitors ? Prisma.empty : Prisma.sql`AND mo."isCompetitor" = false AND mo.type != 'TOPIC'`}

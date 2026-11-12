@@ -13,7 +13,7 @@ import { SolidAvatar } from "@/components/avatar";
 import { DotBar } from "@/components/dots";
 import { MobileHistory } from "./history";
 
-export type Msg = { role: "user" | "assistant"; text: string; steps?: ToolStep[]; posts?: CitedPost[]; followups?: string[]; error?: boolean };
+export type Msg = { role: "user" | "assistant"; text: string; steps?: ToolStep[]; posts?: CitedPost[]; followups?: string[]; error?: boolean; errorCode?: string };
 
 const PLATFORM: Record<string, string> = { X: "X", INSTAGRAM: "Instagram", TIKTOK: "TikTok", YOUTUBE: "YouTube", FACEBOOK: "Facebook", LINKEDIN: "LinkedIn" };
 
@@ -95,7 +95,7 @@ export function Chat({
         body: JSON.stringify({ threadId, message: text }),
         signal: ctrl.signal,
       });
-      if (!res.ok || !res.body) throw new Error(String(res.status));
+      if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error ?? String(res.status));
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
@@ -112,12 +112,12 @@ export function Chat({
           else if (e.type === "tool") update((m) => ({ ...m, steps: [...(m.steps ?? []), { name: e.name, days: e.days, n: e.n }] }));
           else if (e.type === "posts") update((m) => ({ ...m, posts: [...(m.posts ?? []), ...e.posts] }));
           else if (e.type === "followups") update((m) => ({ ...m, followups: e.items }));
-          else if (e.type === "error") update((m) => ({ ...m, error: true }));
-          else if (e.type === "done" && e.threadId !== threadId) newThread = e.threadId;
+          else if (e.type === "error") update((m) => ({ ...m, error: true, errorCode: e.message }));
+          else if ((e.type === "done" || e.type === "thread") && e.threadId !== threadId) newThread = e.threadId;
         }
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") update((m) => ({ ...m, error: true }));
+      if ((err as Error).name !== "AbortError") update((m) => ({ ...m, error: true, errorCode: (err as Error).message }));
     } finally {
       abortRef.current = null;
       setBusy(false);
@@ -308,7 +308,7 @@ function Answer({
           ),
         )}
 
-        {m.error && <p className="text-[14px] text-neg">{errorLabel}</p>}
+        {m.error && <p className="text-[14px] text-neg">{m.errorCode === "AI_REQUEST_TOO_LARGE" ? (locale === "ar" ? "المحادثة طويلة جدًا. ابدأ محادثة جديدة بسؤال أضيق." : "This conversation is too large. Start a new chat with a narrower question.") : m.errorCode === "AI_BUDGET_EXCEEDED" ? (locale === "ar" ? "اكتمل رصيد الذكاء الاصطناعي لهذا الشهر. يمكن للمسؤول تعديل الحد في الإعدادات." : "This workspace has reached its monthly AI allowance. An admin can adjust it in Settings.") : m.errorCode === "AI_ALREADY_RUNNING" ? (locale === "ar" ? "لديك طلب قيد التنفيذ. أوقفه أو انتظر اكتماله." : "You already have an answer running. Stop it or wait for it to finish.") : m.errorCode === "AI_RATE_LIMITED" ? (locale === "ar" ? "طلبات كثيرة مؤخرًا. حاول بعد بضع دقائق." : "There have been too many recent requests. Try again in a few minutes.") : errorLabel}</p>}
 
         {last && !streaming && (m.followups?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-2" aria-label={t.followups}>

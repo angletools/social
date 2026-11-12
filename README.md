@@ -54,7 +54,7 @@ Generic AI tools misread Gulf Arabic. angle social's classifier follows a region
 ### Reliability
 
 - **Timezone-correct:** dates and daily/hourly buckets use the organization's timezone (default `Asia/Riyadh`), computed in Postgres.
-- **Worker heartbeat:** admins see a banner if background processing stops, and Settings → Data & AI connections shows worker, email and API status.
+- **Worker heartbeat:** admins see a banner if background processing stops, and Settings → Integrations connections shows worker, email and API status.
 - **Sign-in throttling** is stored in the database (8 failures per email or 40 per IP per 15 minutes), so it holds across restarts and multiple instances. Changing your password signs out your other sessions.
 - **Friendly error and 404 screens:** an error never shows raw stack traces.
 - **Nightly housekeeping** removes old sign-in attempts, expired sessions and notifications older than 90 days that have no outstanding deliveries.
@@ -123,7 +123,11 @@ Or with Docker: `docker compose up -d --build`.
 
 ### AI cost
 
-Classification runs in batches of 25 posts at low effort. By default every AI feature uses `claude-opus-5-5`. Classification is the high-volume part: set `AI_ENRICH_MODEL=claude-haiku-5-5` to cut its cost sharply, and spot-check quality on your own data first. Requests opt in to server-side refusal fallback on supported models.
+Classification runs in batches of 25 posts at low effort. By default every AI feature uses `claude-opus-5-5`. Classification is the high-volume part: set `AI_ENRICH_MODEL=claude-haiku-5-5` to cut its cost sharply, and spot-check quality on your own data first. Automatic retries and fallback-model calls are disabled so one reservation corresponds to one provider request. Every feature shares an atomic workspace token allowance (2,000,000 per local calendar month by default), adjustable by admins under Settings → Integrations. It is a usage limit, not a currency budget. Completed calls record provider-reported input/output/cache tokens; failed or canceled calls keep their conservative reservation when usage is unknown.
+
+The assistant permits 30 turns per person and 100 per workspace per 10 minutes, with one active turn per person. Each turn has at most four model rounds, at most six data tools per tool round, 4,000 output tokens per round, bounded context and a three-minute deadline. Stop cancels the provider connection. Other AI calls have a two-minute timeout and bounded request/output sizes.
+
+Classification records the source, model, classifier version, context/glossary fingerprint and self-reported confidence. Context snapshots are retained in the audit log. Team corrections have an actor and reason, survive collection, and win over stale AI writes. Admins can reprocess a bounded batch after changing the glossary/model; sample data and human corrections are preserved. See [evaluation guidance](evals/README.md).
 
 ## Production checklist
 
@@ -160,4 +164,14 @@ Integration tests refuse database names outside `rasd_test_*`. They exercise rea
 
 `postcss` and `deepmerge-ts` are pinned through npm overrides to patched versions without changing the major Next.js or Prisma versions. Revalidate the Prisma CLI, migrations, generation and application build when changing these overrides. Run `npm audit --omit=dev` when preparing a release.
 
-Remaining product work includes live Arabic-quality evaluation, classification provenance and controlled reprocessing, durable AI budgets/cancellation, cross-monitor post deduplication and explicit reach definitions, richer review diffs/comments, and tested production recovery. The local gates do not establish these capabilities.
+## Team workflow and metric definitions
+
+Organization totals, report evidence, exports, assistant tools and filtered mention lists count a post once by platform plus external post ID. The earliest matching capture provides classification/context; single-monitor views keep that monitor's context. Cross-monitor captures share assignment, reply and archive state, including later collection. The follower estimate counts each known platform account once using its largest observed follower count; it is not unique audience reach or views. Share of voice remains a comparison of brand-monitor captures and may count the same post for more than one brand. Screens and report snapshots include these definitions; old snapshots retain their original figures and are labeled as legacy.
+
+The Inbox exposes classification review, corrections, internal handoff notes and activity. Mentions has an optional compact list with bulk assignment/status actions. Studio history compares saved versions; review comments and reviewer handoff refer to a saved revision. Approval still requires the current revision to be reviewed. Marking a reply or draft published records a manual handoff; the app does not publish to social platforms.
+
+Reports can be generated from statistics and evidence without AI. Percentage alerts require a configurable minimum sample (20 classified posts by default); saved rules can be previewed without sending or changing cooldown state. Dense Home charts aggregate to four-hour buckets on phones; charts show dates, scales and baseline context.
+
+Admins create one-use invitation links instead of choosing shared starter passwords. Links expire in 48 hours and are shared by the admin. Password recovery uses SMTP with 30-minute one-use links, durable throttling, generic responses, and session revocation. Configure `APP_URL` before handing links to teammates. Existing users are preserved.
+
+See [operations and recovery](docs/OPERATIONS.md) for release, backup/restore, retries and retention. Real provider behavior, independent Arabic quality, external email receipt, remote CI, multi-user load and production recovery remain environment-specific verification gates.

@@ -1,3 +1,4 @@
+import { parseWithBudget } from "./budget";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { AI_MODEL, fallbackParams, getAI } from "./client";
@@ -22,11 +23,11 @@ const VoiceSchema = z.object({
 export type LearnedVoice = z.infer<typeof VoiceSchema>;
 
 /** Derives a brand-voice profile from sample posts. */
-export async function learnVoice(samples: string[], brandContext?: string | null): Promise<LearnedVoice> {
+export async function learnVoice(organizationId: string, samples: string[], brandContext?: string | null): Promise<LearnedVoice> {
   const ai = getAI();
   if (!ai) throw new Error("AI_DISABLED");
   const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(organizationId, "voice", {
     model: AI_MODEL,
     max_tokens: 8000,
     betas,

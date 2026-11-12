@@ -1,3 +1,5 @@
+import { findUniqueMentions } from "../mention-query";
+import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { z } from "zod";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { Dialect, Intent, Platform, Sentiment } from "@prisma/client";
@@ -28,7 +30,7 @@ const platform = z.enum(PLATFORMS).optional();
  * Data tools for the assistant. Every query is hard-scoped to the caller's
  * organization; the model never supplies the organization id.
  */
-export function assistantTools(orgId: string, onTool?: (step: ToolStep) => void) {
+export function assistantTools(orgId: string, onTool?: (step: ToolStep) => void): BetaRunnableTool[] {
   // Reports each finished call (with its period and how many posts it read) so the chat can
   // say "Read 40 posts and checked 7 days of numbers".
   const wrap = <T,>(name: string, fn: (i: T) => Promise<unknown>) => async (input: T) => {
@@ -53,7 +55,7 @@ export function assistantTools(orgId: string, onTool?: (step: ToolStep) => void)
     betaZodTool({
       name: "get_overview_stats",
       description:
-        "Totals for a period: mentions, engagement, potential reach, risk flags, sentiment counts and net sentiment, each with % change vs the previous period of equal length. Also returns share of voice across brand/competitor monitors.",
+        "Totals for a period: mentions, engagement, follower estimate (not unique audience reach), risk flags, sentiment counts and net sentiment, each with % change vs the previous period of equal length. Also returns share of voice across brand/competitor monitors.",
       inputSchema: z.object({ days, monitorId, platform }),
       run: wrap("get_overview_stats", async (i: { days: number; monitorId?: string; platform?: Platform }) => {
         const scope = { orgId, ...i };
@@ -119,7 +121,7 @@ export function assistantTools(orgId: string, onTool?: (step: ToolStep) => void)
           sort?: "recent" | "engagement" | "reach";
           limit?: number;
         }) => {
-          const rows = await db.mention.findMany({
+          const rows = await findUniqueMentions({
             where: mentionWhere({
               orgId,
               days: i.days ?? 30,

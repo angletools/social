@@ -1,3 +1,4 @@
+import { ClassificationReview, HandoffNote } from "@/components/classification-review";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, ExternalLink } from "lucide-react";
 import type { Intent } from "@prisma/client";
@@ -50,8 +51,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       (queue.find((q) => q.id === selectedId) ?? (await db.mention.findFirst({ where: { id: selectedId, organizationId: orgId }, include })))) ||
     queue[0] ||
     null;
-  const replies = selected ? await db.replyDraft.findMany({ where: { mentionId: selected.id }, orderBy: { createdAt: "desc" } }) : [];
+  const captureIds = selected ? (await db.mention.findMany({ where: { organizationId: orgId, platform: selected.platform, externalId: selected.externalId }, select: { id: true } })).map(m => m.id) : [];
+  const replies = selected ? await db.replyDraft.findMany({ where: { organizationId: orgId, mentionId: { in: captureIds } }, orderBy: { createdAt: "desc" } }) : [];
   const canAct = hasRole(user, "ANALYST");
+  const activity = selected ? await db.auditLog.findMany({ where: { organizationId: orgId, target: { in: captureIds }, action: { startsWith: "mention." } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 20 }) : [];
+  const authors = await db.user.findMany({ where: { organizationId: orgId, id: { in: activity.flatMap(a => a.userId ? [a.userId] : []) } }, select: { id: true, name: true } });
   const base = `${href()}&`;
   const tone = (m: { intent: Intent | null; isRisk: boolean }): QueueItem["tone"] => (m.isRisk ? "neg" : (m.intent && TONE[m.intent]) || "faint");
 
@@ -204,6 +208,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                     labels={{ meaning: t.inbox.meaning, hide: t.inbox.hideMeaning, translate: t.engage.translate, translating: t.engage.translating, aiOff: t.engage.aiOff }}
                   />
                 </div>
+                <ClassificationReview key={`${selected.id}-${selected.classificationRevision}`} m={selected} t={t} locale={locale} canEdit={canAct} />
+                <details className="border-t border-line pt-3 text-sm">
+                  <summary className="cursor-pointer text-muted">{locale === "ar" ? "ملاحظات الفريق وسجل الإجراءات" : "Team notes and activity"}</summary>
+                  <div className="mt-4 grid gap-3">
+                    {canAct && <HandoffNote key={selected.id} id={selected.id} locale={locale} />}
+                    {activity.map(a => { const meta = (a.meta ?? {}) as { text?: string; reason?: string; to?: string; status?: string }; return <div key={a.id} className="border-t border-line pt-3"><p className="text-xs text-faint">{authors.find(u => u.id === a.userId)?.name ?? (locale === "ar" ? "عضو سابق" : "Former teammate")} · {timeAgo(a.createdAt, locale)}</p><p dir="auto" className="mt-1 whitespace-pre-wrap break-words">{a.action === "mention.note" ? meta.text : a.action === "mention.correct" ? `${locale === "ar" ? "تصحيح" : "Correction"}: ${meta.reason}` : a.action === "mention.assign" ? `${locale === "ar" ? "إسناد" : "Assigned"}: ${meta.to ?? "—"}` : `${locale === "ar" ? "حالة" : "Status"}: ${meta.status ?? a.action}`}</p></div>; })}
+                  </div>
+                </details>
                 {posted.length > 0 && (
                   <div className="flex flex-col gap-2 pt-4">
                     <p className="text-[13px] text-faint">{t.inbox.previous}</p>

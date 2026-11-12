@@ -1,0 +1,16 @@
+"use client";
+import Link from "next/link";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { assignMentions, setMentionStatus } from "@/app/actions";
+import type { MentionStatus } from "@prisma/client";
+export function CompactMentions({ rows, members, locale, canAct }: { rows: { id: string; author: string; platform: string; text: string; sentiment: string; assigned: string; date: string }[]; members: { id: string; name: string }[]; locale: string; canAct: boolean }) {
+  const ar = locale === "ar", router = useRouter();
+  const [selected, setSelected] = useState<string[]>([]), [assignee, setAssignee] = useState(""), [status, setStatus] = useState<MentionStatus>("REVIEWED"), [error, setError] = useState(false), [pending, start] = useTransition();
+  const apply = (fn: () => Promise<unknown>) => start(async () => { try { await fn(); setSelected([]); setError(false); router.refresh(); } catch { setError(true); } });
+  return <div className="mt-4">
+    {canAct && <div className="mb-3 flex flex-wrap items-center gap-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={selected.length === rows.length && rows.length > 0} onChange={e => setSelected(e.target.checked ? rows.map(r => r.id) : [])} />{ar ? "تحديد الصفحة" : "Select page"} ({selected.length})</label><select className="input w-auto" aria-label={ar ? "إسناد إلى" : "Assign to"} value={assignee} onChange={e => setAssignee(e.target.value)}><option value="">{ar ? "بلا مسؤول" : "Unassigned"}</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select><button className="btn-secondary" disabled={pending || !selected.length} onClick={() => apply(() => assignMentions(selected, assignee || null))}>{ar ? "إسناد" : "Assign"}</button><select className="input w-auto" aria-label={ar ? "الحالة" : "Status"} value={status} onChange={e => setStatus(e.target.value as MentionStatus)}>{([['NEW', ar?'جديد':'New'],['REVIEWED',ar?'تمت المراجعة':'Reviewed'],['FLAGGED',ar?'مميز':'Flagged'],['ARCHIVED',ar?'مؤرشف':'Archived']] as const).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select><button className="btn-secondary" disabled={pending || !selected.length} onClick={() => apply(() => setMentionStatus(selected, status))}>{ar ? "تغيير الحالة" : "Set status"}</button></div>}
+    {error && <p className="mb-3 text-sm text-neg" role="alert">{ar ? "تعذر الحفظ. حدّث الصفحة وحاول مجددًا." : "Could not save. Refresh and try again."}</p>}
+    <ul className="divide-y divide-line rounded-2xl bg-surface px-4">{rows.map(r => <li key={r.id} className="flex gap-3 py-3">{canAct && <input type="checkbox" aria-label={`${ar?'تحديد':'Select'} ${r.author}`} checked={selected.includes(r.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids,r.id] : ids.filter(id => id !== r.id))} />}<Link href={`/inbox?m=${r.id}`} className="min-w-0 flex-1"><div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted"><span className="font-semibold text-ink">{r.author}</span><span>{r.platform}</span><span>{r.sentiment}</span><span>{r.assigned}</span><time className="ms-auto">{r.date}</time></div><p dir="auto" className="mt-1 line-clamp-2 text-sm leading-relaxed">{r.text}</p></Link></li>)}</ul>
+  </div>;
+}

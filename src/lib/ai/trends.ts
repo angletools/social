@@ -1,3 +1,4 @@
+import { parseWithBudget } from "./budget";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
@@ -59,7 +60,7 @@ export async function extractFormats(watchId: string): Promise<number> {
     .join("\n");
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(watch.organizationId, "trends", {
     model: AI_MODEL,
     max_tokens: 16000,
     betas,

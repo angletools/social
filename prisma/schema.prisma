@@ -130,6 +130,9 @@ model Organization {
   currentPeriodEnd   DateTime?
   monitorLimit       Int                @default(25)
   seatLimit          Int                @default(10)
+  aiMonthlyTokenLimit Int               @default(2000000)
+  enrichmentLeaseToken String?
+  enrichmentLeaseUntil DateTime?
   mentionQuota       Int                @default(100000) // mentions ingested per billing period
   brandContext       String?            // short description of the company, given to the AI
   complianceRules    String?            // rules every AI reply / script must follow (e.g. CMA marketing rules)
@@ -165,6 +168,8 @@ model Organization {
   drafts        ContentDraft[]
   briefs        IntelligenceBrief[]
   deliveries    Delivery[]
+  aiUsage       AIUsage[]
+  assistantTurns AssistantTurn[]
 }
 
 model User {
@@ -180,6 +185,7 @@ model User {
   createdAt      DateTime  @default(now())
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accessTokens AccessToken[]
   sessions     Session[]
   threads      AssistantThread[]
   assigned     Mention[]         @relation("assignee")
@@ -260,6 +266,16 @@ model Mention {
   mediaUrl        String?
   raw             Json?
 
+  // Classification provenance; model confidence is self-reported, not calibrated.
+  classificationSource String @default("PENDING")
+  classificationRevision Int @default(0)
+  classificationModel String?
+  classificationVersion String?
+  classificationContextHash String?
+  classificationConfidence Float?
+  correctedById String?
+  correctedAt DateTime?
+
   // AI enrichment
   sentiment      Sentiment?
   sentimentScore Float? // -1 .. 1
@@ -294,6 +310,7 @@ model Mention {
   @@index([organizationId, enrichedAt])
   @@index([organizationId, intent, status])
   @@index([organizationId, engagement])
+  @@index([organizationId, platform, externalId, createdAt, id])
 }
 
 // Canonical topic labels, bilingual, produced by the AI during enrichment.
@@ -336,6 +353,7 @@ model AlertRule {
   name            String
   kind            AlertKind
   threshold       Float     @default(0)
+  minimumVolume   Int       @default(20)
   windowMinutes   Int       @default(60)
   keyword         String?
   notifyEmail     Boolean   @default(false)
@@ -708,4 +726,43 @@ model IntelligenceBrief {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, days, createdAt])
+}
+// Reservations remain charged on uncertain provider failures/cancellation.
+model AIUsage {
+  id             String       @id @default(cuid())
+  organizationId String
+  feature        String
+  model          String
+  reservedTokens Int
+  usedTokens     Int?
+  status         String       @default("RESERVED")
+  createdAt      DateTime     @default(now())
+  finishedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model AssistantTurn {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, status, expiresAt])
+}
+
+model AccessToken {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  purpose String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, purpose])
 }

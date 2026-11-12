@@ -1,3 +1,4 @@
+import { uniqueMentionIds } from "@/lib/mention-query";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mentionWhere } from "@/lib/analytics";
@@ -17,6 +18,7 @@ const esc = (v: unknown) => {
 
 const COLS = [
   "publishedAt", "monitor", "platform", "authorHandle", "authorName", "authorFollowers", "text", "url", "lang",
+  "classificationSource", "classificationModel", "classificationVersion", "classificationContextHash", "classificationConfidence", "externalId",
   "sentiment", "sentimentScore", "intent", "dialect", "sarcasm", "topics", "isRisk", "riskReason",
   "likes", "comments", "shares", "views", "engagement", "status", "assignedTo", "repliedAt",
 ] as const;
@@ -42,10 +44,12 @@ export async function GET(req: Request) {
     },
     async pull(controller) {
       try {
+        const current = await getCurrentUser();
+        if (!current || current.id !== user.id || current.organizationId !== user.organizationId || req.signal.aborted) throw new Error("FORBIDDEN");
+        const ids = await uniqueMentionIds(where, { orderBy, skip: sent, take: Math.min(BATCH, MAX_ROWS - sent) });
         const rows = await db.mention.findMany({
-          where,
+          where: { id: { in: ids }, organizationId: user.organizationId },
           orderBy,
-          skip: sent,
           take: Math.min(BATCH, MAX_ROWS - sent),
           include: { monitor: { select: { name: true } }, assignedTo: { select: { name: true } } },
         });

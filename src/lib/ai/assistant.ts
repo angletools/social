@@ -1,5 +1,6 @@
-import type { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { AI_MODEL, fallbackParams, getAI } from "./client";
+import { EVIDENCE_RULE, withAIUsage } from "./budget";
+import type { BetaMessageParam, BetaToolResultBlockParam, MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { AI_MODEL, getAI } from "./client";
 import { assistantTools } from "./tools";
 import { DIALECT_GUIDE } from "./dialect";
 import type { ToolStep } from "../assistant-format";
@@ -30,6 +31,8 @@ export type AssistantEvent =
  */
 export async function runAssistant(opts: {
   orgId: string;
+  signal?: AbortSignal;
+  authorize?: () => Promise<void>;
   brandContext?: string | null;
   history: { role: "user" | "assistant"; text: string }[];
   emit: (e: AssistantEvent) => void;
@@ -38,47 +41,63 @@ export async function runAssistant(opts: {
   if (!ai) throw new Error("AI_DISABLED");
 
   const tools = assistantTools(opts.orgId, (step) => opts.emit({ type: "tool", ...step }));
-  const messages: BetaMessageParam[] = opts.history.map((m) => ({ role: m.role, content: m.text }));
+  const history = opts.history.slice(-20);
+  while (history.length > 1 && (history[0].role !== "user" || Buffer.byteLength(JSON.stringify(history)) > 60_000)) history.shift();
+  const messages: BetaMessageParam[] = history.map((m) => ({ role: m.role, content: m.text }));
   const today = new Date().toISOString().slice(0, 10);
   const system = `${SYSTEM}\n\n${DIALECT_GUIDE}${opts.brandContext ? `\n\nAbout the company: ${opts.brandContext}` : ""}`;
 
-  const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const runner = ai.beta.messages.toolRunner({
-    model: AI_MODEL,
-    max_tokens: 64000,
-    betas,
-    ...fb,
-    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "medium" },
-    tools,
-    max_iterations: 12,
-    // Today's date goes last so the cached system prefix stays stable.
-    messages: [...messages.slice(0, -1), { role: "user", content: `${messages.at(-1)?.content}\n\n(Today is ${today}.)` }],
-    stream: true,
-  });
-
   let finalText = "";
-  for await (const messageStream of runner) {
+  // Explicit bounded rounds let each provider request reserve its own budget.
+  for (let round = 0; round < 4; round++) {
+    opts.signal?.throwIfAborted();
+    await opts.authorize?.();
+    const params: MessageCreateParamsNonStreaming = {
+      model: AI_MODEL, max_tokens: 4000,
+      system: [{ type: "text", text: `${system}\n\n${EVIDENCE_RULE}\nToday is ${today}.`, cache_control: { type: "ephemeral" } }],
+      tools: tools.map(({ run, parse, ...definition }) => { void run; void parse; return definition; }),
+      // Leave the last round for an answer; no tools may run after the bound.
+      tool_choice: round === 3 ? { type: "none" } : { type: "auto" },
+      messages,
+    };
     let turnText = "";
-    for await (const event of messageStream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        // Separate text written before and after a round of tool calls.
-        if (!turnText && finalText) {
-          opts.emit({ type: "text", text: "\n\n" });
-          finalText += "\n\n";
+    const message = await withAIUsage(opts.orgId, "assistant", params, async signal => {
+      const stream = ai.beta.messages.stream(params, { signal, maxRetries: 0 });
+      for await (const event of stream) {
+        signal.throwIfAborted();
+        await opts.authorize?.();
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          if (!turnText && finalText) { opts.emit({ type: "text", text: "\n\n" }); finalText += "\n\n"; }
+          turnText += event.delta.text;
+          finalText += event.delta.text;
+          opts.emit({ type: "text", text: event.delta.text });
         }
-        turnText += event.delta.text;
-        finalText += event.delta.text;
-        opts.emit({ type: "text", text: event.delta.text });
+      }
+      return stream.finalMessage();
+    }, opts.signal);
+    if (message.stop_reason === "refusal") { opts.emit({ type: "error", message: "refusal" }); break; }
+    if (message.stop_reason === "max_tokens") { opts.emit({ type: "error", message: "answer_limit" }); break; }
+    const calls = message.content.filter(b => b.type === "tool_use");
+    if (!calls.length || round === 3) break;
+    if (calls.length > 6) throw new Error("AI_TOOL_LIMIT");
+    messages.push({ role: "assistant", content: message.content });
+    const results: BetaToolResultBlockParam[] = [];
+    for (const call of calls) {
+      opts.signal?.throwIfAborted();
+      await opts.authorize?.();
+      const tool = tools.find(t => t.name === call.name);
+      try {
+        if (!tool) throw new Error("Unknown data tool");
+        const value = await tool.run(tool.parse(call.input), { toolUse: call, toolUseBlock: call, signal: opts.signal });
+        opts.signal?.throwIfAborted();
+        const text = typeof value === "string" ? value : JSON.stringify(value);
+        results.push({ type: "tool_result", tool_use_id: call.id, content: Buffer.byteLength(text) <= 24_000 ? text : JSON.stringify({ truncated: true, instruction: "Narrow the query; this is an incomplete preview.", preview: text.slice(0, 6000) }) });
+      } catch (e) {
+        opts.signal?.throwIfAborted();
+        results.push({ type: "tool_result", tool_use_id: call.id, is_error: true, content: e instanceof Error && e.message === "FORBIDDEN" ? "Access unavailable" : "This data query could not be completed." });
       }
     }
-    const message = await messageStream.finalMessage();
-    if (message.stop_reason === "refusal") {
-      opts.emit({ type: "error", message: "refusal" });
-      break;
-    }
-    if (message.stop_reason === "max_tokens" && message.content.some((b) => b.type === "tool_use")) break;
+    messages.push({ role: "user", content: results });
   }
   return finalText;
 }
-

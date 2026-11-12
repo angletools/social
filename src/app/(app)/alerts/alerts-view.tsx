@@ -116,7 +116,7 @@ export function AlertsView({
           ) : (
             <ul>
               {rules.map((r, i) => (
-                <RuleRow key={r.id} r={r} first={i === 0} canEdit={canEdit} t={t} labels={labels} />
+                <RuleRow locale={locale} key={r.id} r={r} first={i === 0} canEdit={canEdit} t={t} labels={labels} />
               ))}
             </ul>
           )}
@@ -173,7 +173,7 @@ export function AlertsView({
 }
 
 
-function RuleRow({ r, first, canEdit, t, labels }: { r: RuleView; first: boolean; canEdit: boolean; t: Dict["alertsPage"]; labels: { confirmDelete: string; delete: string } }) {
+function RuleRow({ r, first, canEdit, t, labels, locale }: { locale: string; r: RuleView; first: boolean; canEdit: boolean; t: Dict["alertsPage"]; labels: { confirmDelete: string; delete: string } }) {
   const [on, setOn] = useState(r.enabled);
   const Icon = KIND_ICON[r.kind];
   const dim = on ? "" : "opacity-45";
@@ -217,7 +217,7 @@ function RuleRow({ r, first, canEdit, t, labels }: { r: RuleView; first: boolean
         ))}
       </span>
       <span className="col-start-3 row-span-2 row-start-1 flex items-center gap-1 self-start sm:col-start-auto sm:row-span-1 sm:row-start-auto sm:self-center">
-        <RuleControls id={r.id} name={r.name} enabled={on} onChange={setOn} canEdit={canEdit} labels={{ delete: t.deleteRule, confirm: labels.confirmDelete, confirmLabel: labels.delete }} />
+        <RuleControls locale={locale} id={r.id} name={r.name} enabled={on} onChange={setOn} canEdit={canEdit} labels={{ delete: t.deleteRule, confirm: labels.confirmDelete, confirmLabel: labels.delete }} />
       </span>
     </li>
   );

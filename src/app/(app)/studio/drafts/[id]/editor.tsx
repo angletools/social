@@ -1,4 +1,5 @@
 "use client";
+import { draftFieldLabel, type DraftChange } from "@/lib/draft-diff";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, Loader2, Plus, Sparkle, Trash2, Video, X } from "lucide-react";
@@ -18,7 +19,7 @@ type SD = Dict["studio"]["draft"];
 type Content = DraftContent & { selected_hook?: number };
 type Status = "GENERATING" | "DRAFT" | "IN_REVIEW" | "APPROVED" | "PUBLISHED" | "FAILED";
 type Tab = "script" | "shots" | "captions" | "edit";
-export type VersionRow = { n: number; when: string; what: string; quoted: boolean };
+export type VersionRow = { n: number; when: string; what: string; quoted: boolean; diff: { changes: DraftChange[]; total: number } | null };
 
 const NO_OUTLINE = { outline: "none" } as const;
 
@@ -99,6 +100,8 @@ export function DraftEditor({
   canApprove,
   aiOff,
   versions,
+  reviewPanel,
+  locale,
   P,
   S,
   unsupported,
@@ -116,6 +119,7 @@ export function DraftEditor({
   canApprove: boolean;
   aiOff: string | null;
   versions: VersionRow[];
+  reviewPanel: React.ReactNode;
   locale: "ar" | "en";
   P: P;
   S: SD;
@@ -691,10 +695,12 @@ export function DraftEditor({
                 ) : (
                   <span className="text-[12.5px] text-faint">{i === 0 ? `${P.current} · ${v.when}` : v.when}</span>
                 )}
+                {v.diff && <details className="col-span-3 mb-2 text-xs"><summary className="cursor-pointer text-muted">{locale === "ar" ? "مقارنة بالنسخة السابقة" : "Compare with previous version"} · {v.diff.total}</summary><div className="mt-2 grid gap-3">{v.diff.changes.map(change => <div key={change.field}><p dir="ltr" className="mb-1 text-faint">{draftFieldLabel(change.field, locale)}</p><p dir="auto" className="whitespace-pre-wrap break-words rounded bg-neg/5 p-2"><span className="font-semibold">{locale === "ar" ? "قبل: " : "Before: "}</span>{change.before}</p><p dir="auto" className="mt-1 whitespace-pre-wrap break-words rounded bg-pos/5 p-2"><span className="font-semibold">{locale === "ar" ? "بعد: " : "After: "}</span>{change.after}</p></div>)}{v.diff.total > v.diff.changes.length && <p>{locale === "ar" ? "تغييرات إضافية غير معروضة" : "Additional changes not shown"}</p>}</div></details>}
               </div>
             ))}
           </div>
         )}
+        {reviewPanel}
       </aside>
     </div>
   );

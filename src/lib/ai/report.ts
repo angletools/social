@@ -1,3 +1,5 @@
+import { uniqueMentionIds, METRIC_DEFINITIONS } from "../mention-query";
+import { parseWithBudget } from "./budget";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
@@ -17,7 +19,7 @@ const ReportSchema = z.object({
   notable: z.array(z.number()).describe("Item numbers of up to 5 posts worth showing management"),
 });
 
-export type ReportContent = z.infer<typeof ReportSchema> & { notablePosts?: NotablePost[] };
+export type ReportContent = z.infer<typeof ReportSchema> & { notablePosts?: NotablePost[]; source?: "STATISTICS" | "AI" };
 export type NotablePost = {
   platform: string;
   author: string | null;
@@ -55,7 +57,7 @@ export async function collectReportData(reportId: string) {
     getTopSlang(scope, 10),
     getReportSeries({ orgId: report.organizationId, monitorId: report.monitorId, start: report.periodStart, end: report.periodEnd, tz: report.organization.timezone }),
   ]);
-  const stats = { days, periodStart: report.periodStart.toISOString(), periodEnd: report.periodEnd.toISOString(), timezone: report.organization.timezone, capturedAt: new Date().toISOString(), kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang, series };
+  const stats = { metricDefinitions: METRIC_DEFINITIONS, days, periodStart: report.periodStart.toISOString(), periodEnd: report.periodEnd.toISOString(), timezone: report.organization.timezone, capturedAt: new Date().toISOString(), kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang, series };
 
   const baseWhere = {
     organizationId: report.organizationId,
@@ -64,17 +66,17 @@ export async function collectReportData(reportId: string) {
     ...(report.monitorId && { monitorId: report.monitorId }),
   };
   const select = {
-    id: true, platform: true, text: true, url: true, authorHandle: true, authorName: true, authorFollowers: true, likes: true,
+    id: true, externalId: true, platform: true, text: true, url: true, authorHandle: true, authorName: true, authorFollowers: true, likes: true,
     comments: true, shares: true, views: true, publishedAt: true, sentiment: true, isRisk: true, riskReason: true, monitor: { select: { name: true } },
   } as const;
   const [engaged, negative, risks] = await Promise.all([
-    db.mention.findMany({ where: baseWhere, orderBy: { likes: "desc" }, take: 40, select }),
-    db.mention.findMany({ where: { ...baseWhere, sentiment: "NEGATIVE" }, orderBy: { authorFollowers: { sort: "desc", nulls: "last" } }, take: 30, select }),
-    db.mention.findMany({ where: { ...baseWhere, isRisk: true }, orderBy: { publishedAt: "desc" }, take: 20, select }),
+    db.mention.findMany({ where: { id: { in: await uniqueMentionIds(baseWhere, { orderBy: { likes: "desc" }, take: 40 }) } }, orderBy: { likes: "desc" }, take: 40, select }),
+    db.mention.findMany({ where: { id: { in: await uniqueMentionIds({ ...baseWhere, sentiment: "NEGATIVE" }, { orderBy: { authorFollowers: { sort: "desc", nulls: "last" } }, take: 30 }) } }, orderBy: { authorFollowers: { sort: "desc", nulls: "last" } }, take: 30, select }),
+    db.mention.findMany({ where: { id: { in: await uniqueMentionIds({ ...baseWhere, isRisk: true }, { take: 20 }) } }, orderBy: { publishedAt: "desc" }, take: 20, select }),
   ]);
   const seen = new Set<string>();
   const sample = [...risks, ...negative, ...engaged].filter((p) => {
-    const k = p.text.slice(0, 80);
+    const k = `${p.platform}:${p.externalId}`;
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -116,11 +118,15 @@ export async function generateReport(reportId: string) {
   const { report, stats, sample } = await collectReportData(reportId);
 
   const ai = getAI();
-  if (!ai) {
-    await db.report.update({
-      where: { id: reportId },
-      data: { status: "FAILED", error: "AI is not configured (ANTHROPIC_API_KEY)." },
-    });
+  if (!ai || report.kind === "statistics") {
+    const ar = report.locale === "ar", k = stats.kpis;
+    const content: ReportContent = {
+      source: "STATISTICS", headline: ar ? "ملخص الأرقام والأدلة" : "Statistics and evidence summary",
+      summary: ar ? `${k.mentions} منشورًا فريدًا، ${k.positive} إيجابيًا و${k.negative} سلبيًا و${k.neutral} محايدًا. صافي المشاعر ${k.netSentiment}. هذا ملخص حسابي دون تفسير أو توصيات مولدة بالذكاء الاصطناعي.` : `${k.mentions} unique posts: ${k.positive} positive, ${k.negative} negative and ${k.neutral} neutral. Net sentiment is ${k.netSentiment}. This is a calculated summary without AI interpretation or generated recommendations.`,
+      sections: [{ title: ar ? "المواضيع الأكثر تداولًا" : "Most discussed topics", body: stats.topics.map(t => `${ar ? t.labelAr : t.labelEn}: ${t.count}`).join("\n") || (ar ? "لا توجد مواضيع مصنفة لهذه الفترة." : "No classified topics in this period.") }, { title: ar ? "أساس الأرقام" : "Basis of the figures", body: ar ? "منشورات فريدة ضمن الفترة والنطاق المحفوظين. تقدير المتابعين ليس وصولًا فريدًا. تصنيفات المشاعر قد تأتي من قواعد آلية أو نموذج أو تصحيح الفريق." : "Unique posts in the saved period and scope. The follower estimate is not unique audience reach. Sentiment labels may come from rules, a model or team corrections." }],
+      recommendations: [], notable: [], notablePosts: sample.slice(0, 5).map(toNotablePost),
+    };
+    await db.report.update({ where: { id: reportId }, data: { status: "READY", content: content as object, error: null } });
     return;
   }
 
@@ -134,7 +140,7 @@ export async function generateReport(reportId: string) {
 
   const model = AI_MODEL;
   const { betas, ...fb } = fallbackParams(model);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(report.organizationId, "report", {
     model,
     max_tokens: 16000,
     betas,
@@ -168,6 +174,7 @@ ${posts}
 
   const content: ReportContent = {
     ...res.parsed_output,
+    source: "AI",
     notablePosts: res.parsed_output.notable
       .map((n) => sample[n - 1])
       .filter(Boolean)

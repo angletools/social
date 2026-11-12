@@ -30,6 +30,8 @@ async function main() {
       select: { id: true },
       take: 100,
     });
+    const pendingOrgs = await db.mention.findMany({ where: { enrichedAt: null, classificationSource: { not: "HUMAN" } }, distinct: ["organizationId"], select: { organizationId: true }, take: 100 });
+    for (const org of pendingOrgs) await boss.send(QUEUES.enrich, { organizationId: org.organizationId }, { singletonKey: org.organizationId, singletonSeconds: 60, retryLimit: 1, retryDelay: 120 });
     for (const m of due) {
       await boss.send(QUEUES.sync, { monitorId: m.id }, { singletonKey: m.id, singletonSeconds: 300, retryLimit: 2, retryDelay: 60 });
     }
@@ -118,6 +120,7 @@ async function main() {
   await boss.schedule(QUEUES.maintenance, "0 0 * * *");
   await boss.work(QUEUES.maintenance, async () => {
     const day = 86400_000;
+    await db.accessToken.deleteMany({ where: { expiresAt: { lt: new Date() } } });
     const [a, sess, n] = await Promise.all([
       db.loginAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - day) } } }),
       db.session.deleteMany({ where: { expiresAt: { lt: new Date() } } }),

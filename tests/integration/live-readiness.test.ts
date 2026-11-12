@@ -223,6 +223,11 @@ it("refreshes engagement without overwriting the team's work and preserves last 
   await db.mention.update({ where: { id: m.id }, data: { assignedToId: member.id, note: "Keep", sentiment: "NEGATIVE", repliedAt: new Date() } });
   likes = 900; await syncMonitor(monitor.id);
   expect(await db.mention.findUniqueOrThrow({ where: { id: m.id } })).toMatchObject({ likes: 900, assignedToId: member.id, note: "Keep", sentiment: "NEGATIVE" });
+  const second = await db.monitor.create({ data: { organizationId: org.id, name: "Overlapping monitor", type: "KEYWORD", platforms: ["X"], terms: ["brand"], languages: [], excludeTerms: [], status: "ACTIVE" } });
+  likes = 950; await syncMonitor(second.id);
+  const copy = await db.mention.findFirstOrThrow({ where: { monitorId: second.id } });
+  expect(copy).toMatchObject({ likes: 950, assignedToId: member.id, repliedAt: expect.any(Date) });
+  expect(await db.mention.findUniqueOrThrow({ where: { id: m.id } })).toMatchObject({ likes: 950, assignedToId: member.id, note: "Keep", sentiment: "NEGATIVE" });
   const last = (await db.monitor.findUniqueOrThrow({ where: { id: monitor.id } })).lastSyncAt;
   fake.runAndWait.mockRejectedValue(new Error("Provider outage"));
   await expect(syncMonitor(monitor.id)).rejects.toThrow("Provider outage");

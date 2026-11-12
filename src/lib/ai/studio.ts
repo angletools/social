@@ -1,3 +1,4 @@
+import { parseWithBudget } from "./budget";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
@@ -121,7 +122,7 @@ Post topic / brief: ${d.brief}`;
   const previous = d.content && instruction ? `<current_draft>\n${JSON.stringify(d.content)}\n</current_draft>\n\nRevise the current draft. Change request from the team: ${instruction}\nKeep everything that the request doesn't touch.` : "Write the post.";
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(d.organizationId, "studio", {
     model: AI_MODEL,
     max_tokens: 16000,
     betas,

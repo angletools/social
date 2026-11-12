@@ -73,3 +73,16 @@ export async function removeComplianceRule(index: number, text: string): Promise
   revalidatePath("/settings");
   return { ok: true };
 }
+
+export async function saveAIBudget(limit: number): Promise<Result> {
+  const user = await requireRole("ADMIN");
+  const value = z.number().int().min(0).max(100_000_000).safeParse(limit);
+  if (!value.success) return { ok: false, error: "invalid" };
+  await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+    await tx.organization.update({ where: { id: user.organizationId }, data: { aiMonthlyTokenLimit: value.data } });
+    await tx.auditLog.create({ data: { organizationId: user.organizationId, userId: user.id, action: "ai.budget", meta: { limit: value.data } } });
+  });
+  revalidatePath("/settings");
+  return { ok: true };
+}

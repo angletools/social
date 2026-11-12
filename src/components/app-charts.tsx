@@ -1,6 +1,11 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, useSyncExternalStore } from "react";
+
+import { aggregateVolume } from "@/lib/chart-buckets";
+
+const watchPhone = (onChange: () => void) => { const q = window.matchMedia("(max-width: 640px)"); q.addEventListener("change", onChange); return () => q.removeEventListener("change", onChange); };
+const phoneSnapshot = () => window.matchMedia("(max-width: 640px)").matches;
 
 import { sovColors } from "@/components/chart-colors";
 
@@ -346,8 +351,8 @@ function PointMarker({ index, valueKey, label, top = 0 }: { index: number; value
  * weekday labels on hourly multi-day ranges, and the busiest bucket marked.
  */
 export function MentionsChart({
-  points,
-  unit,
+  points: rawPoints,
+  unit: rawUnit,
   locale,
   labels,
   height = 220,
@@ -362,6 +367,10 @@ export function MentionsChart({
   compact?: boolean;
   ariaLabel?: string;
 }) {
+  const phone = useSyncExternalStore(watchPhone, phoneSnapshot, () => false);
+  const aggregate = phone && rawUnit === "hour" && rawPoints.length > 48;
+  const points = useMemo(() => aggregate ? aggregateVolume(rawPoints) : rawPoints, [rawPoints, aggregate]);
+  const unit = aggregate ? "4h" : rawUnit;
   const id = usePatternId("mx");
   const data = useMemo(() => points.map((p) => ({ ...p, date: new Date(`${p.t}Z`) })), [points]);
   const ticks = useMemo(() => points.map((p) => fmtTick(p.t, unit, locale)), [points, unit, locale]);
@@ -376,7 +385,7 @@ export function MentionsChart({
         data={data}
         aspectRatio="auto"
         style={{ height }}
-        margin={{ top: compact ? 6 : 10, right: 0, bottom: compact ? 2 : 24, left: 0 }}
+        margin={{ top: compact ? 6 : 10, right: 0, bottom: compact ? 2 : 24, left: compact ? 0 : 32 }}
         animationDuration={REVEAL_MS}
       >
         <PatternPreset id={id} preset="circles-dense" color="var(--chart-1)" />
@@ -384,6 +393,7 @@ export function MentionsChart({
         <PatternArea dataKey="total" fill={`url(#${id})`} fadeBottom={90} />
         <Area dataKey="total" fillOpacity={0} strokeWidth={1.6} stroke="var(--chart-1)" />
         {!compact && points[peak]?.total > 0 && <PointMarker index={peak} valueKey="total" />}
+        {!compact && <YAxis numTicks={3} />}
         {!compact && !dayGrid && <XAxis labels={ticks} numTicks={6} />}
         <ChartTooltip
           dateLabels={titles}
@@ -394,9 +404,11 @@ export function MentionsChart({
             { color: "var(--color-pos)", label: labels.positive, value: n.format(Number(p.positive)) },
             { color: "var(--color-neu)", label: labels.neutral, value: n.format(Number(p.neutral)) },
             { color: "var(--color-neg)", label: labels.negative, value: n.format(Number(p.negative)) },
+            ...(Number(p.total) > Number(p.positive) + Number(p.negative) + Number(p.neutral) ? [{ color: "var(--color-faint)", label: locale === "ar" ? "غير مصنف" : "Unclassified", value: n.format(Number(p.total) - Number(p.positive) - Number(p.negative) - Number(p.neutral)) }] : []),
           ]}
         />
       </AreaChart>
+      {!compact && <p className="mt-2 text-[11.5px] text-faint" dir={locale === "ar" ? "rtl" : "ltr"}>{fmtTitle(points[0].t, unit, locale)} – {fmtTitle(points.at(-1)!.t, unit, locale)} · {locale === "ar" ? (aggregate ? "منشورات كل ٤ ساعات" : "منشورات لكل فترة") : (aggregate ? "Posts per 4 hours" : `Posts per ${unit}`)}</p>}
     </div>
   );
 }
@@ -429,12 +441,15 @@ export function NetEventChart({
   const id = usePatternId("ne");
   const data = useMemo(() => points.map((p) => ({ net: p.net, t: p.t, date: new Date(`${p.t}Z`) })), [points]);
   const titles = useMemo(() => data.map((p) => fmtTitle(p.t, unit, locale)), [data, unit, locale]);
+  const ticks = data.map(p => fmtTick(p.t, unit, locale));
   if (data.length < 2) return null;
   return (
     <div dir="ltr" role="img" aria-label={label}>
-      <AreaChart data={data} aspectRatio="auto" style={{ height }} margin={{ top: 30, right: 0, bottom: 8, left: 0 }} animationDuration={REVEAL_MS}>
+      <AreaChart data={data} aspectRatio="auto" style={{ height }} margin={{ top: 30, right: 0, bottom: 28, left: 36 }} animationDuration={REVEAL_MS}>
         <PatternPreset id={id} preset="circles-dense" color="var(--chart-1)" />
         <ZeroGuide />
+        <YAxis numTicks={4} formatLargeNumbers={false} />
+        <XAxis labels={ticks} numTicks={4} />
         <PatternArea dataKey="net" fill={`url(#${id})`} fadeBottom={90} />
         <Area dataKey="net" fillOpacity={0} strokeWidth={1.8} stroke="var(--chart-1)" />
         {event && <PointMarker index={event.index} valueKey="net" label={event.label} top={-12} />}
@@ -445,6 +460,7 @@ export function NetEventChart({
           rows={(p) => [{ color: "var(--chart-1)", label, value: `${Number(p.net) > 0 ? "+" : Number(p.net) < 0 ? "−" : ""}${Math.abs(Number(p.net))}` }]}
         />
       </AreaChart>
+      <p className="mt-2 text-[11.5px] text-faint" dir={locale === "ar" ? "rtl" : "ltr"}>{titles[0]} – {titles.at(-1)} · {locale === "ar" ? "صافي المشاعر من −١٠٠ إلى +١٠٠؛ الصفر متوازن. الفترات الخالية لا تعني الحياد." : "Net sentiment: −100 to +100; 0 is balanced. Empty periods do not establish neutrality."}</p>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { draftDiff } from "@/lib/draft-diff";
+import { ReviewComments } from "./review-comments";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Loader2 } from "lucide-react";
@@ -17,7 +19,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const d = await db.contentDraft.findFirst({
     where: { id, organizationId: user.organizationId },
-    include: { format: { select: { id: true, nameEn: true, nameAr: true } }, versions: { orderBy: { n: "desc" }, take: 30, select: { id: true, n: true, kind: true, instruction: true, createdById: true, createdAt: true } } },
+    include: { format: { select: { id: true, nameEn: true, nameAr: true } }, versions: { orderBy: { n: "desc" }, take: 31, select: { content: true, id: true, n: true, kind: true, instruction: true, createdById: true, createdAt: true } } },
   });
   if (!d) notFound();
   const P = t.draftPage;
@@ -25,7 +27,8 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
   const authors = new Map(
     (await db.user.findMany({ where: { id: { in: [...new Set(d.versions.map((v) => v.createdById).filter((x): x is string => Boolean(x)))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name.split(" ")[0]]),
   );
-  const versions: VersionRow[] = d.versions.map((v) => ({
+  const versions: VersionRow[] = d.versions.slice(0, 30).map((v, i) => ({
+    diff: d.versions[i + 1] ? draftDiff(d.versions[i + 1].content, v.content) : null,
     n: v.n,
     when: timeAgo(v.createdAt, locale),
     what:
@@ -43,6 +46,11 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
     quoted: v.kind === "REWRITE",
   }));
 
+  const [commentRows, team] = await Promise.all([
+    db.auditLog.findMany({ where: { organizationId: user.organizationId, target: id, action: "draft.comment" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 30 }),
+    db.user.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true, role: true, active: true } }),
+  ]);
+  const comments = commentRows.map(r => { const m = r.meta as { text: string; revision: number; reviewerName?: string }; return { id: r.id, text: m.text, revision: m.revision, reviewer: m.reviewerName ?? null, author: team.find(u => u.id === r.userId)?.name ?? "—", when: timeAgo(r.createdAt, locale) }; });
   const back = (
     <Link key="back" href="/studio?tab=drafts" className="-ms-1.5 inline-flex h-9 items-center gap-1.5 rounded-[10px] ps-1.5 pe-2.5 text-[14px] text-muted transition-colors hover:text-ink max-md:h-11">
       <ChevronLeft aria-hidden className="h-4 w-4 rtl:rotate-180" strokeWidth={1.7} />
@@ -75,6 +83,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
             canApprove={hasRole(user, "ADMIN")}
             aiOff={aiEnabled() ? null : t.assistant.disabled}
             versions={versions}
+            reviewPanel={<ReviewComments id={id} revision={d.revision} locale={locale} canEdit={hasRole(user, "ANALYST")} comments={comments} reviewers={team.filter(u => u.active && ["OWNER", "ADMIN"].includes(u.role))} />}
             locale={locale}
             P={P}
             S={t.studio.draft}

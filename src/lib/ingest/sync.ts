@@ -89,6 +89,7 @@ export async function syncMonitor(monitorId: string, jobKey: string = randomUUID
           observedAt: new Date(),
           lang: post.lang ?? guessLang(post.text),
           ...(demo && {
+            classificationSource: "SAMPLE",
             sentiment: demo.sentiment,
             sentimentScore: demo.sentimentScore,
             topics: demo.topics.map(([k]) => k),
@@ -124,11 +125,13 @@ export async function syncMonitor(monitorId: string, jobKey: string = randomUUID
           const exists = await tx.mention.findUnique({ where, select: { id: true } });
           if (exists) {
             // Preserve enrichment, assignments, notes, and reply history.
-            await tx.mention.update({ where, data: { likes: post.likes, comments: post.comments, shares: post.shares, views: post.views, authorFollowers: post.authorFollowers, observedAt: post.observedAt } });
+            // Shared metrics are refreshed below for every capture of this post.
           } else if (remaining > 0) {
-            await tx.mention.create({ data: post });
+            const priorCapture = await tx.mention.findFirst({ where: { organizationId: m.organizationId, platform, externalId: post.externalId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { status: true, assignedToId: true, repliedAt: true, note: true } });
+            await tx.mention.create({ data: { ...post, ...(priorCapture ?? {}) } });
             remaining--; count++;
           } else skipped++;
+          await tx.mention.updateMany({ where: { organizationId: m.organizationId, platform, externalId: post.externalId, observedAt: { lte: post.observedAt } }, data: { likes: post.likes, comments: post.comments, shares: post.shares, views: post.views, authorFollowers: post.authorFollowers, observedAt: post.observedAt } });
         }
         return { count, skipped };
       }, { timeout: 30_000 });

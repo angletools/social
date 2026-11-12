@@ -1,3 +1,5 @@
+import { MetricNotes } from "@/components/metric-notes";
+import { countUniqueMentions } from "@/lib/mention-query";
 import { getInboxPage, inboxWhere } from "@/lib/inbox";
 import Link from "next/link";
 import { Radar } from "lucide-react";
@@ -64,6 +66,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const showOnboarding = !org.onboardingDoneAt && steps.some((s) => !s.done) && hasRole(user, "ADMIN");
 
   const header = (
+    <>
     <header className="flex items-end justify-between gap-5">
       <div className="min-w-0">
         <div className="text-[13px] text-faint md:text-sm">{formatDate(new Date(), locale, { dateStyle: undefined, weekday: "long", day: "numeric", month: "long" }, tz)}</div>
@@ -75,6 +78,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </div>
       )}
     </header>
+      <MetricNotes locale={locale} />
+    </>
   );
 
   if (monitorCount === 0) {
@@ -98,7 +103,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     getTopAuthors(scope, 5),
     getInboxPage(orgId, { pageSize: 3 }),
     db.report.findFirst({ where: { organizationId: orgId, kind: "brief" }, orderBy: { createdAt: "desc" } }),
-    db.mention.count({ where: inboxWhere(orgId) }),
+    countUniqueMentions(inboxWhere(orgId)),
     getChurnSignals(scope),
     getTrendingFormat(orgId),
   ]);

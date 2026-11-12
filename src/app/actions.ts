@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import type { AlertKind, Dialect, MentionStatus, MonitorType, Platform, Role, Sentiment } from "@prisma/client";
+import type { AlertKind, Dialect, MentionStatus, MonitorType, Platform, Sentiment } from "@prisma/client";
 import { db } from "@/lib/db";
 import { audit, createSession, destroySession, getCurrentUser, hashPassword, requireRole, verifyPassword } from "@/lib/auth";
 import { LOCALE_COOKIE } from "@/lib/i18n";
 import { enqueue, QUEUES } from "@/lib/queue";
 
-export type ActionResult = { ok: true; message?: string; id?: string } | { ok: false; error: string };
+export type ActionResult = { ok: true; message?: string; id?: string; inviteUrl?: string } | { ok: false; error: string };
 
 const PLATFORMS = ["X", "INSTAGRAM", "TIKTOK", "YOUTUBE", "FACEBOOK", "LINKEDIN"] as const;
 
@@ -138,7 +138,15 @@ export async function deleteMonitor(id: string) {
 
 export async function setMentionStatus(ids: string[], status: MentionStatus) {
   const user = await requireRole("ANALYST");
-  await db.mention.updateMany({ where: { id: { in: ids }, organizationId: user.organizationId }, data: { status } });
+  const input = z.object({ ids: z.array(z.string()).min(1).max(200), status: z.enum(["NEW", "REVIEWED", "FLAGGED", "ARCHIVED"]) }).parse({ ids, status });
+  await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+    const rows = await tx.mention.findMany({ where: { id: { in: input.ids }, organizationId: user.organizationId }, select: { id: true, platform: true, externalId: true } });
+    if (rows.length !== new Set(input.ids).size) throw new Error("NOT_FOUND");
+    await tx.mention.updateMany({ where: { organizationId: user.organizationId, OR: rows.map(r => ({ platform: r.platform, externalId: r.externalId })) }, data: { status: input.status } });
+    await tx.auditLog.createMany({ data: rows.map(r => ({ organizationId: user.organizationId, userId: user.id, action: "mention.status", target: r.id, meta: { status: input.status } })) });
+  });
+  revalidatePath("/inbox");
   revalidatePath("/mentions");
 }
 
@@ -149,6 +157,7 @@ const AlertInput = z.object({
   defaultName: z.string().trim().max(80).optional(),
   kind: z.enum(["NEGATIVE_SPIKE", "VOLUME_SPIKE", "KEYWORD", "HIGH_REACH", "RISK", "CHURN_RISK"]),
   monitorId: z.string().optional(),
+  minimumVolume: z.coerce.number().int().min(5).max(10000).default(20),
   threshold: z.coerce.number().min(0).max(1_000_000_000).default(0),
   windowMinutes: z.coerce.number().int().min(15).max(10080).default(60),
   keyword: z.string().trim().max(200).optional(),
@@ -187,6 +196,7 @@ export async function createAlert(_: unknown, form: FormData): Promise<ActionRes
       kind: d.kind as AlertKind,
       monitorId: d.monitorId || null,
       threshold: d.threshold,
+      minimumVolume: d.minimumVolume,
       windowMinutes: d.windowMinutes,
       keyword: d.kind === "KEYWORD" ? d.keyword : null,
       emails,
@@ -236,7 +246,7 @@ export async function createReport(_: unknown, form: FormData): Promise<ActionRe
       : ({ 1: "last 24 hours" } as Record<number, string>)[days] ?? `last ${days} days`;
   const title = `${monitor?.name ?? (locale === "ar" ? "كل المراقبات" : "All monitors")} · ${range}`;
   const r = await db.report.create({
-    data: { organizationId: user.organizationId, monitorId, title, locale, periodStart: start, periodEnd: end, createdById: user.id },
+    data: { organizationId: user.organizationId, kind: form.get("statisticsOnly") === "on" ? "statistics" : "report", monitorId, title, locale, periodStart: start, periodEnd: end, createdById: user.id },
   });
   await enqueue(QUEUES.report, { reportId: r.id });
   await audit(user, "report.create", r.id);
@@ -344,32 +354,28 @@ export async function updateOrganization(_: unknown, form: FormData): Promise<Ac
 
 export async function addMember(_: unknown, form: FormData): Promise<ActionResult> {
   const user = await requireRole("ADMIN");
-  const parsed = z
-    .object({
-      name: z.string().trim().min(1).max(80),
-      email: z.email(),
-      role: z.enum(["ADMIN", "ANALYST", "VIEWER"]),
-      password: z.string().min(10).max(200),
-    })
-    .safeParse(Object.fromEntries(form.entries()));
+  const parsed = z.object({ name: z.string().trim().min(1).max(80), email: z.email(), role: z.enum(["ADMIN", "ANALYST", "VIEWER"]) }).strict().safeParse(Object.fromEntries(form.entries()));
   if (!parsed.success) return { ok: false, error: "invalid" };
-  const seats = await db.user.count({ where: { organizationId: user.organizationId, active: true } });
-  if (seats >= user.organization.seatLimit) return { ok: false, error: "seats" };
+  const { accessLink, newAccessToken, tokenDigest } = await import("@/lib/access-tokens");
+  const token = newAccessToken(), inviteUrl = accessLink(token);
+  const passwordHash = await hashPassword(newAccessToken());
   const email = parsed.data.email.toLowerCase();
-  if (await db.user.findUnique({ where: { email } })) return { ok: false, error: "exists" };
-  await db.user.create({
-    data: {
-      organizationId: user.organizationId,
-      name: parsed.data.name,
-      email,
-      role: parsed.data.role as Role,
-      locale: user.locale,
-      passwordHash: await hashPassword(parsed.data.password),
-    },
-  });
-  await audit(user, "member.add", email, { role: parsed.data.role });
+  try {
+    await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: user.organizationId } });
+      const seats = await tx.user.count({ where: { organizationId: user.organizationId, OR: [{ active: true }, { accessTokens: { some: { purpose: "INVITE", expiresAt: { gt: new Date() } } } }] } });
+      const existing = await tx.user.findUnique({ where: { email }, include: { accessTokens: { where: { purpose: "INVITE", expiresAt: { gt: new Date() } } } } });
+      if (existing && (existing.organizationId !== user.organizationId || existing.active || existing.role === "OWNER")) throw new Error("exists");
+      if (seats + (existing?.accessTokens.length ? 0 : 1) > org.seatLimit) throw new Error("seats");
+      const member = existing ? await tx.user.update({ where: { id: existing.id }, data: { name: parsed.data.name, role: parsed.data.role, passwordHash } }) : await tx.user.create({ data: { organizationId: user.organizationId, ...parsed.data, email, locale: user.locale, passwordHash, active: false } });
+      await tx.accessToken.deleteMany({ where: { userId: member.id } });
+      await tx.accessToken.create({ data: { userId: member.id, purpose: "INVITE", tokenHash: tokenDigest(token), expiresAt: new Date(Date.now() + 48 * 3600_000) } });
+      await tx.auditLog.create({ data: { organizationId: user.organizationId, userId: user.id, action: "member.invited", target: member.id, meta: { role: member.role } } });
+    });
+  } catch (e) { return { ok: false, error: e instanceof Error && ["seats", "exists"].includes(e.message) ? e.message : "failed" }; }
   revalidatePath("/settings");
-  return { ok: true };
+  return { ok: true, inviteUrl };
 }
 
 export async function updateMember(id: string, change: unknown) {
@@ -380,9 +386,17 @@ export async function updateMember(id: string, change: unknown) {
   if (!target || target.role === "OWNER" || target.id === user.id) throw new Error("FORBIDDEN");
   const data = parsed.data;
   await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+    if (data.active === true && !target.active) {
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: user.organizationId } });
+      if (await tx.user.count({ where: { organizationId: org.id, active: true } }) >= org.seatLimit) throw new Error("SEAT_LIMIT");
+    }
     const result = await tx.user.updateMany({ where: { id, organizationId: user.organizationId, role: { not: "OWNER" } }, data });
     if (!result.count) throw new Error("FORBIDDEN");
-    if (data.active === false) await tx.session.deleteMany({ where: { userId: id } });
+    if (data.active === false) {
+      await tx.session.deleteMany({ where: { userId: id } });
+      await tx.accessToken.deleteMany({ where: { userId: id } });
+    }
   });
   await audit(user, "member.update", target.email, data);
   revalidatePath("/settings");
@@ -422,29 +436,26 @@ export async function draftRepliesAction(mentionId: string, instruction?: string
 /** Saves the final reply text and marks the mention as replied (the team posts it on the platform). */
 export async function markReplied(mentionId: string, text: string, replyId?: string) {
   const user = await requireRole("ANALYST");
-  const m = await db.mention.findFirst({ where: { id: mentionId, organizationId: user.organizationId } });
-  if (!m) return { ok: false as const, error: "not_found" };
-  const clean = text.trim().slice(0, 2000);
-  if (replyId) {
-    await db.replyDraft.updateMany({
-      where: { id: replyId, organizationId: user.organizationId },
-      data: { text: clean, status: "POSTED", postedAt: new Date(), approvedById: user.id },
-    });
-  } else if (clean) {
-    await db.replyDraft.create({
-      data: { organizationId: user.organizationId, mentionId, text: clean, status: "POSTED", postedAt: new Date(), createdById: user.id, approvedById: user.id },
-    });
-  }
-  await db.replyDraft.updateMany({ where: { mentionId, status: "DRAFT" }, data: { status: "DISCARDED" } });
-  await db.mention.update({ where: { id: mentionId }, data: { repliedAt: new Date(), status: "REVIEWED" } });
-  await audit(user, "reply.posted", mentionId);
+  const clean = z.string().trim().max(2000).parse(text);
+  await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+    const m = await tx.mention.findFirst({ where: { id: mentionId, organizationId: user.organizationId } });
+    if (!m) throw new Error("NOT_FOUND");
+    const identity = { organizationId: user.organizationId, platform: m.platform, externalId: m.externalId };
+    if (replyId) {
+      const updated = await tx.replyDraft.updateMany({ where: { id: replyId, mentionId, organizationId: user.organizationId, status: "DRAFT" }, data: { text: clean, status: "POSTED", postedAt: new Date(), approvedById: user.id } });
+      if (!updated.count) throw new Error("INVALID_REPLY");
+    } else if (clean) await tx.replyDraft.create({ data: { organizationId: user.organizationId, mentionId, text: clean, status: "POSTED", postedAt: new Date(), createdById: user.id, approvedById: user.id } });
+    await tx.replyDraft.updateMany({ where: { mention: identity, status: "DRAFT" }, data: { status: "DISCARDED" } });
+    await tx.mention.updateMany({ where: identity, data: { repliedAt: new Date(), status: "REVIEWED" } });
+    await tx.auditLog.create({ data: { organizationId: user.organizationId, userId: user.id, action: "mention.replied", target: mentionId } });
+  });
   revalidatePath("/inbox");
   return { ok: true as const };
 }
 
 export async function skipInboxItem(mentionId: string) {
-  const user = await requireRole("ANALYST");
-  await db.mention.updateMany({ where: { id: mentionId, organizationId: user.organizationId }, data: { status: "ARCHIVED" } });
+  await setMentionStatus([mentionId], "ARCHIVED");
   revalidatePath("/inbox");
 }
 
@@ -573,7 +584,7 @@ export async function learnVoiceAction(_: unknown, form: FormData): Promise<Acti
   if (samples.length < 3) return { ok: false, error: "samples" };
   try {
     const { learnVoice } = await import("@/lib/ai/voice");
-    const v = await learnVoice(samples.slice(0, 40), user.organization.brandContext);
+    const v = await learnVoice(user.organizationId, samples.slice(0, 40), user.organization.brandContext);
     const isFirst = (await db.brandVoice.count({ where: { organizationId: user.organizationId } })) === 0;
     const row = await db.brandVoice.create({
       data: {
@@ -716,10 +727,17 @@ export async function changePassword(_: unknown, form: FormData): Promise<Action
   const user = await requireRole("VIEWER");
   const current = String(form.get("current") ?? "");
   const next = String(form.get("next") ?? "");
-  if (next.length < 10 || next.length > 200) return { ok: false, error: "short" };
+  const { AccessPassword } = await import("@/lib/access-tokens");
+  if (!AccessPassword.safeParse(next).success) return { ok: false, error: "short" };
   if (!(await verifyPassword(current, user.passwordHash))) return { ok: false, error: "wrong" };
-  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(next) } });
-  await db.session.deleteMany({ where: { userId: user.id } });
+  const passwordHash = await hashPassword(next);
+  await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+    const updated = await tx.user.updateMany({ where: { id: user.id, passwordHash: user.passwordHash, active: true }, data: { passwordHash } });
+    if (!updated.count) throw new Error("PASSWORD_CHANGED");
+    await tx.session.deleteMany({ where: { userId: user.id } });
+    await tx.accessToken.deleteMany({ where: { userId: user.id } });
+  });
   await createSession(user.id);
   await audit(user, "auth.password_changed");
   return { ok: true };
@@ -729,31 +747,26 @@ export async function changePassword(_: unknown, form: FormData): Promise<Action
 
 /** Assigns a post to a teammate (or clears it) and notifies the assignee. */
 export async function assignMention(mentionId: string, assigneeId: string | null) {
+  const result = await assignMentions([mentionId], assigneeId);
+  return { ok: true as const, name: result.name };
+}
+
+export async function assignMentions(ids: string[], assigneeId: string | null) {
   const user = await requireRole("ANALYST");
-  const m = await db.mention.findFirst({ where: { id: mentionId, organizationId: user.organizationId } });
-  if (!m) return { ok: false as const, error: "not_found" };
-  const assignee = assigneeId ? await db.user.findFirst({ where: { id: assigneeId, organizationId: user.organizationId, active: true } }) : null;
-  if (assigneeId && !assignee) return { ok: false as const, error: "invalid" };
-  await db.mention.update({ where: { id: m.id }, data: { assignedToId: assignee?.id ?? null } });
-  if (assignee && assignee.id !== user.id) {
-    const snippet = m.text.slice(0, 160);
-    await db.notification.create({
-      data: {
-        organizationId: user.organizationId,
-        userId: assignee.id,
-        severity: "INFO",
-        titleEn: `${user.name} assigned you a post`,
-        titleAr: `أسند إليك ${user.name} منشورًا`,
-        bodyEn: snippet,
-        bodyAr: snippet,
-        link: `/inbox?m=${m.id}`,
-      },
-    });
-  }
-  await audit(user, "mention.assign", m.id, { to: assignee?.email ?? null });
-  revalidatePath("/inbox");
-  revalidatePath("/mentions");
-  return { ok: true as const, name: assignee?.name ?? null };
+  const input = z.object({ ids: z.array(z.string()).min(1).max(200), assigneeId: z.string().nullable() }).parse({ ids, assigneeId });
+  const result = await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${user.organizationId} FOR UPDATE`;
+    const assignee = input.assigneeId ? await tx.user.findFirst({ where: { id: input.assigneeId, organizationId: user.organizationId, active: true, role: { not: "VIEWER" } } }) : null;
+    if (input.assigneeId && !assignee) throw new Error("INVALID_ASSIGNEE");
+    const rows = await tx.mention.findMany({ where: { id: { in: input.ids }, organizationId: user.organizationId }, select: { id: true, platform: true, externalId: true } });
+    if (rows.length !== new Set(input.ids).size) throw new Error("NOT_FOUND");
+    await tx.mention.updateMany({ where: { organizationId: user.organizationId, OR: rows.map(r => ({ platform: r.platform, externalId: r.externalId })) }, data: { assignedToId: assignee?.id ?? null } });
+    await tx.auditLog.createMany({ data: rows.map(r => ({ organizationId: user.organizationId, userId: user.id, action: "mention.assign", target: r.id, meta: { to: assignee?.name ?? null } })) });
+    if (assignee && assignee.id !== user.id) await tx.notification.create({ data: { organizationId: user.organizationId, userId: assignee.id, severity: "INFO", titleEn: `${user.name} assigned you ${rows.length} post(s)`, titleAr: `${user.name} أسند إليك ${rows.length} منشورًا`, bodyEn: "Open your Inbox to review the handoff.", bodyAr: "افتح صندوق الوارد لمراجعة الإسناد.", link: rows.length === 1 ? `/inbox?m=${rows[0].id}` : "/inbox?who=me" } });
+    return { name: assignee?.name ?? null };
+  });
+  revalidatePath("/inbox"); revalidatePath("/mentions");
+  return result;
 }
 
 // ---------- assistant ----------
@@ -790,4 +803,13 @@ export async function dismissOnboarding() {
   const user = await requireRole("VIEWER");
   await db.organization.update({ where: { id: user.organizationId }, data: { onboardingDoneAt: new Date() } });
   revalidatePath("/");
+}
+
+export async function previewAlert(id: string) {
+  const user = await requireRole("VIEWER");
+  const rule = await db.alertRule.findFirst({ where: { id, organizationId: user.organizationId } });
+  if (!rule) throw new Error("NOT_FOUND");
+  const { checkRule } = await import("@/lib/alerts");
+  const hit = await checkRule({ ...rule, lastTriggeredAt: null });
+  return { hit, minimumVolume: rule.minimumVolume, windowMinutes: rule.windowMinutes, cooldownMinutes: rule.cooldownMinutes };
 }
