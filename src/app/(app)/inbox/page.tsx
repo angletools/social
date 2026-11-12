@@ -7,7 +7,7 @@ import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatNumber, guessLang, timeAgo, timeShort } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import type { Translation } from "@/lib/ai/engage";
-import { INBOX_INTENTS, inboxPriority } from "@/lib/analytics";
+import { getInboxPage } from "@/lib/inbox";
 import { PlatformIcon } from "@/components/platform";
 import { SolidAvatar } from "@/components/avatar";
 import { ReplyComposer } from "./reply-composer";
@@ -26,46 +26,24 @@ const PILL_TONE: Record<QueueItem["tone"], string> = {
   faint: "bg-sunken text-muted",
 };
 
-export default async function InboxPage({ searchParams }: { searchParams: Promise<{ m?: string; who?: string }> }) {
+export default async function InboxPage({ searchParams }: { searchParams: Promise<{ m?: string; who?: string; page?: string; scope?: string }> }) {
   const user = await requireUser();
   const { t, locale } = await getDict();
-  const { m: selectedId, who } = await searchParams;
+  const { m: selectedId, who, page: pageParam, scope } = await searchParams;
+  const allMonitors = scope === "all";
   const mine = who === "me";
   const orgId = user.organizationId;
   const include = { assignedTo: { select: { id: true, name: true } } } as const;
 
-  const where = {
-    organizationId: orgId,
-    relevant: true,
-    repliedAt: null,
-    status: { not: "ARCHIVED" as const },
-    publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
-    OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
-    ...(mine && { assignedToId: user.id }),
-  };
-  const [candidates, waitingCount, members] = await Promise.all([
-    db.mention.findMany({
-      where: {
-        organizationId: orgId,
-        relevant: true,
-        repliedAt: null,
-        status: { not: "ARCHIVED" },
-        publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
-        OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
-        ...(mine && { assignedToId: user.id }),
-      },
-      orderBy: { publishedAt: "desc" },
-      take: 400,
-      include,
-    }),
-    db.mention.count({ where }),
+  const [result, members] = await Promise.all([
+    getInboxPage(orgId, { userId: mine ? user.id : undefined, allMonitors, page: Number(pageParam ?? 1) }),
     db.user.findMany({ where: { organizationId: orgId, active: true, role: { not: "VIEWER" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
-  const queue = candidates
-    .map((m) => ({ m, p: inboxPriority(m) }))
-    .sort((a, b) => b.p - a.p)
-    .slice(0, 60)
-    .map((x) => x.m);
+  const queue = result.items;
+  const waitingCount = result.total;
+  const href = (changes: Record<string, string> = {}) => `/inbox?${new URLSearchParams({ ...(mine && { who: "me" }), ...(allMonitors && { scope: "all" }), page: String(result.page), ...changes })}`;
+  const scopeControls = <div className="flex gap-4 px-6 py-2 text-xs text-muted"><Link href={href({ scope: "own", page: "1" })} aria-current={!allMonitors ? "page" : undefined} className={!allMonitors ? "font-semibold text-ink" : ""}>{t.inbox.ownBrand}</Link><Link href={href({ scope: "all", page: "1" })} aria-current={allMonitors ? "page" : undefined} className={allMonitors ? "font-semibold text-ink" : ""}>{t.inbox.allMonitors}</Link></div>;
+  const pagination = result.pages > 1 ? <nav aria-label={t.inbox.pages} className="flex items-center justify-between border-t border-line px-6 py-3 text-sm">{result.page > 1 ? <Link href={href({ page: String(result.page - 1) })}>{t.common.prev}</Link> : <span />}<span className="text-muted">{result.page} / {result.pages}</span>{result.page < result.pages ? <Link href={href({ page: String(result.page + 1) })}>{t.common.next}</Link> : <span />}</nav> : null;
 
   const selected =
     (selectedId &&
@@ -74,7 +52,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     null;
   const replies = selected ? await db.replyDraft.findMany({ where: { mentionId: selected.id }, orderBy: { createdAt: "desc" } }) : [];
   const canAct = hasRole(user, "ANALYST");
-  const base = mine ? "/inbox?who=me&" : "/inbox?";
+  const base = `${href()}&`;
   const tone = (m: { intent: Intent | null; isRisk: boolean }): QueueItem["tone"] => (m.isRisk ? "neg" : (m.intent && TONE[m.intent]) || "faint");
 
   const items: QueueItem[] = queue.map((m) => ({
@@ -105,14 +83,15 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         </div>
         <div role="tablist" className="flex gap-5 border-b border-line px-6 md:px-10">
           {[
-            { label: t.inbox.everyone, href: "/inbox", active: !mine },
-            { label: t.inbox.mine, href: "/inbox?who=me", active: mine },
+            { label: t.inbox.everyone, href: href({ who: "all", page: "1" }), active: !mine },
+            { label: t.inbox.mine, href: href({ who: "me", page: "1" }), active: mine },
           ].map((x) => (
             <Link key={x.href} role="tab" aria-selected={x.active} prefetch={false} href={x.href} className={cn("-mb-px flex h-11 items-center border-b-2 text-sm", x.active ? "border-ink font-semibold text-ink" : "border-transparent text-faint hover:text-ink")}>
               {x.label}
             </Link>
           ))}
         </div>
+        {scopeControls}
         <CaughtUp
           title={C.title}
           body={C.body}
@@ -132,6 +111,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   return (
     <div className="full-bleed flex min-h-[calc(100dvh-4rem)] flex-1 flex-col md:min-h-0 md:flex-row">
       <Queue
+        controls={scopeControls}
+        pagination={pagination}
         items={items}
         selectedId={selected?.id ?? null}
         base={base}
@@ -140,8 +121,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         empty={t.inbox.empty}
         hiddenOnPhone={Boolean(selectedId)}
         tabs={[
-          { label: t.inbox.everyone, href: "/inbox", active: !mine },
-          { label: t.inbox.mine, href: "/inbox?who=me", active: mine },
+          { label: t.inbox.everyone, href: href({ who: "all", page: "1" }), active: !mine },
+          { label: t.inbox.mine, href: href({ who: "me", page: "1" }), active: mine },
         ]}
       />
 

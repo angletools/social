@@ -1,7 +1,8 @@
 import { Prisma, type Dialect, type Intent, type Platform, type Sentiment } from "@prisma/client";
 import { db } from "./db";
+import { inboxWhere } from "./inbox";
 
-export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform; tz?: string };
+export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform; tz?: string; start?: Date; end?: Date };
 
 const DEFAULT_TZ = "Asia/Riyadh";
 const safeTz = (tz?: string) => (tz && /^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/.test(tz) ? tz : DEFAULT_TZ);
@@ -13,9 +14,11 @@ export const parseDays = (v?: string | string[]) => {
 };
 
 function window(s: Scope, previous = false) {
-  const end = new Date(Date.now() - (previous ? s.days * 86400_000 : 0));
-  const start = new Date(end.getTime() - s.days * 86400_000);
-  return { start, end };
+  const end = s.end ?? new Date();
+  const start = s.start ?? new Date(end.getTime() - s.days * 86400_000);
+  const duration = end.getTime() - start.getTime();
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error("INVALID_REPORT_PERIOD");
+  return previous ? { start: new Date(start.getTime() - duration), end: start } : { start, end };
 }
 
 /** SQL WHERE for a scope's current (or previous equal) window. */
@@ -24,7 +27,9 @@ export function cond(s: Scope, previous = false) {
   const parts = [
     Prisma.sql`m."organizationId" = ${s.orgId}`,
     Prisma.sql`m."relevant" = true`,
-    Prisma.sql`m."publishedAt" >= ${start} AND m."publishedAt" < ${end}`,
+    // Prisma's timestamp columns store UTC without an offset. Bind ISO text so
+    // the database session timezone cannot shift either comparison boundary.
+    Prisma.sql`m."publishedAt" >= ${start.toISOString()}::timestamp AND m."publishedAt" < ${end.toISOString()}::timestamp`,
   ];
   if (s.monitorId) parts.push(Prisma.sql`m."monitorId" = ${s.monitorId}`);
   if (s.platform) parts.push(Prisma.sql`m."platform" = ${s.platform}::"Platform"`);
@@ -104,8 +109,8 @@ export async function getTimeseries(s: Scope, opts: { unit?: "hour" | "day" } = 
   >`
     WITH buckets AS (
       SELECT generate_series(
-        ${local(Prisma.sql`${start}::timestamp`)},
-        ${local(Prisma.sql`${end}::timestamp`)},
+        ${local(Prisma.sql`${start.toISOString()}::timestamp`)},
+        ${local(Prisma.sql`${end.toISOString()}::timestamp`)},
         ${`1 ${unit}`}::interval
       ) AS b
     )
@@ -168,17 +173,16 @@ export async function getTopTopics(s: Scope, limit = 8) {
 }
 
 export async function getTopAuthors(s: Scope, limit = 6) {
-  // One row per person: the same handle on several platforms is merged; the
-  // platform shown is where they posted most.
+  // Handles identify accounts only within their own platform.
   const rows = await db.$queryRaw<
     { handle: string; name: string | null; platform: Platform; followers: number | null; verified: boolean; n: bigint; eng: bigint; score: number | null }[]
   >`
     SELECT m."authorHandle" AS handle, max(m."authorName") AS name,
-           mode() WITHIN GROUP (ORDER BY m.platform) AS platform,
+           m.platform AS platform,
            max(m."authorFollowers") AS followers, bool_or(m."authorVerified") AS verified,
            count(*) AS n, sum(m.likes + m.comments + m.shares) AS eng, avg(m."sentimentScore") AS score
     FROM "Mention" m WHERE ${cond(s)} AND m."authorHandle" IS NOT NULL
-    GROUP BY m."authorHandle"
+    GROUP BY m.platform, m."authorHandle"
     ORDER BY max(coalesce(m."authorFollowers",0)) DESC, count(*) DESC LIMIT ${limit}`;
   return rows.map((r) => ({
     handle: r.handle,
@@ -301,11 +305,10 @@ export async function getTopSlang(s: Scope, limit = 12) {
 export const INBOX_INTENTS: Intent[] = ["CHURN_RISK", "COMPLAINT", "QUESTION", "PURCHASE_INTENT"];
 
 export async function getInboxStats(orgId: string) {
-  const since = new Date(Date.now() - 7 * 86400_000);
   const dayStart = new Date(Date.now() - 86400_000);
   const [awaiting, repliedToday, [rt]] = await Promise.all([
     db.mention.count({
-      where: { organizationId: orgId, relevant: true, repliedAt: null, status: { not: "ARCHIVED" }, publishedAt: { gte: since }, OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }] },
+      where: inboxWhere(orgId),
     }),
     db.mention.count({ where: { organizationId: orgId, repliedAt: { gte: dayStart } } }),
     db.$queryRaw<{ avg: number | null; p50: number | null }[]>`

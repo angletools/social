@@ -1,3 +1,4 @@
+import { getInboxPage, inboxWhere } from "@/lib/inbox";
 import Link from "next/link";
 import { Radar } from "lucide-react";
 import type { Platform } from "@prisma/client";
@@ -7,14 +8,12 @@ import { fmt, getDict } from "@/lib/i18n";
 import { cn, formatDate, formatNumber, hourIn, timeAgo, timeShort } from "@/lib/utils";
 import { aiEnabled } from "@/lib/ai/client";
 import {
-  INBOX_INTENTS,
   getKpis,
   getPlatformBreakdown,
   getShareOfVoice,
   getTimeseries,
   getTopAuthors,
   getTopTopics,
-  inboxPriority,
   parseDays,
 } from "@/lib/analytics";
 import { getChurnSignals, getTrendingFormat } from "@/lib/home";
@@ -97,37 +96,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     getTopTopics(scope, 5),
     getShareOfVoice(scope),
     getTopAuthors(scope, 5),
-    db.mention.findMany({
-      where: {
-        organizationId: orgId,
-        relevant: true,
-        repliedAt: null,
-        status: { notIn: ["ARCHIVED", "REVIEWED"] },
-        publishedAt: { gte: new Date(Date.now() - 3 * 86400_000) },
-        OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
-      },
-      orderBy: { publishedAt: "desc" },
-      take: 150,
-    }),
+    getInboxPage(orgId, { pageSize: 3 }),
     db.report.findFirst({ where: { organizationId: orgId, kind: "brief" }, orderBy: { createdAt: "desc" } }),
-    db.mention.count({
-      where: {
-        organizationId: orgId,
-        relevant: true,
-        repliedAt: null,
-        status: { not: "ARCHIVED" },
-        publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
-        OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
-      },
-    }),
+    db.mention.count({ where: inboxWhere(orgId) }),
     getChurnSignals(scope),
     getTrendingFormat(orgId),
   ]);
-  const attention = attentionPool
-    .map((m) => ({ m, p: inboxPriority(m) }))
-    .sort((a, b) => b.p - a.p)
-    .slice(0, 3)
-    .map((x) => x.m);
+  const attention = attentionPool.items;
   const briefContent = brief?.content as ReportContent | null;
   const pts = series.points;
   const comparable = kpis.previousMentions > 0;
@@ -437,15 +412,15 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             <PanelHead title={t.overview.topAuthors} />
             <ul>
               {authors.map((a, i) => (
-                <li key={a.handle} className={cn(i > 0 && "border-t border-line")}>
-                  <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(a.handle)}&days=${days}`} className="group flex items-center gap-3 py-2.5">
+                <li key={`${a.platform}:${a.handle}`} className={cn(i > 0 && "border-t border-line")}>
+                  <Link prefetch={false} href={`/mentions?q=${encodeURIComponent(a.handle)}&platform=${a.platform}&days=${days}`} className="group flex items-center gap-3 py-2.5">
                     <Avatar name={a.name ?? a.handle} seed={a.handle} size={32} />
                     <span className="flex min-w-0 flex-1 flex-col gap-px">
                       <span dir="auto" className="truncate text-[14px] font-medium group-hover:underline group-hover:decoration-line group-hover:underline-offset-4">
                         {a.name ?? a.handle}
                       </span>
                       <span className="truncate text-[12.5px] text-faint ltr-nums">
-                        {fmt(H.followersPosts, { followers: formatNumber(a.followers, locale), posts: formatNumber(a.mentions, locale) })}
+                        {t.platforms[a.platform]} · {fmt(H.followersPosts, { followers: formatNumber(a.followers, locale), posts: formatNumber(a.mentions, locale) })}
                       </span>
                     </span>
                     {a.avgSentiment !== null && (

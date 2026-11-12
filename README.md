@@ -57,11 +57,14 @@ Generic AI tools misread Gulf Arabic. angle social's classifier follows a region
 - **Worker heartbeat:** admins see a banner if background processing stops, and Settings → Data & AI connections shows worker, email and API status.
 - **Sign-in throttling** is stored in the database (8 failures per email or 40 per IP per 15 minutes), so it holds across restarts and multiple instances. Changing your password signs out your other sessions.
 - **Friendly error and 404 screens:** an error never shows raw stack traces.
-- **Nightly housekeeping** removes old sign-in attempts, expired sessions and old read notifications.
+- **Nightly housekeeping** removes old sign-in attempts, expired sessions and notifications older than 90 days that have no outstanding deliveries.
+- **Review integrity:** approvals refer to an immutable content revision. Edits, restores and rewrites clear approval; stale saves are rejected. Published is an internal handoff status, not a social-platform publishing action.
+- **Persistent Inbox:** all unresolved items remain reachable, with priority applied before paging. The default queue excludes competitor and topic monitors; All monitors includes them.
+- **Evidence and delivery:** report statistics and sampled posts are captured on the first attempt and reused on retries. Dates use one inclusive start/exclusive end window. Email/webhook attempts are durable, retry independently of alert cooldowns, and show their status in Alerts or Reports.
 
 ## Design
 
-Calm and editorial rather than template SaaS. The canvas is warm paper; primary actions are near-black ink; a deep palm green marks data and the current page; sand is a quiet highlight. Colour is reserved for meaning (sentiment, risk, intent). Type is IBM Plex Sans Arabic throughout, bundled with the app, with tabular figures for numbers. Platform logos are real; authors get initial avatars. Layouts mirror correctly in Arabic, and charts keep time reading left to right. Tokens live in `src/app/globals.css`.
+The current design uses a black navigation shell, warm neutral canvas, restrained coral accent, Urbanist for English, and IBM Plex Sans Arabic for Arabic. Fonts are bundled. Layouts mirror in Arabic, and charts keep time reading left to right. Tokens live in `src/app/globals.css`; status and metadata text use readable contrast in light and dark appearances.
 
 ## Architecture
 
@@ -103,8 +106,12 @@ Or with Docker: `docker compose up -d --build`.
 
 ### Demo mode vs live data
 
-- **No `MONID_API_KEY`** → monitors collect realistic sample posts. The brands (Nakhla Invest, Raya Trade, Dana Capital) are fictional. A "Demo data" badge is shown.
-- **With `MONID_API_KEY`** → each monitor runs a Monid scraper per platform (`POST /v1/run`, polled until complete). Default scrapers are in `src/lib/monid/sources.ts`. To check or change them:
+- **Seeded DEMO workspace** → monitors collect sample posts, even when Monid is configured. The brands (Nakhla Invest, Raya Trade, Dana Capital) are fictional. The Demo data badge remains visible on phones. Adding a key never converts sample data into live data.
+- **Empty LIVE workspace** → requires `MONID_API_KEY`. Without it collection fails visibly and never substitutes sample data. Workspace mode is immutable; create a separate live workspace instead of converting the demo. Every collected mention and trend post carries its source mode.
+
+  Set `WORKSPACE_NAME`, `WORKSPACE_SLUG`, `OWNER_EMAIL` and `OWNER_PASSWORD` (12+ characters) in your local, ignored environment, then run `npm run workspace:create`. Use a unique email and slug. This creates an empty workspace and owner; it does not copy or delete demo data. Remove the bootstrap password from the environment afterward.
+
+- **Live collection** runs a Monid scraper per platform (`POST /v1/run`, polled until complete). Retries resume an existing run ID when available; an ambiguous failed start is not automatically charged again. Successful resyncs refresh engagement counters while preserving assignment, notes and classifications. Last attempt and last successful sync are stored separately. Default scrapers are in `src/lib/monid/sources.ts`. To check or change them:
 
   ```bash
   npm run monid:discover                                  # list candidate endpoints per platform
@@ -121,6 +128,9 @@ Classification runs in batches of 25 posts at low effort. By default every AI fe
 ## Production checklist
 
 - Set `APP_URL`, `SMTP_URL` and `EMAIL_FROM` so alert emails and weekly reports go out.
+- Apply migrations with web and worker stopped before starting the updated release. The live-readiness migration labels known seeded workspaces DEMO and returns existing Approved drafts to In review because their original approved revision cannot be proven. Published history is preserved. Back up the database first.
+- Check a real collection, report and delivery with the intended provider accounts before live team reliance. Local regression tests use controlled providers and a loopback SMTP server.
+- Delivery means **accepted by the provider**, not confirmed receipt. Failed deliveries retry up to eight times with backoff; admins can retry them from Alerts/Reports. Sending claims expire and can be recovered after a worker crash. SMTP/webhooks are at-least-once: a crash after acceptance but before the database commit, or partial SMTP recipient acceptance, can cause a duplicate. Stable email Message-IDs help downstream deduplication but cannot guarantee it.
 
 - Host Postgres + app in-Kingdom if the client requires PDPL data residency.
 - Put the app behind HTTPS (cookies are `secure` in production) and set `APP_URL`.
@@ -130,4 +140,24 @@ Classification runs in batches of 25 posts at low effort. By default every AI fe
 
 ## Scripts
 
-`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `db:migrate`, `db:seed`, `monid:discover`, `eval:dialect`.
+`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `test:integration`, `db:migrate`, `db:seed`, `workspace:create`, `monid:discover`, `eval:dialect`.
+
+## Verification
+
+```bash
+npm ci
+npx prisma generate
+npm run typecheck
+npm run lint
+npm test
+# Use a separate disposable PostgreSQL database named rasd_test_*:
+DATABASE_URL="postgresql://user:password@localhost:5432/rasd_test_local" npx prisma migrate deploy
+DATABASE_URL="postgresql://user:password@localhost:5432/rasd_test_local" npm run test:integration
+npm run build
+```
+
+Integration tests refuse database names outside `rasd_test_*`. They exercise real PostgreSQL transactions, real session/role validation through a test request context, concurrent edits/collection/delivery, historical reports, complete Inbox paging, and a local SMTP server. They stub paid provider calls. The GitHub workflow runs the same gates on PostgreSQL 16; adding the workflow does not itself establish a remote CI pass.
+
+`postcss` and `deepmerge-ts` are pinned through npm overrides to patched versions without changing the major Next.js or Prisma versions. Revalidate the Prisma CLI, migrations, generation and application build when changing these overrides. Run `npm audit --omit=dev` when preparing a release.
+
+Remaining product work includes live Arabic-quality evaluation, classification provenance and controlled reprocessing, durable AI budgets/cancellation, cross-monitor post deduplication and explicit reach definitions, richer review diffs/comments, and tested production recovery. The local gates do not establish these capabilities.

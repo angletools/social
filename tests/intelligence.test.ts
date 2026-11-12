@@ -30,8 +30,12 @@ describe("pctChange", () => {
 });
 
 describe("rankDrivers", () => {
+  it("uses posts rather than tag assignments when each post has multiple topics", () => {
+    const d = rankDrivers([row("a", 10, 0, 10), row("b", 10, 0, 10)], "negative", 10);
+    expect(d.map(x => x.share)).toEqual([100, 100]);
+  });
   it("ranks topics by their share of negative conversation", () => {
-    const d = rankDrivers(rows, "negative");
+    const d = rankDrivers(rows, "negative", 128);
     expect(d.map((x) => x.key)).toEqual(["app-outage", "fees", "onboarding", "tiny", "cashback"]);
     expect(d[0].share).toBe(70.3); // 90 / 128
     expect(d[0].change).toBe(200);
@@ -39,12 +43,12 @@ describe("rankDrivers", () => {
     expect(d.reduce((a, x) => a + x.share, 0)).toBeCloseTo(100, 0);
   });
   it("ranks positive drivers and reports net sentiment", () => {
-    const d = rankDrivers(rows, "positive", 2);
+    const d = rankDrivers(rows, "positive", 94, 2);
     expect(d.map((x) => x.key)).toEqual(["onboarding", "cashback"]);
     expect(d[1].change).toBeNull();
     expect(d[0].net).toBe(70);
   });
-  it("is empty when there is no sentiment of that kind", () => expect(rankDrivers([row("a", 5, 0, 0)], "negative")).toEqual([]));
+  it("is empty when there is no sentiment of that kind", () => expect(rankDrivers([row("a", 5, 0, 0)], "negative", 0)).toEqual([]));
 });
 
 describe("emergingThemes", () => {
@@ -65,8 +69,8 @@ describe("fallbackBrief", () => {
     netChange: -6,
     churn: 12,
     churnPrev: 5,
-    negative: rankDrivers(rows, "negative"),
-    positive: rankDrivers(rows, "positive"),
+    negative: rankDrivers(rows, "negative", 128),
+    positive: rankDrivers(rows, "positive", 94),
     emerging: emergingThemes(rows),
     examples: { "app-outage": ["m1", "m2", "m3", "m4"] },
   };

@@ -16,11 +16,14 @@ async function main() {
   const email = process.env.SEED_EMAIL ?? "admin@rasd.local";
   const password = process.env.SEED_PASSWORD ?? "rasd-demo-2026";
 
+  const existingOrg = await db.organization.findUnique({ where: { slug: "demo" } });
+  if (existingOrg && existingOrg.dataMode !== "DEMO") throw new Error("Refusing to seed a live workspace");
   const org = await db.organization.upsert({
     where: { slug: "demo" },
     create: {
       name: "Nakhla Invest (Demo)",
       slug: "demo",
+      dataMode: "DEMO",
       plan: "ENTERPRISE",
       subscriptionStatus: "ACTIVE",
       currentPeriodEnd: new Date(Date.now() + 30 * 86400_000),

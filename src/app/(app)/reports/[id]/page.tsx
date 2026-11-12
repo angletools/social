@@ -176,7 +176,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               {ui.reportDoc.failed}
               {report.error ? `: ${report.error}` : ""}
             </span>
-            {hasRole(user, "ANALYST") && <RetryInline id={report.id} label={ui.reportDoc.retry} />}
+            {hasRole(user, report.weekly ? "ADMIN" : "ANALYST") && <RetryInline id={report.id} label={ui.reportDoc.retry} />}
           </div>
         )}
 

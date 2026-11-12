@@ -11,6 +11,7 @@ export const QUEUES = {
   draft: "studio-draft",
   maintenance: "maintenance",
   weekly: "weekly-report",
+  delivery: "outbound-delivery",
   intelligence: "intelligence-brief",
 } as const;
 

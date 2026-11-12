@@ -227,7 +227,7 @@ export function Sidebar({
       </nav>
 
       <Link
-        href="/settings#organization"
+        href="/settings?section=general"
         aria-label={ws}
         className={cn(
           "group relative mt-[22px] flex h-[50px] shrink-0 items-center gap-[11px] rounded-[13px] border bg-[#080808]",

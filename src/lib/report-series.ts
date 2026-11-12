@@ -53,7 +53,7 @@ export async function getReportSeries(opts: { orgId: string; monitorId?: string 
     SELECT to_char(date_trunc('hour', (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD"T"HH24:MI:SS') AS h, count(*) AS n
     FROM "Mention" m
     WHERE m."organizationId" = ${opts.orgId} AND m."relevant" = true
-      AND m."publishedAt" >= ${opts.start} AND m."publishedAt" <= ${opts.end}
+      AND m."publishedAt" >= ${opts.start.toISOString()}::timestamp AND m."publishedAt" < ${opts.end.toISOString()}::timestamp
       ${opts.monitorId ? Prisma.sql`AND m."monitorId" = ${opts.monitorId}` : Prisma.empty}
     GROUP BY 1`;
   const hourly = new Map(rows.map((r) => [r.h, Number(r.n)]));

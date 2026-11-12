@@ -91,7 +91,7 @@ export function ReportForm({
           </Select>
         </Field>
       </div>
-      <button className="btn-primary mt-1 h-11 rounded-[12px] text-[14.5px] font-semibold" disabled={pending}>
+      <button className="btn-primary mt-1 h-11 rounded-[12px] text-[14.5px] font-semibold" disabled={pending || Boolean(aiOff)}>
         {labels.submit}
       </button>
     </form>

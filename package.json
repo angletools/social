@@ -14,7 +14,9 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
     "monid:discover": "tsx --env-file-if-exists=.env scripts/monid-discover.ts",
-    "eval:dialect": "tsx --env-file-if-exists=.env scripts/eval-dialect.ts"
+    "eval:dialect": "tsx --env-file-if-exists=.env scripts/eval-dialect.ts",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "workspace:create": "tsx --env-file-if-exists=.env scripts/create-live-workspace.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
@@ -44,6 +46,10 @@
     "simple-icons": "^16.37.0",
     "tailwind-merge": "^3.7.0",
     "zod": "^4.6.7"
+  },
+  "overrides": {
+    "postcss": "8.5.32",
+    "deepmerge-ts": "8.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

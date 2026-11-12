@@ -36,9 +36,11 @@ export function UserMenu({
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape" && open) { setOpen(false); ref.current?.querySelector<HTMLButtonElement>("button")?.focus(); } };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
+  }, [open]);
   return (
     <div className="relative" ref={ref}>
       {placement === "rail" ? (
@@ -91,7 +93,7 @@ export function UserMenu({
             </div>
           )}
           <div className="p-1">
-            <Link href="/settings#profile" onClick={() => setOpen(false)} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] hover:bg-sunken">
+            <Link href="/settings?section=general" onClick={() => setOpen(false)} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] hover:bg-sunken">
               <UserRound className="h-4 w-4 text-faint" /> {labels.profile}
             </Link>
             <Link href="/settings" onClick={() => setOpen(false)} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] hover:bg-sunken">

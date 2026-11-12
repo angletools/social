@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
 import { timeAgo } from "@/lib/utils";
 import type { DraftContent } from "@/lib/ai/studio";
+import { aiEnabled } from "@/lib/ai/client";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { DraftEditor, type VersionRow } from "./editor";
 import { ClipsProvider } from "./rough-cut";
@@ -28,7 +29,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
     n: v.n,
     when: timeAgo(v.createdAt, locale),
     what:
-      v.kind === "GENERATED"
+      v.kind === "APPROVAL" ? (locale === "ar" ? "اعتماد هذه النسخة" : "Approved this version") : v.kind === "GENERATED"
         ? formatName && v.n === 1
           ? fmt(P.firstFrom, { format: formatName })
           : P.firstDraft
@@ -56,6 +57,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
         <ClipsProvider>
           <DraftEditor
             id={d.id}
+            revision={d.revision}
             versionKey={`${d.versions[0]?.id ?? "none"}:${d.status}`}
             status={d.status}
             error={d.error}
@@ -71,6 +73,7 @@ export default async function DraftPage({ params }: { params: Promise<{ id: stri
             back={back}
             canEdit={hasRole(user, "ANALYST")}
             canApprove={hasRole(user, "ADMIN")}
+            aiOff={aiEnabled() ? null : t.assistant.disabled}
             versions={versions}
             locale={locale}
             P={P}

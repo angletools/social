@@ -658,7 +658,7 @@ export function WeeklyForm({
               value={text}
               onChange={(e) => (/[\s,;]$/.test(e.target.value) ? commit(e.target.value) : setText(e.target.value))}
               onKeyDown={(e) => {
-                if (e.key === "Enter") (e.preventDefault(), commit(text));
+                if (e.key === "Enter") { e.preventDefault(); commit(text); }
                 if (e.key === "Backspace" && !text && list.length) setList((l) => l.slice(0, -1));
               }}
               onBlur={() => text && commit(text)}

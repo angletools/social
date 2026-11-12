@@ -2,7 +2,7 @@ import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
 import { reflowBeats } from "../trends/score";
-import { recordVersion } from "../drafts";
+import { writeDraftContent } from "../drafts";
 import { AI_MODEL, fallbackParams, getAI } from "./client";
 import { WRITING_GUIDE, lexiconPrompt } from "./dialect";
 
@@ -85,13 +85,14 @@ function toContent(out: z.infer<typeof DraftSchema>): DraftContent {
 }
 
 /** Writes (or rewrites, with an instruction) a content draft. */
-export async function generateDraft(draftId: string, instruction?: string) {
+export async function generateDraft(draftId: string, instruction?: string, revision?: number) {
   const ai = getAI();
   if (!ai) throw new Error("AI_DISABLED");
   const d = await db.contentDraft.findUniqueOrThrow({
     where: { id: draftId },
     include: { format: { include: { posts: { orderBy: { viralityScore: "desc" }, take: 5 } } }, voice: true, organization: true },
   });
+  if (d.status !== "GENERATING" || (revision !== undefined && revision !== d.revision)) return;
   const voice = d.voice ?? (await db.brandVoice.findFirst({ where: { organizationId: d.organizationId, isDefault: true } }));
 
   const context = [
@@ -135,16 +136,5 @@ Post topic / brief: ${d.brief}`;
   if (!res.parsed_output) throw new Error(`draft stopped: ${res.stop_reason}`);
 
   const content = toContent(res.parsed_output);
-  const history = Array.isArray(d.history) ? (d.history as unknown[]) : [];
-  await db.contentDraft.update({
-    where: { id: d.id },
-    data: {
-      content: content as object,
-      title: content.title.slice(0, 140),
-      status: "DRAFT",
-      error: null,
-      history: d.content ? ([{ at: new Date().toISOString(), instruction: instruction ?? null, content: d.content }, ...history].slice(0, 10) as object) : (history as object),
-    },
-  });
-  await recordVersion(d.id, d.content ? "REWRITE" : "GENERATED", content, { instruction: instruction ?? null });
+  await writeDraftContent({ id: d.id, orgId: d.organizationId, revision: d.revision, content, kind: d.content ? "REWRITE" : "GENERATED", instruction, generating: true, title: content.title.slice(0, 140) });
 }

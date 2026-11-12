@@ -88,6 +88,7 @@ function Dot({ tone, children }: { tone: string; children: React.ReactNode }) {
 export function DraftEditor({
   id,
   versionKey,
+  revision,
   status: rawStatus,
   error,
   content: initial,
@@ -96,6 +97,7 @@ export function DraftEditor({
   back,
   canEdit,
   canApprove,
+  aiOff,
   versions,
   P,
   S,
@@ -103,6 +105,7 @@ export function DraftEditor({
 }: {
   id: string;
   versionKey: string;
+  revision: number;
   status: string;
   error: string | null;
   content: DraftContent;
@@ -111,6 +114,7 @@ export function DraftEditor({
   back: React.ReactNode;
   canEdit: boolean;
   canApprove: boolean;
+  aiOff: string | null;
   versions: VersionRow[];
   locale: "ar" | "en";
   P: P;
@@ -118,13 +122,14 @@ export function DraftEditor({
   unsupported: string;
 }) {
   const status = rawStatus as Status;
+  const revisionRef = useRef(revision);
   const [c, setC] = useState<Content>(initial);
   const [dirty, setDirty] = useState(false);
   const [seenKey, setSeenKey] = useState(versionKey);
   // New content from the server (a rewrite finished, a restore, a save) replaces the local copy unless it has unsaved edits.
   if (seenKey !== versionKey) {
     setSeenKey(versionKey);
-    if (!dirty) setC(initial);
+    if (!dirty) { setC(initial); revisionRef.current = revision; }
   }
   const [instruction, setInstruction] = useState("");
   const [tab, setTab] = useState<Tab>("script");
@@ -135,7 +140,7 @@ export function DraftEditor({
   const { media, add, remove } = useClips();
   const rough = useRef<RoughCutHandle>(null);
   const generating = status === "GENERATING";
-  const locked = !canEdit || generating;
+  const locked = !canEdit || generating || pending;
 
   const update = (fn: (x: Content) => Content | void) => {
     setC((x) => {
@@ -149,8 +154,9 @@ export function DraftEditor({
   const selectedHook = c.selected_hook ?? Math.max(0, c.hooks.findIndex((h) => h.text === c.beats[0]?.vo));
 
   const persist = async () => {
-    const res = await saveDraftContent(id, c);
+    const res = await saveDraftContent(id, c, revisionRef.current);
     if (!res.ok) throw new Error("save");
+    revisionRef.current = res.revision;
     setDirty(false);
     setC((x) => ({ ...x, beats: reflowBeats(x.beats) }));
   };
@@ -160,20 +166,21 @@ export function DraftEditor({
         await persist();
         toast(P.saved);
       } catch {
-        toast(common.failed, "error", { retry: save });
+        toast(P.saveConflict, "error");
       }
     });
   const discard = () => {
     setC(initial);
+    revisionRef.current = revision;
     setDirty(false);
   };
   const refine = (text: string) =>
     text.trim() &&
-    !generating &&
+    !generating && !aiOff &&
     start(async () => {
       try {
         if (dirty) await persist();
-        await refineDraft(id, text.trim());
+        await refineDraft(id, text.trim(), revisionRef.current);
         setInstruction("");
         toast(P.rewriting, "info", { busy: true });
       } catch {
@@ -184,10 +191,10 @@ export function DraftEditor({
     start(async () => {
       try {
         if (dirty) await persist();
-        await setDraftStatus(id, s);
+        await setDraftStatus(id, s, revisionRef.current);
         toast(`${P.stepsLabel}: ${S.status[s]}`);
       } catch {
-        toast(common.failed, "error", { retry: () => moveTo(s) });
+        toast(P.reviewChanged, "error");
       }
     });
   const remove_ = async () => {
@@ -197,10 +204,15 @@ export function DraftEditor({
   const restore = async (n: number) => {
     if (!(await confirmDialog(fill(P.restoreConfirm, { n }), { detail: P.restoreDetail, confirmLabel: P.restore }))) return;
     start(async () => {
-      const r = await restoreDraftVersion(id, n);
-      if (!r.ok) return toast(common.failed, "error");
-      setDirty(false);
-      toast(fill(P.restoredToast, { n }));
+      try {
+        if (dirty) await persist();
+        const r = await restoreDraftVersion(id, n, revisionRef.current);
+        if (!r.ok) return toast(common.failed, "error");
+        revisionRef.current = r.revision;
+        setC(r.content as Content);
+        setDirty(false);
+        toast(fill(P.restoredToast, { n }));
+      } catch { toast(P.saveConflict, "error"); }
     });
   };
 
@@ -329,7 +341,7 @@ export function DraftEditor({
                     value={instruction}
                     onChange={(e) => setInstruction(e.target.value)}
                     placeholder={generating ? P.rewriting : P.rewritePh}
-                    disabled={generating}
+                    disabled={generating || !!aiOff}
                     maxLength={500}
                     dir="auto"
                     style={NO_OUTLINE}
@@ -337,15 +349,16 @@ export function DraftEditor({
                     className="h-full min-w-0 flex-1 truncate bg-transparent text-[16px] placeholder:text-faint md:text-[14.5px]"
                   />
                 </label>
-                <button className="btn-primary h-[42px] px-4 text-[14px] font-semibold" disabled={generating || pending || !instruction.trim()}>{P.rewrite}</button>
+                <button className="btn-primary h-[42px] px-4 text-[14px] font-semibold" disabled={generating || pending || !!aiOff || !instruction.trim()}>{P.rewrite}</button>
               </form>
               <div className="flex flex-wrap gap-1.5">
                 {S.quick.map((q) => (
-                  <button type="button" key={q} disabled={generating || pending} onClick={() => refine(q)} className="h-[30px] rounded-[9px] bg-sunken px-3 text-[13px] transition-colors hover:bg-line disabled:opacity-50 max-md:h-9">
+                  <button type="button" key={q} disabled={generating || pending || !!aiOff} onClick={() => refine(q)} className="h-[30px] rounded-[9px] bg-sunken px-3 text-[13px] transition-colors hover:bg-line disabled:opacity-50 max-md:h-9">
                     {q}
                   </button>
                 ))}
               </div>
+              {aiOff && <p className="text-xs text-muted">{aiOff}</p>}
             </div>
           )}
 

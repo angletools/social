@@ -67,21 +67,30 @@ export function parseRules(text: string | null | undefined): string[] {
 export const serializeRules = (rules: string[]) => rules.map((r) => r.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean).join("\n");
 
 /** Start of the current calendar month in a timezone, as a UTC instant. */
+export function wallTimeToUtc(local: Date, timeZone: string) {
+  let instant = local.getTime();
+  for (let i = 0; i < 4; i++) {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(instant));
+    const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? 0);
+    const shown = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+    const adjustment = local.getTime() - shown;
+    if (!adjustment) break;
+    instant += adjustment;
+  }
+  return new Date(instant);
+}
+
 export function monthStart(timeZone: string, now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-  // Offset of the zone right now, so local midnight on day 1 maps back to UTC.
-  const localAsUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
-  const offset = localAsUtc - Math.floor(now.getTime() / 60_000) * 60_000;
-  return new Date(Date.UTC(get("year"), get("month") - 1, 1) - offset);
+  return wallTimeToUtc(new Date(Date.UTC(get("year"), get("month") - 1, 1)), timeZone);
 }
 
 /** Local midnight today in a timezone, as a UTC instant. */
 export function dayStart(timeZone: string, now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-  const offset = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute")) - Math.floor(now.getTime() / 60_000) * 60_000;
-  return new Date(Date.UTC(get("year"), get("month") - 1, get("day")) - offset);
+  return wallTimeToUtc(new Date(Date.UTC(get("year"), get("month") - 1, get("day"))), timeZone);
 }
 
 /** Share of a limit used, 0..100 (rounded), and the colour band the meters use. */

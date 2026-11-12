@@ -117,8 +117,13 @@ export class MonidClient {
     timeoutMs = 5 * 60_000,
     onStarted?: (runId: string) => Promise<void>,
   ) {
-    let run = await this.startRun(provider, endpoint, body);
+    const run = await this.startRun(provider, endpoint, body);
     await onStarted?.(run.runId);
+    return this.waitForRun(run, timeoutMs);
+  }
+
+  /** Resume a paid run after a worker retry; never starts a second charge. */
+  async waitForRun(run: MonidRun, timeoutMs = 5 * 60_000) {
     const deadline = Date.now() + timeoutMs;
     let delay = 2000;
     while (!TERMINAL.has(run.status)) {

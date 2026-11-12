@@ -21,7 +21,11 @@ export function Queue({
   waiting,
   empty,
   hiddenOnPhone,
+  controls,
+  pagination,
 }: {
+  controls: React.ReactNode;
+  pagination: React.ReactNode;
   items: QueueItem[];
   selectedId: string | null;
   base: string;
@@ -77,6 +81,7 @@ export function Queue({
           </Link>
         ))}
       </div>
+      {controls}
       {items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
           <CheckCircle2 className="h-8 w-8 text-pos" strokeWidth={1.5} />
@@ -119,6 +124,7 @@ export function Queue({
           })}
         </ul>
       )}
+      {pagination}
     </section>
   );
 }

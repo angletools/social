@@ -215,7 +215,8 @@ export async function deleteAlert(id: string) {
 
 export async function markNotificationsRead() {
   const user = await requireRole("VIEWER");
-  await db.notification.updateMany({ where: { organizationId: user.organizationId, readAt: null }, data: { readAt: new Date() } });
+  const notes = await db.notification.findMany({ where: { organizationId: user.organizationId, OR: [{ userId: null }, { userId: user.id }], reads: { none: { userId: user.id } } }, select: { id: true } });
+  await db.notificationRead.createMany({ data: notes.map((n) => ({ notificationId: n.id, userId: user.id })), skipDuplicates: true });
   revalidatePath("/", "layout");
 }
 
@@ -286,16 +287,26 @@ export async function refreshIntelligenceBrief(days: number): Promise<ActionResu
 /** Re-queues a report that failed to generate. */
 export async function retryReport(id: string): Promise<ActionResult> {
   const user = await requireRole("ANALYST");
-  const r = await db.report.updateMany({
-    where: { id, organizationId: user.organizationId, status: "FAILED" },
-    data: { status: "GENERATING", error: null },
-  });
-  if (r.count === 0) return { ok: false, error: "not_found" };
-  await enqueue(QUEUES.report, { reportId: id });
+  const report = await db.report.findFirst({ where: { id, organizationId: user.organizationId }, include: { delivery: true } });
+  if (!report || report.status !== "FAILED") return { ok: false, error: "not_found" };
+  if (report.delivery) {
+    await retryDelivery(report.delivery.id);
+  } else {
+    await db.report.updateMany({ where: { id, organizationId: user.organizationId, status: "FAILED" }, data: { status: "GENERATING", error: null } });
+    await enqueue(QUEUES.report, { reportId: id });
+  }
   await audit(user, "report.retry", id);
   revalidatePath("/reports");
   revalidatePath(`/reports/${id}`);
   return { ok: true };
+}
+
+export async function retryDelivery(id: string): Promise<void> {
+  const user = await requireRole("ADMIN");
+  await db.delivery.updateMany({ where: { id, organizationId: user.organizationId, status: "FAILED" }, data: { status: "PENDING", attempts: 0, nextAttemptAt: new Date(), error: null } });
+  await enqueue(QUEUES.delivery, {});
+  revalidatePath("/reports");
+  revalidatePath("/alerts");
 }
 
 export async function deleteReport(id: string) {
@@ -361,14 +372,19 @@ export async function addMember(_: unknown, form: FormData): Promise<ActionResul
   return { ok: true };
 }
 
-export async function updateMember(id: string, change: { role?: Role; active?: boolean }) {
+export async function updateMember(id: string, change: unknown) {
   const user = await requireRole("ADMIN");
+  const parsed = z.object({ role: z.enum(["ADMIN", "ANALYST", "VIEWER"]).optional(), active: z.boolean().optional() }).strict().safeParse(change);
+  if (!parsed.success || !Object.keys(parsed.data).length) throw new Error("INVALID_MEMBER_CHANGE");
   const target = await db.user.findFirst({ where: { id, organizationId: user.organizationId } });
-  if (!target || target.role === "OWNER" || target.id === user.id) return;
-  if (change.role === "OWNER") return;
-  await db.user.update({ where: { id }, data: change });
-  if (change.active === false) await db.session.deleteMany({ where: { userId: id } });
-  await audit(user, "member.update", target.email, change);
+  if (!target || target.role === "OWNER" || target.id === user.id) throw new Error("FORBIDDEN");
+  const data = parsed.data;
+  await db.$transaction(async (tx) => {
+    const result = await tx.user.updateMany({ where: { id, organizationId: user.organizationId, role: { not: "OWNER" } }, data });
+    if (!result.count) throw new Error("FORBIDDEN");
+    if (data.active === false) await tx.session.deleteMany({ where: { userId: id } });
+  });
+  await audit(user, "member.update", target.email, data);
   revalidatePath("/settings");
 }
 
@@ -630,41 +646,47 @@ export async function createDraft(_: unknown, form: FormData): Promise<ActionRes
       voiceId: d.voiceId || null,
     },
   });
-  await enqueue(QUEUES.draft, { draftId: draft.id });
+  await enqueue(QUEUES.draft, { draftId: draft.id, revision: draft.revision });
   await audit(user, "draft.create", draft.id);
   redirect(`/studio/drafts/${draft.id}`);
 }
 
-export async function refineDraft(id: string, instruction: string) {
+export async function refineDraft(id: string, instruction: string, revision: number) {
   const user = await requireRole("ANALYST");
-  const d = await db.contentDraft.findFirst({ where: { id, organizationId: user.organizationId } });
-  if (!d || d.status === "GENERATING") return;
-  await db.contentDraft.update({ where: { id }, data: { status: "GENERATING", error: null } });
-  await enqueue(QUEUES.draft, { draftId: id, instruction: instruction.slice(0, 500) });
-  revalidatePath(`/studio/drafts/${id}`);
-}
-
-export async function saveDraftContent(id: string, content: unknown) {
-  const user = await requireRole("ANALYST");
-  const d = await db.contentDraft.findFirst({ where: { id, organizationId: user.organizationId } });
-  if (!d || !content || typeof content !== "object") return { ok: false as const };
-  const { reflowBeats } = await import("@/lib/trends/score");
-  const c = content as { beats?: unknown[] };
-  if (Array.isArray(c.beats)) c.beats = reflowBeats(c.beats as Parameters<typeof reflowBeats>[0]);
-  await db.contentDraft.update({ where: { id }, data: { content: c as object } });
-  const { recordVersion } = await import("@/lib/drafts");
-  await recordVersion(id, "EDIT", c, { userId: user.id });
-  revalidatePath(`/studio/drafts/${id}`);
-  return { ok: true as const };
-}
-
-export async function setDraftStatus(id: string, status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "PUBLISHED") {
-  const user = await requireRole(status === "APPROVED" ? "ADMIN" : "ANALYST");
-  await db.contentDraft.updateMany({
-    where: { id, organizationId: user.organizationId, status: { notIn: ["GENERATING"] } },
-    data: { status, ...(status === "APPROVED" && { approvedById: user.id }) },
+  const { aiEnabled } = await import("@/lib/ai/client");
+  if (!aiEnabled()) throw new Error("AI_DISABLED");
+  if (!Number.isSafeInteger(revision) || revision < 0 || typeof instruction !== "string" || !instruction.trim()) throw new Error("DRAFT_CONFLICT");
+  const changed = await db.contentDraft.updateMany({
+    where: { id, organizationId: user.organizationId, revision, status: { not: "GENERATING" } },
+    data: { status: "GENERATING", revision: { increment: 1 }, error: null, approvedById: null, approvedRevision: null, approvedAt: null },
   });
-  await audit(user, `draft.${status.toLowerCase()}`, id);
+  if (!changed.count) throw new Error("DRAFT_CONFLICT");
+  try { await enqueue(QUEUES.draft, { draftId: id, instruction: instruction.slice(0, 500), revision: revision + 1 }); }
+  catch (e) {
+    await db.contentDraft.updateMany({ where: { id, revision: revision + 1, status: "GENERATING" }, data: { status: "DRAFT", error: "Could not queue rewrite. Try again." } });
+    throw e;
+  }
+  revalidatePath(`/studio/drafts/${id}`);
+}
+
+export async function saveDraftContent(id: string, content: unknown, revision: number) {
+  const user = await requireRole("ANALYST");
+  const { DraftContentSchema } = await import("@/lib/draft-content");
+  const parsed = DraftContentSchema.safeParse(content);
+  if (!parsed.success) return { ok: false as const, error: "invalid" };
+  const { reflowBeats } = await import("@/lib/trends/score");
+  const c = { ...parsed.data, beats: reflowBeats(parsed.data.beats) };
+  const { writeDraftContent } = await import("@/lib/drafts");
+  const saved = await writeDraftContent({ id, orgId: user.organizationId, revision, content: c, kind: "EDIT", userId: user.id });
+  revalidatePath(`/studio/drafts/${id}`);
+  return { ok: true as const, revision: saved.revision };
+}
+
+export async function setDraftStatus(id: string, status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "PUBLISHED", revision: number) {
+  const user = await requireRole(status === "APPROVED" ? "ADMIN" : "ANALYST");
+  const { transitionDraft } = await import("@/lib/drafts");
+  await transitionDraft({ id, orgId: user.organizationId, userId: user.id, revision, status });
+  await audit(user, `draft.${status.toLowerCase()}`, id, { revision });
   revalidatePath(`/studio/drafts/${id}`);
   revalidatePath("/studio");
 }

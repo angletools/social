@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  outputFileTracingRoot: process.cwd(),
   async redirects() {
     return [{ source: "/dialect", destination: "/intelligence", permanent: true }];
   },

@@ -42,7 +42,7 @@ Write with confidence and precision, grounded only in the statistics and posts p
 export async function collectReportData(reportId: string) {
   const report = await db.report.findUniqueOrThrow({ where: { id: reportId }, include: { organization: true, monitor: true } });
   const days = Math.max(1, Math.round((report.periodEnd.getTime() - report.periodStart.getTime()) / 86400_000));
-  const scope = { orgId: report.organizationId, days, monitorId: report.monitorId ?? undefined };
+  const scope = { orgId: report.organizationId, days, monitorId: report.monitorId ?? undefined, start: report.periodStart, end: report.periodEnd, tz: report.organization.timezone };
 
   const [kpis, topics, authors, platforms, sov, dialects, intents, slang, series] = await Promise.all([
     getKpis(scope),
@@ -55,12 +55,12 @@ export async function collectReportData(reportId: string) {
     getTopSlang(scope, 10),
     getReportSeries({ orgId: report.organizationId, monitorId: report.monitorId, start: report.periodStart, end: report.periodEnd, tz: report.organization.timezone }),
   ]);
-  const stats = { days, kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang, series };
+  const stats = { days, periodStart: report.periodStart.toISOString(), periodEnd: report.periodEnd.toISOString(), timezone: report.organization.timezone, capturedAt: new Date().toISOString(), kpis, topics, authors, platforms, shareOfVoice: sov, dialects, intents, slang, series };
 
   const baseWhere = {
     organizationId: report.organizationId,
     relevant: true,
-    publishedAt: { gte: report.periodStart, lte: report.periodEnd },
+    publishedAt: { gte: report.periodStart, lt: report.periodEnd },
     ...(report.monitorId && { monitorId: report.monitorId }),
   };
   const select = {
@@ -79,7 +79,19 @@ export async function collectReportData(reportId: string) {
     seen.add(k);
     return true;
   });
-  return { report, stats, sample };
+  // Retrying generation must keep the first attempt's statistics and post evidence.
+  type Snapshot = typeof stats & { evidence: { version: 1; posts: typeof sample } };
+  const snapshot = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Report" WHERE id = ${report.id} FOR UPDATE`;
+    const current = await tx.report.findUniqueOrThrow({ where: { id: report.id } });
+    const saved = current.stats as unknown as Snapshot | null;
+    if (saved?.evidence?.version === 1) return saved;
+    const captured = JSON.parse(JSON.stringify({ ...stats, evidence: { version: 1, posts: sample } })) as Snapshot;
+    await tx.report.update({ where: { id: report.id }, data: { stats: captured as object } });
+    return captured;
+  });
+  const { evidence, ...fixedStats } = snapshot;
+  return { report, stats: fixedStats, sample: evidence.posts.map(p => ({ ...p, publishedAt: new Date(p.publishedAt) })) };
 }
 
 type SamplePost = Awaited<ReturnType<typeof collectReportData>>["sample"][number];
@@ -107,7 +119,7 @@ export async function generateReport(reportId: string) {
   if (!ai) {
     await db.report.update({
       where: { id: reportId },
-      data: { status: "FAILED", stats: stats as object, error: "AI is not configured (ANTHROPIC_API_KEY)." },
+      data: { status: "FAILED", error: "AI is not configured (ANTHROPIC_API_KEY)." },
     });
     return;
   }
@@ -149,7 +161,7 @@ ${posts}
   if (!res.parsed_output) {
     await db.report.update({
       where: { id: reportId },
-      data: { status: "FAILED", stats: stats as object, error: `Model stopped: ${res.stop_reason}` },
+      data: { status: "FAILED", error: `Model stopped: ${res.stop_reason}` },
     });
     return;
   }
@@ -164,6 +176,6 @@ ${posts}
   };
   await db.report.update({
     where: { id: reportId },
-    data: { status: "READY", stats: stats as object, content: content as object },
+    data: { status: "READY", content: content as object, error: null },
   });
 }

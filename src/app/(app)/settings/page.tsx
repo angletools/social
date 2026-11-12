@@ -269,6 +269,7 @@ async function Integrations({ user, t, locale, isAdmin }: Ctx) {
   return (
     <>
       <H2>{p.nav.integrations}</H2>
+      {org.dataMode === "DEMO" && <p className="text-sm text-muted">{L.demoWorkspace}</p>}
       <div className="flex flex-col gap-3">
         <span className="text-[13.5px] text-faint">{L.dataAi}</span>
         <div className="grid gap-5 md:grid-cols-2">

@@ -115,10 +115,16 @@ enum ReportStatus {
   FAILED
 }
 
+enum DataMode {
+  LIVE
+  DEMO
+}
+
 model Organization {
   id                 String             @id @default(cuid())
   name               String
   slug               String             @unique
+  dataMode           DataMode           @default(LIVE)
   plan               Plan               @default(GROWTH)
   subscriptionStatus SubscriptionStatus @default(TRIALING)
   currentPeriodEnd   DateTime?
@@ -158,6 +164,7 @@ model Organization {
   trendFormats  TrendFormat[]
   drafts        ContentDraft[]
   briefs        IntelligenceBrief[]
+  deliveries    Delivery[]
 }
 
 model User {
@@ -176,6 +183,7 @@ model User {
   sessions     Session[]
   threads      AssistantThread[]
   assigned     Mention[]         @relation("assignee")
+  notificationReads NotificationRead[]
 
   @@index([organizationId])
 }
@@ -207,6 +215,9 @@ model Monitor {
   refreshMinutes Int           @default(60)
   maxItemsPerRun Int           @default(50)
   lastSyncAt     DateTime?
+  lastAttemptAt  DateTime?
+  syncLeaseUntil DateTime?
+  syncToken      String?
   nextSyncAt     DateTime?
   pausedAt       DateTime? // when the monitor was last paused; null while active
   createdById    String?
@@ -229,6 +240,8 @@ model Mention {
   monitorId       String
   platform        Platform
   externalId      String
+  source          DataMode      @default(LIVE)
+  observedAt      DateTime      @default(now())
   url             String?
   authorHandle    String?
   authorName      String?
@@ -303,6 +316,7 @@ model SyncRun {
   source        String // "monid" | "demo"
   status        SyncStatus @default(RUNNING)
   providerRunId String?
+  jobKey        String?
   itemsFetched  Int        @default(0)
   itemsNew      Int        @default(0)
   error         String?
@@ -312,6 +326,7 @@ model SyncRun {
   monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
 
   @@index([monitorId, startedAt])
+  @@unique([monitorId, platform, jobKey])
 }
 
 model AlertRule {
@@ -354,7 +369,48 @@ model Notification {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rule         AlertRule?   @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  reads        NotificationRead[]
+  deliveries   Delivery[]
 
+  @@index([organizationId, createdAt])
+}
+
+model NotificationRead {
+  notificationId String
+  userId         String
+  readAt         DateTime @default(now())
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([notificationId, userId])
+  @@index([userId])
+}
+
+// Durable outbound work. A claim is separate from confirmed provider acceptance.
+model Delivery {
+  id             String   @id @default(cuid())
+  organizationId String
+  dedupeKey      String   @unique
+  channel        String   // EMAIL | WEBHOOK | WEEKLY_REPORT
+  recipients     String[]
+  webhookUrl     String?
+  subject        String?
+  body           String?
+  sender         String?
+  reportId       String?  @unique
+  notificationId String?
+  status         String   @default("PENDING") // PENDING | SENDING | SENT | FAILED
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  leaseUntil     DateTime?
+  claimToken     String?
+  sentAt         DateTime?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  report       Report?      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  @@index([status, nextAttemptAt])
   @@index([organizationId, createdAt])
 }
 
@@ -364,6 +420,7 @@ model Report {
   monitorId      String?
   kind           String       @default("report") // "report" | "brief"
   weekly         Boolean      @default(false) // created by the scheduled weekly email
+  weeklyKey      String?      @unique
   title          String
   locale         String       @default("ar")
   periodStart    DateTime
@@ -377,6 +434,7 @@ model Report {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   monitor      Monitor?     @relation(fields: [monitorId], references: [id], onDelete: SetNull)
+  delivery     Delivery?
 
   @@index([organizationId, createdAt])
 }
@@ -513,6 +571,7 @@ model TrendPost {
   watchId         String
   platform        Platform
   externalId      String
+  source          DataMode     @default(LIVE)
   url             String?
   text            String
   authorHandle    String?
@@ -588,6 +647,9 @@ model ContentDraft {
   error          String?
   createdById    String?
   approvedById   String?
+  revision       Int      @default(0)
+  approvedRevision Int?
+  approvedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

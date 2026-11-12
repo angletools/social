@@ -1,7 +1,5 @@
 import type { AlertRule, Severity } from "@prisma/client";
 import { db } from "./db";
-import { sendEmail } from "./email";
-import { postWebhook } from "./webhooks";
 import { alertWebhooks, senderFor } from "./workspace";
 
 type Hit = { severity: Severity; titleEn: string; titleAr: string; bodyEn: string; bodyAr: string; link: string };
@@ -136,28 +134,18 @@ export async function evaluateAlerts(organizationId: string) {
     if (rule.lastTriggeredAt && Date.now() - rule.lastTriggeredAt.getTime() < rule.cooldownMinutes * 60_000) continue;
     const hit = await checkRule(rule);
     if (!hit) continue;
-    fired++;
-    await db.$transaction([
-      db.notification.create({ data: { organizationId, ruleId: rule.id, ...hit } }),
-      db.alertRule.update({ where: { id: rule.id }, data: { lastTriggeredAt: new Date() } }),
-    ]);
-    // The rule's own webhook overrides the workspace's default Slack / Teams channels.
-    for (const url of alertWebhooks(rule, channels)) {
+    const created = await db.$transaction(async (tx) => {
+      const claimed = await tx.alertRule.updateMany({ where: { id: rule.id, enabled: true, lastTriggeredAt: rule.lastTriggeredAt }, data: { lastTriggeredAt: new Date() } });
+      if (!claimed.count) return false;
+      const note = await tx.notification.create({ data: { organizationId, ruleId: rule.id, ...hit } });
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      const icon = hit.severity === "CRITICAL" ? "🔴" : hit.severity === "WARNING" ? "🟠" : "🔵";
-      await postWebhook(url, `${icon} *${hit.titleEn}*\n${hit.titleAr}\n> ${hit.bodyEn.replace(/\n/g, " ")}\n${appUrl}${hit.link}`).catch((e) =>
-        console.error("alert webhook failed", e),
-      );
-    }
-    if (rule.notifyEmail && rule.emails.length) {
-      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      await sendEmail(
-        rule.emails,
-        `[angle social] ${hit.titleEn}`,
-        `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`,
-        senderFor(channels),
-      ).catch((e) => console.error("alert email failed", e));
-    }
+      for (const [i, url] of alertWebhooks(rule, channels).entries()) {
+        await tx.delivery.create({ data: { organizationId, notificationId: note.id, dedupeKey: `${note.id}:webhook:${i}`, channel: "WEBHOOK", recipients: [], webhookUrl: url, body: `${hit.titleEn}\n${hit.titleAr}\n${hit.bodyEn}\n${appUrl}${hit.link}` } });
+      }
+      if (rule.notifyEmail && rule.emails.length) await tx.delivery.create({ data: { organizationId, notificationId: note.id, dedupeKey: `${note.id}:email`, channel: "EMAIL", recipients: rule.emails, subject: `[angle social] ${hit.titleEn}`, body: `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`, sender: senderFor(channels) } });
+      return true;
+    });
+    if (created) fired++;
   }
   return fired;
 }
