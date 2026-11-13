@@ -162,7 +162,7 @@ npm run build
 
 Integration tests refuse database names outside `rasd_test_*`. They exercise real PostgreSQL transactions, real session/role validation through a test request context, concurrent edits/collection/delivery, historical reports, complete Inbox paging, and a local SMTP server. They stub paid provider calls. The GitHub workflow runs the same gates on PostgreSQL 16; adding the workflow does not itself establish a remote CI pass.
 
-`postcss` and `deepmerge-ts` are pinned through npm overrides to patched versions without changing the major Next.js or Prisma versions. Revalidate the Prisma CLI, migrations, generation and application build when changing these overrides. Run `npm audit --omit=dev` when preparing a release.
+`postcss` and `deepmerge-ts` are pinned through npm overrides to patched versions without changing the major Next.js or Prisma versions. The TypeScript lint parser's `minimatch` is separately pinned to 11.0.1 for [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249); the older matcher used by other ESLint plugins is left on its compatible major. Revalidate lint, the Prisma CLI, migrations, generation and the application build when changing these overrides. CI audits both production and development dependencies and rejects moderate-or-higher advisories.
 
 ## Team workflow and metric definitions
 
