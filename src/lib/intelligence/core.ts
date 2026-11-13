@@ -45,10 +45,9 @@ export function pctChange(cur: number, prev: number, minBase = 3): number | null
 export const net = (pos: number, neg: number, n: number) => (n ? Math.round(((pos - neg) / n) * 100) : 0);
 
 /** Topics ranked by how much of the period's negative (or positive) conversation they account for. */
-export function rankDrivers(rows: TopicPeriodRow[], kind: "negative" | "positive", limit = 5): Driver[] {
+export function rankDrivers(rows: TopicPeriodRow[], kind: "negative" | "positive", total: number, limit = 5): Driver[] {
   const field = kind === "negative" ? "neg" : "pos";
   const prevField = kind === "negative" ? "prevNeg" : "prevPos";
-  const total = rows.reduce((a, r) => a + r[field], 0);
   if (!total) return [];
   return rows
     .filter((r) => r[field] > 0)

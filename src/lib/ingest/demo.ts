@@ -2,7 +2,7 @@ import type { Dialect, Intent, Monitor, Platform, Sentiment } from "@prisma/clie
 import type { NormalizedPost } from "../monid/normalize";
 
 /**
- * Sample data used when no MONID_API_KEY is configured, so the product can be
+ * Sample data used only in explicitly DEMO workspaces, so the product can be
  * demoed end-to-end. All brands, people and posts here are fictional.
  */
 

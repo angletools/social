@@ -63,8 +63,8 @@
   --color-sunken: #dedcd6;
   --color-ink: #161616;
   --color-on-ink: #ffffff;
-  --color-muted: #6f6e69;
-  --color-faint: #9b9993;
+  --color-muted: #5f5e59;
+  --color-faint: #62615c;
   --color-line: #d9d8d3;
   --color-line-strong: #cfcdc7;
   --color-selected: #e2e1e6;
@@ -114,7 +114,7 @@
   --color-ink: #ecebe7;
   --color-on-ink: #151514;
   --color-muted: #a3a19b;
-  --color-faint: #6f6d68;
+  --color-faint: #a3a19b;
   --color-line: #2b2a28;
   --color-line-strong: #36342f;
   --color-selected: #24232a;
@@ -153,7 +153,7 @@
     --color-ink: #ecebe7;
     --color-on-ink: #151514;
     --color-muted: #a3a19b;
-    --color-faint: #6f6d68;
+    --color-faint: #a3a19b;
     --color-line: #2b2a28;
     --color-line-strong: #36342f;
     --color-selected: #24232a;
@@ -557,7 +557,7 @@ main:has(> .full-bleed) {
     --color-sunken: #e6e4de;
     --color-ink: #161616;
     --color-muted: #5f5e59;
-    --color-faint: #8f8d87;
+    --color-faint: #62615c;
     --color-line: #dcdbd6;
     --color-line-strong: #cfcdc7;
     --color-chart: #e8775e;

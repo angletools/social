@@ -37,8 +37,8 @@ export function Segmented<T extends string | number>({
       className={cn("flex gap-0.5 rounded-[12px] bg-sunken p-[3px]", disabled && "opacity-60", className)}
       onKeyDown={(e) => {
         const rtl = getComputedStyle(e.currentTarget).direction === "rtl";
-        if (e.key === "ArrowRight") (e.preventDefault(), move(rtl ? -1 : 1));
-        if (e.key === "ArrowLeft") (e.preventDefault(), move(rtl ? 1 : -1));
+        if (e.key === "ArrowRight") { e.preventDefault(); move(rtl ? -1 : 1); }
+        if (e.key === "ArrowLeft") { e.preventDefault(); move(rtl ? 1 : -1); }
       }}
     >
       {name && <input type="hidden" name={name} value={String(value)} />}

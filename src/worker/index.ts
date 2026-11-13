@@ -12,6 +12,7 @@ import { generateReport } from "../lib/ai/report";
 import { scanWatch } from "../lib/trends/scan";
 import { generateDraft } from "../lib/ai/studio";
 import { workerBeat } from "../lib/system";
+import { deliverPending } from "../lib/delivery";
 import { runDueWeeklyReports } from "../lib/weekly";
 import { generateIntelligenceBrief } from "../lib/ai/intelligence";
 
@@ -29,16 +30,21 @@ async function main() {
       select: { id: true },
       take: 100,
     });
+    const pendingOrgs = await db.mention.findMany({ where: { enrichedAt: null, classificationSource: { not: "HUMAN" } }, distinct: ["organizationId"], select: { organizationId: true }, take: 100 });
+    for (const org of pendingOrgs) await boss.send(QUEUES.enrich, { organizationId: org.organizationId }, { singletonKey: org.organizationId, singletonSeconds: 60, retryLimit: 1, retryDelay: 120 });
     for (const m of due) {
       await boss.send(QUEUES.sync, { monitorId: m.id }, { singletonKey: m.id, singletonSeconds: 300, retryLimit: 2, retryDelay: 60 });
     }
   });
 
   await boss.work<{ monitorId: string }>(QUEUES.sync, { batchSize: 1 }, async ([job]) => {
-    const n = await syncMonitor(job.data.monitorId);
-    const m = await db.monitor.findUnique({ where: { id: job.data.monitorId }, select: { organizationId: true } });
-    console.log(`[worker] synced ${job.data.monitorId}: ${n} new`);
-    if (m) await boss.send(QUEUES.enrich, { organizationId: m.organizationId }, { singletonKey: m.organizationId, singletonSeconds: 30 });
+    try {
+      const n = await syncMonitor(job.data.monitorId, job.id);
+      console.log(`[worker] synced ${job.data.monitorId}: ${n} new`);
+    } finally {
+      const m = await db.monitor.findUnique({ where: { id: job.data.monitorId }, select: { organizationId: true } });
+      if (m) await boss.send(QUEUES.enrich, { organizationId: m.organizationId }, { singletonKey: m.organizationId, singletonSeconds: 30 });
+    }
   });
 
   await boss.work<{ organizationId: string }>(QUEUES.enrich, { batchSize: 1 }, async ([job]) => {
@@ -81,13 +87,13 @@ async function main() {
     console.log(`[worker] trend scan ${job.data.watchId}: ${r.posts} posts, ${r.formats} formats`);
   });
 
-  await boss.work<{ draftId: string; instruction?: string }>(QUEUES.draft, async ([job]) => {
+  await boss.work<{ draftId: string; instruction?: string; revision?: number }>(QUEUES.draft, async ([job]) => {
     try {
-      await generateDraft(job.data.draftId, job.data.instruction);
+      await generateDraft(job.data.draftId, job.data.instruction, job.data.revision);
     } catch (e) {
       const d = await db.contentDraft.findUnique({ where: { id: job.data.draftId } });
-      await db.contentDraft.update({
-        where: { id: job.data.draftId },
+      await db.contentDraft.updateMany({
+        where: { id: job.data.draftId, status: "GENERATING", ...(job.data.revision !== undefined && { revision: job.data.revision }) },
         // A failed revision keeps the previous version usable.
         data: { status: d?.content ? "DRAFT" : "FAILED", error: String((e as Error).message).slice(0, 500) },
       });
@@ -100,6 +106,9 @@ async function main() {
     console.log(`[worker] intelligence brief ${job.data.organizationId} (${job.data.days}d)`);
   });
 
+  await boss.schedule(QUEUES.delivery, "* * * * *");
+  await boss.work(QUEUES.delivery, async () => { await deliverPending(); });
+
   // Hourly: send weekly reports that are due (08:00+ Riyadh on the chosen day).
   await boss.schedule(QUEUES.weekly, "5 * * * *");
   await boss.work(QUEUES.weekly, async () => {
@@ -111,10 +120,11 @@ async function main() {
   await boss.schedule(QUEUES.maintenance, "0 0 * * *");
   await boss.work(QUEUES.maintenance, async () => {
     const day = 86400_000;
+    await db.accessToken.deleteMany({ where: { expiresAt: { lt: new Date() } } });
     const [a, sess, n] = await Promise.all([
       db.loginAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - day) } } }),
       db.session.deleteMany({ where: { expiresAt: { lt: new Date() } } }),
-      db.notification.deleteMany({ where: { readAt: { not: null }, createdAt: { lt: new Date(Date.now() - 90 * day) } } }),
+      db.notification.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 90 * day) }, deliveries: { none: { status: { not: "SENT" } } } } }),
     ]);
     console.log(`[worker] maintenance: ${a.count} attempts, ${sess.count} sessions, ${n.count} notifications removed`);
   });

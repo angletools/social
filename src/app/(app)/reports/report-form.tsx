@@ -63,7 +63,8 @@ export function ReportForm({
   return (
     <form action={action} className="card flex flex-col gap-[18px] p-5 sm:p-6">
       <h2 className="mb-0.5 text-[16px] font-semibold">{labels.title}</h2>
-      {aiOff && <p className="rounded-xl bg-sand-50 px-3 py-2 text-xs leading-relaxed text-sand-700">{aiOff}</p>}
+      {aiOff && <p className="rounded-xl bg-sand-50 px-3 py-2 text-xs leading-relaxed text-sand-700">{locale === "ar" ? "سيُنشأ تقرير بالأرقام والأدلة دون تفسير مولد بالذكاء الاصطناعي." : "A statistics and evidence report will be created without AI interpretation."}</p>}
+      <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="statisticsOnly" defaultChecked={Boolean(aiOff)} />{locale === "ar" ? "أرقام وأدلة فقط" : "Statistics and evidence only"}</label>
       <input type="hidden" name="days" value={days} />
       <div className="flex flex-col gap-2">
         <span id={group} className="text-[13.5px] text-muted">{labels.period}</span>

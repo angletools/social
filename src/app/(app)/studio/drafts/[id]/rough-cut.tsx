@@ -135,7 +135,6 @@ export type RoughCutHandle = { exportVideo: () => void };
 export function RoughCut({
   ref,
   beats,
-  shots,
   title,
   seek,
   t,

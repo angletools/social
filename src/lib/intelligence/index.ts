@@ -1,6 +1,6 @@
 import { Prisma, type Intent } from "@prisma/client";
 import { db } from "../db";
-import { cond, getDialectBreakdown, getKpis, getTimeseries, type Scope } from "../analytics";
+import { uniqueSource, cond, getDialectBreakdown, getKpis, getTimeseries, type Scope } from "../analytics";
 import { emergingThemes, net, pctChange, rankDrivers, type BriefContent, type TopicPeriodRow } from "./core";
 
 export * from "./core";
@@ -14,12 +14,12 @@ export async function getTopicPeriods(s: Scope): Promise<TopicPeriodRow[]> {
       SELECT t.key, count(*) AS n,
              count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
              count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg
-      FROM "Mention" m CROSS JOIN LATERAL unnest(m.topics) AS t(key) WHERE ${cond(s)} GROUP BY 1
+      FROM ${uniqueSource(s)} m CROSS JOIN LATERAL unnest(m.topics) AS t(key) WHERE ${cond(s)} GROUP BY 1
     ), prev AS (
       SELECT t.key, count(*) AS n,
              count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
              count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg
-      FROM "Mention" m CROSS JOIN LATERAL unnest(m.topics) AS t(key) WHERE ${cond(s, true)} GROUP BY 1
+      FROM ${uniqueSource(s, true)} m CROSS JOIN LATERAL unnest(m.topics) AS t(key) WHERE ${cond(s, true)} GROUP BY 1
     )
     SELECT cur.key, tp."labelEn" AS en, tp."labelAr" AS ar, cur.n, cur.pos, cur.neg,
            coalesce(prev.n, 0) AS pn, coalesce(prev.pos, 0) AS ppos, coalesce(prev.neg, 0) AS pneg
@@ -46,9 +46,9 @@ export async function getIntentSentiment(s: Scope) {
       SELECT m.intent, count(*) AS n,
              count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
              count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg
-      FROM "Mention" m WHERE ${cond(s)} AND m.intent IS NOT NULL GROUP BY 1
+      FROM ${uniqueSource(s)} m WHERE ${cond(s)} AND m.intent IS NOT NULL GROUP BY 1
     ), prev AS (
-      SELECT m.intent, count(*) AS n FROM "Mention" m WHERE ${cond(s, true)} AND m.intent IS NOT NULL GROUP BY 1
+      SELECT m.intent, count(*) AS n FROM ${uniqueSource(s, true)} m WHERE ${cond(s, true)} AND m.intent IS NOT NULL GROUP BY 1
     )
     SELECT cur.intent, cur.n, cur.pos, cur.neg, coalesce(prev.n, 0) AS pn
     FROM cur LEFT JOIN prev ON prev.intent = cur.intent ORDER BY cur.n DESC`;
@@ -63,7 +63,7 @@ export async function getRecurringComplaints(s: Scope, limit = 5) {
   const rows = await db.$queryRaw<{ key: string; en: string | null; ar: string | null; n: bigint; churn: bigint; id: string; text: string }[]>`
     WITH c AS (
       SELECT m.id, m.text, m.intent, t.key, (m.likes + m.comments + m.shares + coalesce(m."authorFollowers", 0) / 100) AS w
-      FROM "Mention" m CROSS JOIN LATERAL unnest(m.topics) AS t(key)
+      FROM ${uniqueSource(s)} m CROSS JOIN LATERAL unnest(m.topics) AS t(key)
       WHERE ${cond(s)} AND m.intent IN ('COMPLAINT', 'CHURN_RISK')
     ), g AS (
       SELECT key, count(*) AS n, count(*) FILTER (WHERE intent = 'CHURN_RISK') AS churn FROM c GROUP BY key
@@ -91,7 +91,7 @@ export async function getTopicExamples(s: Scope, keys: string[], per = 3) {
       SELECT t.key, m.id, row_number() OVER (
         PARTITION BY t.key ORDER BY (m.sentiment = 'NEGATIVE') DESC, (m.likes + m.comments + m.shares) DESC
       ) AS rn
-      FROM "Mention" m CROSS JOIN LATERAL unnest(m.topics) AS t(key)
+      FROM ${uniqueSource(s)} m CROSS JOIN LATERAL unnest(m.topics) AS t(key)
       WHERE ${cond(s)} AND t.key IN (${Prisma.join(keys)})
     ) x WHERE rn <= ${per}`;
   const out: Record<string, string[]> = {};
@@ -118,8 +118,8 @@ export async function getIntelligence(s: Scope) {
     kpis,
     trend: series.points.map((p) => ({ t: p.t, net: p.net, total: p.total })),
     unit: series.unit,
-    negative: rankDrivers(topics, "negative"),
-    positive: rankDrivers(topics, "positive"),
+    negative: rankDrivers(topics, "negative", kpis.negative),
+    positive: rankDrivers(topics, "positive", kpis.positive),
     emerging: comparable ? emergingThemes(topics) : [],
     intents,
     dialects,

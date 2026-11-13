@@ -124,7 +124,7 @@ export function PasswordForm({ labels }: { labels: P["general"] & { wrong: strin
         </label>
         <label className={S.field}>
           <span className={S.label}>{labels.next}</span>
-          <input name="next" type="password" required minLength={10} maxLength={200} autoComplete="new-password" className={S.input} dir="ltr" />
+          <input name="next" type="password" required minLength={12} maxLength={72} autoComplete="new-password" className={S.input} dir="ltr" />
         </label>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
@@ -191,12 +191,7 @@ export function OrgForm({
 
 export type MemberRow = { id: string; name: string; email: string; role: Role; active: boolean; you: boolean; editable: boolean; seen: string };
 
-const WORDS = ["Fajr", "Najm", "Sahab", "Rimal", "Nakhl", "Wadi", "Qamar", "Bahr", "Jabal", "Nahr"];
-const tempPassword = () => {
-  const r = new Uint32Array(3);
-  crypto.getRandomValues(r);
-  return `${WORDS[r[0] % WORDS.length]}-${WORDS[r[1] % WORDS.length].toLowerCase()}-${1000 + (r[2] % 9000)}`;
-};
+
 
 export function TeamPanel({
   members,
@@ -270,11 +265,8 @@ function AddMemberForm({ labels, roles, onDone }: { labels: P["team"]; roles: Re
   const [state, action, pending] = useActionState(addMember, null);
   const { toasts, common } = useClientDict();
   const ref = useRef<HTMLFormElement>(null);
-  const [pw] = useState(tempPassword);
   useResultToast(state, toasts.memberAdded, labels.errors);
-  useEffect(() => {
-    if (state?.ok) onDone();
-  }, [state, onDone]);
+  if (state?.ok && state.inviteUrl) return <section className={S.panel}><h3 className={S.title}>{labels.inviteReady}</h3><p className="text-sm text-muted">{labels.inviteHelp}</p><input className={S.input} aria-label={labels.inviteReady} value={state.inviteUrl} readOnly dir="ltr" onFocus={e => e.target.select()} /><div className="flex flex-wrap gap-2"><button type="button" className={S.main} onClick={async () => { try { await navigator.clipboard.writeText(state.inviteUrl!); toast(common.copied); } catch { toast(common.failed, "error"); } }}>{labels.inviteCopy}</button><button type="button" onClick={onDone} className={S.ghost}>{common.close}</button></div></section>;
   return (
     <form ref={ref} action={action} className={cn(S.panel, "animate-rise")}>
       <span className={S.title}>{labels.addTitle}</span>
@@ -299,17 +291,8 @@ function AddMemberForm({ labels, roles, onDone }: { labels: P["team"]; roles: Re
           </span>
         </label>
       </div>
-      <div className="grid items-end gap-4 sm:grid-cols-[1fr_auto]">
-        <label className={S.field}>
-          <span className={S.label}>{labels.password}</span>
-          <input name="password" type="text" required minLength={10} maxLength={200} defaultValue={pw} className={S.input} dir="ltr" autoComplete="off" spellCheck={false} />
-        </label>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onDone} className={S.ghost}>{common.cancel}</button>
-          <button className={S.main} disabled={pending}>{labels.add}</button>
-        </div>
-      </div>
-      <span className="-mt-2 text-[13px] text-faint">{labels.passwordHint}</span>
+      <p className="text-[13px] text-muted">{labels.inviteHelp}</p>
+      <div className="flex justify-end gap-2"><button type="button" onClick={onDone} className={S.ghost}>{common.cancel}</button><button className={S.main} disabled={pending}>{labels.add}</button></div>
     </form>
   );
 }
@@ -658,7 +641,7 @@ export function WeeklyForm({
               value={text}
               onChange={(e) => (/[\s,;]$/.test(e.target.value) ? commit(e.target.value) : setText(e.target.value))}
               onKeyDown={(e) => {
-                if (e.key === "Enter") (e.preventDefault(), commit(text));
+                if (e.key === "Enter") { e.preventDefault(); commit(text); }
                 if (e.key === "Backspace" && !text && list.length) setList((l) => l.slice(0, -1));
               }}
               onBlur={() => text && commit(text)}

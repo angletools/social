@@ -1,3 +1,5 @@
+import { aiUsageSummary } from "@/lib/ai/budget";
+import { AIBudget, ReprocessClassifications } from "./ai-budget";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import type { Role } from "@prisma/client";
@@ -250,6 +252,8 @@ async function Integrations({ user, t, locale, isAdmin }: Ctx) {
     }
   }
   const ai = aiEnabled();
+  const aiUsage = await aiUsageSummary(org.id, org.timezone);
+  const pendingClassifications = await db.mention.count({ where: { organizationId: org.id, enrichedAt: null } });
   const icon = "h-[19px] w-[19px]";
   const keyCard = (name: string, Icon: React.ElementType, on: boolean, key: string | undefined, meta: string, off: string) => (
     <section className="card flex min-w-0 flex-col gap-[18px] p-5 sm:p-6">
@@ -269,6 +273,7 @@ async function Integrations({ user, t, locale, isAdmin }: Ctx) {
   return (
     <>
       <H2>{p.nav.integrations}</H2>
+      {org.dataMode === "DEMO" && <p className="text-sm text-muted">{L.demoWorkspace}</p>}
       <div className="flex flex-col gap-3">
         <span className="text-[13.5px] text-faint">{L.dataAi}</span>
         <div className="grid gap-5 md:grid-cols-2">
@@ -276,6 +281,8 @@ async function Integrations({ user, t, locale, isAdmin }: Ctx) {
           {keyCard(L.anthropic, Sparkle, ai, process.env.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_AUTH_TOKEN, fmt(L.anthropicMeta, { model: AI_MODEL }), L.anthropicOff)}
         </div>
       </div>
+      <AIBudget limit={org.aiMonthlyTokenLimit} used={aiUsage.used} uncertain={aiUsage.uncertain} locale={locale} canManage={isAdmin} />
+      {isAdmin && <ReprocessClassifications locale={locale} enabled={ai} pendingCount={pendingClassifications} />}
       <div className="mt-2 flex flex-col gap-3">
         <span className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[13.5px] text-faint">
           <span>{L.delivery}</span>

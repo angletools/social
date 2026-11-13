@@ -73,6 +73,9 @@ describe("usage", () => {
     expect(usageBand(120, 100)).toEqual({ pct: 100, band: "neg" });
     expect(usageBand(3, 0).pct).toBe(100);
   });
+  it("uses the offset at the month boundary across daylight saving changes", () => {
+    expect(monthStart("America/New_York", new Date("2026-11-12T12:00:00Z")).toISOString()).toBe("2026-11-01T04:00:00.000Z");
+  });
 });
 
 describe("compliance notes point at a line", () => {

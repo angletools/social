@@ -1,3 +1,6 @@
+import { CompactMentions } from "./compact-list";
+import { MetricNotes } from "@/components/metric-notes";
+import { countUniqueMentions, uniqueMentionIds } from "@/lib/mention-query";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download, Search } from "lucide-react";
@@ -26,18 +29,18 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
   const requested = Math.max(1, Math.floor(Number(sp.page)) || 1);
 
   const [counts, monitors, topicRows, members] = await Promise.all([
-    Promise.all(QUICK_VIEWS.map((v) => db.mention.count({ where: { AND: [base, viewWhere(v, user.id)] } }))),
+    Promise.all(QUICK_VIEWS.map((v) => countUniqueMentions({ AND: [base, viewWhere(v, user.id)] }))),
     db.monitor.findMany({ where: { organizationId: user.organizationId }, select: { id: true, name: true }, orderBy: { createdAt: "asc" } }),
     db.topic.findMany({ where: { organizationId: user.organizationId } }),
-    db.user.findMany({ where: { organizationId: user.organizationId, active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.user.findMany({ where: { organizationId: user.organizationId, active: true, role: { not: "VIEWER" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   const total = counts[QUICK_VIEWS.indexOf(view)];
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requested, pages);
+  const ids = await uniqueMentionIds(where, { orderBy: sortOrder(sort), skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE });
   const rows = await db.mention.findMany({
-    where,
+    where: { id: { in: ids }, organizationId: user.organizationId },
     orderBy: sortOrder(sort),
-    skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     include: { monitor: { select: { name: true } }, assignedTo: { select: { id: true, name: true, email: true } } },
   });
@@ -55,6 +58,8 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
   const exportQs = new URLSearchParams(sp);
   exportQs.delete("page");
   const canAct = hasRole(user, "ANALYST");
+  const compact = sp.display === "list";
+  const displayHref = (display: string) => `/mentions?${new URLSearchParams({ ...sp, display })}`;
   // "Nothing is assigned to you" only when the view itself is empty, not when a filter emptied it.
   const narrowed = ["q", "platform", "sentiment", "monitor", "dialect", "intent", "status", "sarcasm", "topic"].some((k) => sp[k]);
   const empty = view === "mine" && !narrowed ? T.emptyMine : T.empty;
@@ -68,6 +73,8 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
         </a>
       </header>
 
+      <div className="mt-4 flex gap-4 text-sm text-muted"><Link href={displayHref("cards")} aria-current={!compact ? "page" : undefined} className={!compact ? "font-semibold text-ink" : ""}>{locale === "ar" ? "بطاقات" : "Cards"}</Link><Link href={displayHref("list")} aria-current={compact ? "page" : undefined} className={compact ? "font-semibold text-ink" : ""}>{locale === "ar" ? "قائمة مختصرة" : "Compact list"}</Link></div>
+      <MetricNotes locale={locale} />
       <MentionsBrowser
         tabs={QUICK_VIEWS.map((k, i) => ({ key: k, label: T.quick[k], count: nf.format(counts[i]) }))}
         activeTab={view}
@@ -110,13 +117,13 @@ export default async function MentionsPage({ searchParams }: { searchParams: Pro
       >
         {rows.length > 0 ? (
           <>
-            <ul className="mt-3.5 flex flex-col gap-2.5">
+            {compact ? <CompactMentions key={rows.map(r => `${r.id}:${r.assignedToId}:${r.status}`).join(",")} rows={rows.map(r => ({ id: r.id, author: r.authorName ?? r.authorHandle ?? "—", platform: t.platforms[r.platform], text: r.text, sentiment: r.sentiment ? t.sentiment[r.sentiment] : "—", assigned: r.assignedTo?.name ?? "", date: new Intl.DateTimeFormat(locale === "ar" ? "ar-SA" : "en-GB", { day: "numeric", month: "short", timeZone: user.organization.timezone }).format(r.publishedAt) }))} members={members} locale={locale} canAct={canAct} /> : <ul className="mt-3.5 flex flex-col gap-2.5">
               {rows.map((m) => (
                 <li key={m.id}>
                   <MentionCard m={m} t={t} locale={locale} topicLabels={topicLabels} canAct={canAct} members={members} />
                 </li>
               ))}
-            </ul>
+            </ul>}
             {pages > 1 && (
               <nav aria-label={T.pages} className="mt-5 flex items-center justify-between gap-4">
                 <span className="text-[13.5px] text-faint tnum">{fmt(t.mentions.pageOf, { page: nf.format(page), pages: nf.format(pages) })}</span>

@@ -1,3 +1,5 @@
+import { findUniqueMentions } from "../mention-query";
+import { parseWithBudget } from "./budget";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
@@ -81,9 +83,9 @@ async function writeWithAI(
   const where = { organizationId: scope.orgId, relevant: true, publishedAt: { gte: since } };
   const select = { id: true, text: true, platform: true, sentiment: true, intent: true, dialect: true, sarcasm: true, topics: true, likes: true, authorFollowers: true } as const;
   const [neg, top, churn] = await Promise.all([
-    db.mention.findMany({ where: { ...where, sentiment: "NEGATIVE" }, orderBy: { likes: "desc" }, take: 35, select }),
-    db.mention.findMany({ where, orderBy: { likes: "desc" }, take: 30, select }),
-    db.mention.findMany({ where: { ...where, intent: "CHURN_RISK" }, orderBy: { publishedAt: "desc" }, take: 15, select }),
+    findUniqueMentions({ where: { ...where, sentiment: "NEGATIVE" }, orderBy: { likes: "desc" }, take: 35, select }),
+    findUniqueMentions({ where, orderBy: { likes: "desc" }, take: 30, select }),
+    findUniqueMentions({ where: { ...where, intent: "CHURN_RISK" }, orderBy: { publishedAt: "desc" }, take: 15, select }),
   ]);
   const seen = new Set<string>();
   const sample = [...churn, ...neg, ...top].filter((p) => !seen.has(p.id) && seen.add(p.id));
@@ -107,7 +109,7 @@ async function writeWithAI(
   };
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(scope.orgId, "intelligence", {
     model: AI_MODEL,
     max_tokens: 8000,
     betas,

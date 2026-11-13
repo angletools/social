@@ -1,4 +1,4 @@
-import type { Platform } from "@prisma/client";
+import type { DataMode, Platform } from "@prisma/client";
 import { db } from "../db";
 import { MonidClient, runItems } from "../monid/client";
 import { normalizeItem } from "../monid/normalize";
@@ -25,9 +25,9 @@ type Collected = {
   demoFormatKey?: string;
 };
 
-async function collect(watch: { id: string; platforms: Platform[]; seeds: string[]; accounts: string[] }): Promise<{ posts: Collected[]; errors: string[] }> {
+async function collect(watch: { id: string; platforms: Platform[]; seeds: string[]; accounts: string[]; organization: { dataMode: DataMode } }): Promise<{ posts: Collected[]; errors: string[] }> {
   const monid = MonidClient.fromEnv();
-  if (!monid) {
+  if (watch.organization.dataMode === "DEMO") {
     const posts = generateDemoTrendPosts(watch.id, watch.platforms, Math.floor(Date.now() / 86400_000)).map((p) => ({
       ...p,
       url: null,
@@ -36,6 +36,7 @@ async function collect(watch: { id: string; platforms: Platform[]; seeds: string
     }));
     return { posts, errors: [] };
   }
+  if (!monid) throw new Error("Live collection is unavailable: configure Monid. No sample data was added.");
   const posts: Collected[] = [];
   const errors: string[] = [];
   for (const platform of watch.platforms) {
@@ -92,9 +93,15 @@ export async function refreshFormatStats(organizationId: string) {
 
 /** Scans one niche: collects posts, scores them, detects formats. */
 export async function scanWatch(watchId: string) {
-  const watch = await db.trendWatch.findUnique({ where: { id: watchId } });
+  const watch = await db.trendWatch.findUnique({ where: { id: watchId }, include: { organization: { select: { dataMode: true } } } });
   if (!watch || !watch.enabled) return { posts: 0, formats: 0 };
-  const { posts, errors } = await collect(watch);
+  let collected: Awaited<ReturnType<typeof collect>>;
+  try { collected = await collect(watch); }
+  catch (e) {
+    await db.trendWatch.update({ where: { id: watchId }, data: { lastScanError: String((e as Error).message).slice(0, 300) } });
+    throw e;
+  }
+  const { posts, errors } = collected;
   const kept = posts.filter((p) => p.views >= watch.minViews || (p.platform === "X" && p.likes >= 200));
 
   // Demo formats are created once per organization so the demo has something to show without AI.
@@ -150,7 +157,7 @@ export async function scanWatch(watchId: string) {
     };
     await db.trendPost.upsert({
       where: { watchId_platform_externalId: { watchId, platform: p.platform, externalId: p.externalId } },
-      create: { ...data, organizationId: watch.organizationId, watchId, platform: p.platform, externalId: p.externalId },
+      create: { ...data, source: watch.organization.dataMode, organizationId: watch.organizationId, watchId, platform: p.platform, externalId: p.externalId },
       update: data,
     });
   }
@@ -167,8 +174,9 @@ export async function scanWatch(watchId: string) {
   await refreshFormatStats(watch.organizationId);
   await db.trendWatch.update({
     where: { id: watchId },
-    data: { lastScanAt: new Date(), lastScanError: [...errors, aiError].filter(Boolean).join(" | ") || null },
+    data: { ...(!errors.length && { lastScanAt: new Date() }), lastScanError: [...errors, aiError].filter(Boolean).join(" | ") || null },
   });
+  if (errors.length) throw new Error(`Trend collection incomplete: ${errors.join("; ")}`);
 
   // Tell the team about formats that are taking off.
   const rising = await db.trendFormat.findMany({

@@ -54,14 +54,17 @@ Generic AI tools misread Gulf Arabic. angle social's classifier follows a region
 ### Reliability
 
 - **Timezone-correct:** dates and daily/hourly buckets use the organization's timezone (default `Asia/Riyadh`), computed in Postgres.
-- **Worker heartbeat:** admins see a banner if background processing stops, and Settings → Data & AI connections shows worker, email and API status.
+- **Worker heartbeat:** admins see a banner if background processing stops, and Settings → Integrations connections shows worker, email and API status.
 - **Sign-in throttling** is stored in the database (8 failures per email or 40 per IP per 15 minutes), so it holds across restarts and multiple instances. Changing your password signs out your other sessions.
 - **Friendly error and 404 screens:** an error never shows raw stack traces.
-- **Nightly housekeeping** removes old sign-in attempts, expired sessions and old read notifications.
+- **Nightly housekeeping** removes old sign-in attempts, expired sessions and notifications older than 90 days that have no outstanding deliveries.
+- **Review integrity:** approvals refer to an immutable content revision. Edits, restores and rewrites clear approval; stale saves are rejected. Published is an internal handoff status, not a social-platform publishing action.
+- **Persistent Inbox:** all unresolved items remain reachable, with priority applied before paging. The default queue excludes competitor and topic monitors; All monitors includes them.
+- **Evidence and delivery:** report statistics and sampled posts are captured on the first attempt and reused on retries. Dates use one inclusive start/exclusive end window. Email/webhook attempts are durable, retry independently of alert cooldowns, and show their status in Alerts or Reports.
 
 ## Design
 
-Calm and editorial rather than template SaaS. The canvas is warm paper; primary actions are near-black ink; a deep palm green marks data and the current page; sand is a quiet highlight. Colour is reserved for meaning (sentiment, risk, intent). Type is IBM Plex Sans Arabic throughout, bundled with the app, with tabular figures for numbers. Platform logos are real; authors get initial avatars. Layouts mirror correctly in Arabic, and charts keep time reading left to right. Tokens live in `src/app/globals.css`.
+The current design uses a black navigation shell, warm neutral canvas, restrained coral accent, Urbanist for English, and IBM Plex Sans Arabic for Arabic. Fonts are bundled. Layouts mirror in Arabic, and charts keep time reading left to right. Tokens live in `src/app/globals.css`; status and metadata text use readable contrast in light and dark appearances.
 
 ## Architecture
 
@@ -103,8 +106,12 @@ Or with Docker: `docker compose up -d --build`.
 
 ### Demo mode vs live data
 
-- **No `MONID_API_KEY`** → monitors collect realistic sample posts. The brands (Nakhla Invest, Raya Trade, Dana Capital) are fictional. A "Demo data" badge is shown.
-- **With `MONID_API_KEY`** → each monitor runs a Monid scraper per platform (`POST /v1/run`, polled until complete). Default scrapers are in `src/lib/monid/sources.ts`. To check or change them:
+- **Seeded DEMO workspace** → monitors collect sample posts, even when Monid is configured. The brands (Nakhla Invest, Raya Trade, Dana Capital) are fictional. The Demo data badge remains visible on phones. Adding a key never converts sample data into live data.
+- **Empty LIVE workspace** → requires `MONID_API_KEY`. Without it collection fails visibly and never substitutes sample data. Workspace mode is immutable; create a separate live workspace instead of converting the demo. Every collected mention and trend post carries its source mode.
+
+  Set `WORKSPACE_NAME`, `WORKSPACE_SLUG`, `OWNER_EMAIL` and `OWNER_PASSWORD` (12+ characters) in your local, ignored environment, then run `npm run workspace:create`. Use a unique email and slug. This creates an empty workspace and owner; it does not copy or delete demo data. Remove the bootstrap password from the environment afterward.
+
+- **Live collection** runs a Monid scraper per platform (`POST /v1/run`, polled until complete). Retries resume an existing run ID when available; an ambiguous failed start is not automatically charged again. Successful resyncs refresh engagement counters while preserving assignment, notes and classifications. Last attempt and last successful sync are stored separately. Default scrapers are in `src/lib/monid/sources.ts`. To check or change them:
 
   ```bash
   npm run monid:discover                                  # list candidate endpoints per platform
@@ -116,11 +123,18 @@ Or with Docker: `docker compose up -d --build`.
 
 ### AI cost
 
-Classification runs in batches of 25 posts at low effort. By default every AI feature uses `claude-opus-5-5`. Classification is the high-volume part: set `AI_ENRICH_MODEL=claude-haiku-5-5` to cut its cost sharply, and spot-check quality on your own data first. Requests opt in to server-side refusal fallback on supported models.
+Classification runs in batches of 25 posts at low effort. By default every AI feature uses `claude-opus-5-5`. Classification is the high-volume part: set `AI_ENRICH_MODEL=claude-haiku-5-5` to cut its cost sharply, and spot-check quality on your own data first. Automatic retries and fallback-model calls are disabled so one reservation corresponds to one provider request. Every feature shares an atomic workspace token allowance (2,000,000 per local calendar month by default), adjustable by admins under Settings → Integrations. It is a usage limit, not a currency budget. Completed calls record provider-reported input/output/cache tokens; failed or canceled calls keep their conservative reservation when usage is unknown.
+
+The assistant permits 30 turns per person and 100 per workspace per 10 minutes, with one active turn per person. Each turn has at most four model rounds, at most six data tools per tool round, 4,000 output tokens per round, bounded context and a three-minute deadline. Stop cancels the provider connection. Other AI calls have a two-minute timeout and bounded request/output sizes.
+
+Classification records the source, model, classifier version, context/glossary fingerprint and self-reported confidence. Context snapshots are retained in the audit log. Team corrections have an actor and reason, survive collection, and win over stale AI writes. Admins can reprocess a bounded batch after changing the glossary/model; sample data and human corrections are preserved. See [evaluation guidance](evals/README.md).
 
 ## Production checklist
 
 - Set `APP_URL`, `SMTP_URL` and `EMAIL_FROM` so alert emails and weekly reports go out.
+- Apply migrations with web and worker stopped before starting the updated release. The live-readiness migration labels known seeded workspaces DEMO and returns existing Approved drafts to In review because their original approved revision cannot be proven. Published history is preserved. Back up the database first.
+- Check a real collection, report and delivery with the intended provider accounts before live team reliance. Local regression tests use controlled providers and a loopback SMTP server.
+- Delivery means **accepted by the provider**, not confirmed receipt. Failed deliveries retry up to eight times with backoff; admins can retry them from Alerts/Reports. Sending claims expire and can be recovered after a worker crash. SMTP/webhooks are at-least-once: a crash after acceptance but before the database commit, or partial SMTP recipient acceptance, can cause a duplicate. Stable email Message-IDs help downstream deduplication but cannot guarantee it.
 
 - Host Postgres + app in-Kingdom if the client requires PDPL data residency.
 - Put the app behind HTTPS (cookies are `secure` in production) and set `APP_URL`.
@@ -130,4 +144,34 @@ Classification runs in batches of 25 posts at low effort. By default every AI fe
 
 ## Scripts
 
-`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `db:migrate`, `db:seed`, `monid:discover`, `eval:dialect`.
+`dev`, `dev:all`, `build`, `start`, `worker`, `typecheck`, `lint`, `test`, `test:integration`, `db:migrate`, `db:seed`, `workspace:create`, `monid:discover`, `eval:dialect`.
+
+## Verification
+
+```bash
+npm ci
+npx prisma generate
+npm run typecheck
+npm run lint
+npm test
+# Use a separate disposable PostgreSQL database named rasd_test_*:
+DATABASE_URL="postgresql://user:password@localhost:5432/rasd_test_local" npx prisma migrate deploy
+DATABASE_URL="postgresql://user:password@localhost:5432/rasd_test_local" npm run test:integration
+npm run build
+```
+
+Integration tests refuse database names outside `rasd_test_*`. They exercise real PostgreSQL transactions, real session/role validation through a test request context, concurrent edits/collection/delivery, historical reports, complete Inbox paging, and a local SMTP server. They stub paid provider calls. The GitHub workflow runs the same gates on PostgreSQL 16; adding the workflow does not itself establish a remote CI pass.
+
+`postcss` and `deepmerge-ts` are pinned through npm overrides to patched versions without changing the major Next.js or Prisma versions. The TypeScript lint parser's `minimatch` is separately pinned to 11.0.1 for [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249); the older matcher used by other ESLint plugins is left on its compatible major. Revalidate lint, the Prisma CLI, migrations, generation and the application build when changing these overrides. CI audits both production and development dependencies and rejects moderate-or-higher advisories.
+
+## Team workflow and metric definitions
+
+Organization totals, report evidence, exports, assistant tools and filtered mention lists count a post once by platform plus external post ID. The earliest matching capture provides classification/context; single-monitor views keep that monitor's context. Cross-monitor captures share assignment, reply and archive state, including later collection. The follower estimate counts each known platform account once using its largest observed follower count; it is not unique audience reach or views. Share of voice remains a comparison of brand-monitor captures and may count the same post for more than one brand. Screens and report snapshots include these definitions; old snapshots retain their original figures and are labeled as legacy.
+
+The Inbox exposes classification review, corrections, internal handoff notes and activity. Mentions has an optional compact list with bulk assignment/status actions. Studio history compares saved versions; review comments and reviewer handoff refer to a saved revision. Approval still requires the current revision to be reviewed. Marking a reply or draft published records a manual handoff; the app does not publish to social platforms.
+
+Reports can be generated from statistics and evidence without AI. Percentage alerts require a configurable minimum sample (20 classified posts by default); saved rules can be previewed without sending or changing cooldown state. Dense Home charts aggregate to four-hour buckets on phones; charts show dates, scales and baseline context.
+
+Admins create one-use invitation links instead of choosing shared starter passwords. Links expire in 48 hours and are shared by the admin. Password recovery uses SMTP with 30-minute one-use links, durable throttling, generic responses, and session revocation. Configure `APP_URL` before handing links to teammates. Existing users are preserved.
+
+See [operations and recovery](docs/OPERATIONS.md) for release, backup/restore, retries and retention. Real provider behavior, independent Arabic quality, external email receipt, remote CI, multi-user load and production recovery remain environment-specific verification gates.

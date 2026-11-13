@@ -159,6 +159,7 @@ export function MentionCard({
           </p>
         )}
 
+        {!compact && <Link href={`/inbox?m=${m.id}`} className="mt-2 inline-block text-xs text-muted underline underline-offset-4">{locale === "ar" ? "مراجعة التصنيف وملاحظات الفريق" : "Review classification and team notes"}</Link>}
         <MentionCardActions
           id={m.id}
           status={m.status}

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { cond, uniqueSource } from "./analytics";
 import { db } from "./db";
 
 export type SeriesUnit = "hour" | "4h" | "day";
@@ -36,8 +36,8 @@ export function bucketHours(hourly: Map<string, number>, startLocal: Date, endLo
   else first.setUTCHours(Math.floor(first.getUTCHours() / step) * step);
   const points: { t: string; n: number }[] = [];
   const ms = step * 3600_000;
-  // A final bucket that is less than half over would read as a sudden drop, so it is left out.
-  for (let b = first.getTime(); b + ms / 2 <= endLocal.getTime() + 3600_000; b += ms) {
+  // Include every intersecting bucket; dropping a partial bucket loses real evidence.
+  for (let b = first.getTime(); b < endLocal.getTime(); b += ms) {
     let n = 0;
     for (let h = 0; h < step; h++) n += hourly.get(iso(new Date(b + h * 3600_000))) ?? 0;
     points.push({ t: iso(new Date(b)), n });
@@ -51,10 +51,8 @@ export async function getReportSeries(opts: { orgId: string; monitorId?: string 
   const tz = safeTz(opts.tz);
   const rows = await db.$queryRaw<{ h: string; n: bigint }[]>`
     SELECT to_char(date_trunc('hour', (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD"T"HH24:MI:SS') AS h, count(*) AS n
-    FROM "Mention" m
-    WHERE m."organizationId" = ${opts.orgId} AND m."relevant" = true
-      AND m."publishedAt" >= ${opts.start} AND m."publishedAt" <= ${opts.end}
-      ${opts.monitorId ? Prisma.sql`AND m."monitorId" = ${opts.monitorId}` : Prisma.empty}
+    FROM ${uniqueSource({ orgId: opts.orgId, days: 1, start: opts.start, end: opts.end, monitorId: opts.monitorId ?? undefined })} m
+    WHERE ${cond({ orgId: opts.orgId, days: 1, start: opts.start, end: opts.end, monitorId: opts.monitorId ?? undefined })}
     GROUP BY 1`;
   const hourly = new Map(rows.map((r) => [r.h, Number(r.n)]));
   const days = (opts.end.getTime() - opts.start.getTime()) / 86400_000;

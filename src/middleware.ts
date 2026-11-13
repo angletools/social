@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC = ["/login", "/api/health"];
+const PUBLIC = ["/login", "/access", "/api/health"];
 
 // Cheap gate: real session validation happens server-side in requireUser().
 export function middleware(req: NextRequest) {

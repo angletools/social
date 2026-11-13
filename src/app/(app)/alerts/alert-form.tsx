@@ -86,6 +86,7 @@ function SheetBody({
   const [kind, setKind] = useState<AlertKind>(initialKind);
   const [values, setValues] = useState<Record<AlertKind, string>>(() => Object.fromEntries(ALERT_KINDS.map((k) => [k, ALERT_DEFAULTS[k].value])) as Record<AlertKind, string>);
   const [windows, setWindows] = useState<Record<AlertKind, string>>(() => Object.fromEntries(ALERT_KINDS.map((k) => [k, ALERT_DEFAULTS[k].window])) as Record<AlertKind, string>);
+  const [minimumVolume, setMinimumVolume] = useState(20);
   const [words, setWords] = useState("");
   const [monitorId, setMonitorId] = useState(monitors.length === 1 ? monitors[0].id : "");
   const [useEmail, setUseEmail] = useState(false);
@@ -173,6 +174,7 @@ function SheetBody({
     }
     const fd = new FormData();
     fd.set("kind", kind);
+    fd.set("minimumVolume", String(minimumVolume));
     fd.set("name", name.trim());
     fd.set("defaultName", t.defaultNames[kind]);
     if (monitorId) fd.set("monitorId", monitorId);
@@ -313,6 +315,7 @@ function SheetBody({
             )}
           </fieldset>
 
+          {kind === "NEGATIVE_SPIKE" && <label className="grid gap-2 text-sm text-muted">{locale === "ar" ? "الحد الأدنى للمنشورات المصنفة" : "Minimum classified posts"}<input className="input" type="number" min={5} max={10000} required value={minimumVolume} onChange={e => setMinimumVolume(Number(e.target.value))} /></label>}
           <fieldset>
             <legend className="mb-2.5 text-[14px] font-semibold">{t.sheet.in}</legend>
             <div role="radiogroup" aria-label={t.sheet.monitorGroup} className="flex flex-wrap gap-2">

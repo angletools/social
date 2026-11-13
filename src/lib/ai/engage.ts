@@ -1,3 +1,4 @@
+import { parseWithBudget } from "./budget";
 import { z } from "zod";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { db } from "../db";
@@ -23,7 +24,7 @@ export async function translateMention(mentionId: string, organizationId: string
   if (!ai) throw new Error("AI_DISABLED");
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(organizationId, "engage", {
     model: AI_MODEL,
     max_tokens: 4000,
     betas,
@@ -86,7 +87,7 @@ export async function draftReplies(mentionId: string, organizationId: string, us
     .join("\n\n");
 
   const { betas, ...fb } = fallbackParams(AI_MODEL);
-  const res = await ai.beta.messages.parse({
+  const res = await parseWithBudget(organizationId, "engage", {
     model: AI_MODEL,
     max_tokens: 8000,
     betas,

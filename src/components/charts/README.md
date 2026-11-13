@@ -29,3 +29,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Updating the vendored files
+
+The original registry import did not record an upstream commit. Do not invent a revision or replace it blindly. The repository baseline `ac55aa6094972665466b993073dd6bef28956f23` identifies the current imported source. For an update, record the upstream repository commit and registry item versions in this file, preserve both MIT notices, compare local tooltip adaptations, and verify the app-level wrappers in English/Arabic, light/dark and phone layouts. The stabilization work changes wrappers only; it does not replace vendored chart internals.

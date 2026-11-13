@@ -5,6 +5,7 @@ const count = vi.fn();
 const findFirst = vi.fn();
 const findMany = vi.fn();
 vi.mock("@/lib/db", () => ({ db: { mention: { count, findFirst, findMany } } }));
+vi.mock("@/lib/mention-query", () => ({ countUniqueMentions: (where: unknown) => count({ where }), findUniqueMentions: findMany }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/lib/webhooks", () => ({ postWebhook: vi.fn() }));
 
@@ -17,6 +18,7 @@ const rule = (over: Partial<AlertRule> = {}): AlertRule => ({
   name: "May leave us",
   kind: "CHURN_RISK",
   threshold: 0,
+  minimumVolume: 20,
   windowMinutes: 1440,
   keyword: null,
   notifyEmail: false,
@@ -40,7 +42,7 @@ describe("CHURN_RISK alerts", () => {
     findFirst.mockResolvedValue({ text: "خلاص بسكّر حسابي وأروح لمنافس" });
     const hit = await checkRule(rule({ threshold: 2 }));
     expect(hit).not.toBeNull();
-    expect(hit!.titleEn).toBe("3 people say they may leave us");
+    expect(hit!.titleEn).toBe("3 posts express intent to leave");
     expect(hit!.bodyAr).toContain("بسكّر حسابي");
     expect(hit!.link).toBe("/mentions?intent=CHURN_RISK");
   });

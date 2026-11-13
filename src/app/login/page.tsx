@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getDict } from "@/lib/i18n";
@@ -46,6 +47,7 @@ export default async function LoginPage() {
             <h1 className="text-[28px] leading-[1.3] font-semibold sm:text-[30px]">{t.login.title}</h1>
             <p className="mt-2 text-[15px] leading-[1.75] text-muted">{t.login.subtitle}</p>
             <LoginForm labels={{ ...t.login, ...t.loginPage }} />
+            <Link href="/access" className="mt-4 block text-center text-sm text-muted underline underline-offset-4">{locale === "ar" ? "نسيت كلمة المرور؟" : "Forgot password?"}</Link>
           </div>
         </div>
 

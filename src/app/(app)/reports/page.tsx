@@ -1,3 +1,4 @@
+import { DeliveryStatus } from "@/components/delivery-status";
 import Link from "next/link";
 import { CalendarDays, ChevronRight, FileText } from "lucide-react";
 import type { ReportStatus } from "@prisma/client";
@@ -130,7 +131,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                             {tp.status[r.status]}
                           </span>
                           {r.status === "GENERATING" && <span className="ps-0.5 text-[12.5px] whitespace-nowrap text-faint">{tp.aboutMinute}</span>}
-                          {r.status === "FAILED" && canCreate && <RetryButton id={r.id} label={tp.retry} />}
+                          {r.status === "FAILED" && (r.weekly ? isAdmin : canCreate) && <RetryButton id={r.id} label={tp.retry} />}
                         </span>
                         <ChevronRight aria-hidden className="hidden h-4 w-4 text-faint sm:block rtl:rotate-180" strokeWidth={1.8} />
                       </div>
@@ -173,6 +174,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </div>
         )}
       </section>
+      <DeliveryStatus orgId={user.organizationId} weekly canRetry={isAdmin} />
     </>
   );
 }

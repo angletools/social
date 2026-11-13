@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { timeAgo } from "@/lib/utils";
 import { dataSource } from "@/lib/ingest/sync";
-import { INBOX_INTENTS } from "@/lib/analytics";
+import { inboxWhere } from "@/lib/inbox";
 import { getWorkerStatus } from "@/lib/system";
 import { HistoryArrows, Sidebar, TabBar } from "@/components/shell/nav-links";
 import { LangToggle } from "@/components/shell/lang-toggle";
@@ -30,19 +30,11 @@ export default async function AppLayout({
         organizationId: orgId,
         OR: [{ userId: null }, { userId: user.id }],
       },
+      include: { reads: { where: { userId: user.id }, select: { readAt: true } } },
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
-    db.mention.count({
-      where: {
-        organizationId: orgId,
-        relevant: true,
-        repliedAt: null,
-        status: { not: "ARCHIVED" },
-        publishedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
-        OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }],
-      },
-    }),
+    db.mention.count({ where: inboxWhere(orgId) }),
     getWorkerStatus(),
     db.monitor.findMany({
       where: { organizationId: orgId },
@@ -51,10 +43,10 @@ export default async function AppLayout({
       take: 8,
     }),
   ]);
-  const unread = notes.filter((n) => !n.readAt).length;
+  const unread = notes.filter((n) => n.reads.length === 0).length;
   const labels = t.nav as unknown as Record<string, string>;
   const badges = { alerts: unread, inbox: awaiting };
-  const demo = dataSource() === "demo";
+  const demo = dataSource(user.organization.dataMode) === "demo";
   const jar = await cookies();
   const theme = parseTheme(jar.get(THEME_COOKIE)?.value);
   const account = {
@@ -90,7 +82,7 @@ export default async function AppLayout({
             <HistoryArrows dir={dir} labels={{ back: t.nav.back, forward: t.nav.forward }} />
             <div className="ms-auto flex min-w-0 items-center gap-1.5 md:gap-2.5">
               {demo && (
-                <Link href="/settings#connections" title={t.common.demoModeHint} className="hidden h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-[#8f8f8f] hover:text-white lg:inline-flex">
+                <Link href="/settings?section=integrations" title={t.common.demoModeHint} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-1 text-[11px] text-[#b8b8b8] hover:text-white md:px-2.5 md:text-xs">
                   <span className="h-1.5 w-1.5 rounded-full bg-sand-500" />
                   {t.common.demoMode}
                 </Link>
@@ -107,7 +99,7 @@ export default async function AppLayout({
                   body: locale === "ar" ? n.bodyAr : n.bodyEn,
                   link: n.link,
                   severity: n.severity,
-                  unread: !n.readAt,
+                  unread: n.reads.length === 0,
                   when: timeAgo(n.createdAt, locale),
                 }))}
               />

@@ -1,3 +1,4 @@
+import { MetricNotes } from "@/components/metric-notes";
 import { notFound } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import type { Platform } from "@prisma/client";
@@ -15,6 +16,7 @@ import { ReportToolbar, RetryInline } from "./toolbar";
 import { ConversationChart, NetGauge } from "./report-visuals";
 
 type Stats = {
+  metricDefinitions?: object;
   kpis: {
     mentions: number;
     netSentiment: number;
@@ -72,7 +74,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     ? [
         { label: d.mentions, value: n(k.mentions), delta: k.deltas.mentions ?? 0, unit: "%", good: (k.deltas.mentions ?? 0) === 0 ? null : (k.deltas.netSentiment ?? 0) >= 0 },
         { label: d.net, value: `${k.netSentiment > 0 ? "+" : k.netSentiment < 0 ? "−" : ""}${Math.abs(k.netSentiment)}`, delta: k.deltas.netSentiment ?? 0, unit: ` ${d.pts}`, good: (k.deltas.netSentiment ?? 0) > 0 },
-        { label: d.reach, value: n(k.reach), delta: k.deltas.reach ?? 0, unit: "%", good: (k.deltas.reach ?? 0) > 0 },
+        { label: stats?.metricDefinitions ? d.reach : (locale === "ar" ? "مجموع متابعي الإشارات (سابق)" : "Follower exposures (legacy)"), value: n(k.reach), delta: k.deltas.reach ?? 0, unit: "%", good: (k.deltas.reach ?? 0) > 0 },
         { label: d.risks, value: n(k.risks), delta: k.deltas.risks ?? 0, unit: "%", good: (k.deltas.risks ?? 0) < 0 },
       ]
     : [];
@@ -126,6 +128,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         uiLocale={uiLocale}
       />
 
+      <MetricNotes locale={locale} legacy={!stats?.metricDefinitions} />
       <article
         dir={locale === "ar" ? "rtl" : "ltr"}
         lang={locale}
@@ -176,7 +179,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               {ui.reportDoc.failed}
               {report.error ? `: ${report.error}` : ""}
             </span>
-            {hasRole(user, "ANALYST") && <RetryInline id={report.id} label={ui.reportDoc.retry} />}
+            {hasRole(user, report.weekly ? "ADMIN" : "ANALYST") && <RetryInline id={report.id} label={ui.reportDoc.retry} />}
           </div>
         )}
 

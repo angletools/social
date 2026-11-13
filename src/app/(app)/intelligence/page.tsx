@@ -1,3 +1,4 @@
+import { MetricNotes } from "@/components/metric-notes";
 import Link from "next/link";
 import type { Intent } from "@prisma/client";
 import { hasRole, requireUser } from "@/lib/auth";
@@ -48,6 +49,7 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
   const rangeLabel = t.common.range[String(days) as keyof typeof t.common.range];
 
   const header = (
+    <>
     <header className="flex flex-wrap items-center justify-between gap-x-5 gap-y-4">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <h1 className="text-[28px] font-semibold leading-tight">{T.title}</h1>
@@ -63,6 +65,8 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
       </div>
       <RangeSegmented days={days} labels={t.common.range} basePath="/intelligence" params={{ tab: tab === "language" ? "language" : undefined }} label={t.home2.period2} />
     </header>
+      <MetricNotes locale={locale} />
+    </>
   );
 
   if (tab === "language") {

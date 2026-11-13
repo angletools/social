@@ -1,7 +1,10 @@
+import { countUniqueMentions, uniqueMentionsSql, METRIC_DEFINITIONS } from "./mention-query";
+import { dayStart as localDayStart } from "./workspace";
 import { Prisma, type Dialect, type Intent, type Platform, type Sentiment } from "@prisma/client";
 import { db } from "./db";
+import { inboxWhere } from "./inbox";
 
-export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform; tz?: string };
+export type Scope = { orgId: string; days: number; monitorId?: string; platform?: Platform; tz?: string; start?: Date; end?: Date };
 
 const DEFAULT_TZ = "Asia/Riyadh";
 const safeTz = (tz?: string) => (tz && /^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/.test(tz) ? tz : DEFAULT_TZ);
@@ -13,9 +16,11 @@ export const parseDays = (v?: string | string[]) => {
 };
 
 function window(s: Scope, previous = false) {
-  const end = new Date(Date.now() - (previous ? s.days * 86400_000 : 0));
-  const start = new Date(end.getTime() - s.days * 86400_000);
-  return { start, end };
+  const end = s.end ?? new Date();
+  const start = s.start ?? new Date(end.getTime() - s.days * 86400_000);
+  const duration = end.getTime() - start.getTime();
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error("INVALID_REPORT_PERIOD");
+  return previous ? { start: new Date(start.getTime() - duration), end: start } : { start, end };
 }
 
 /** SQL WHERE for a scope's current (or previous equal) window. */
@@ -24,11 +29,18 @@ export function cond(s: Scope, previous = false) {
   const parts = [
     Prisma.sql`m."organizationId" = ${s.orgId}`,
     Prisma.sql`m."relevant" = true`,
-    Prisma.sql`m."publishedAt" >= ${start} AND m."publishedAt" < ${end}`,
+    // Prisma's timestamp columns store UTC without an offset. Bind ISO text so
+    // the database session timezone cannot shift either comparison boundary.
+    Prisma.sql`m."publishedAt" >= ${start.toISOString()}::timestamp AND m."publishedAt" < ${end.toISOString()}::timestamp`,
   ];
   if (s.monitorId) parts.push(Prisma.sql`m."monitorId" = ${s.monitorId}`);
   if (s.platform) parts.push(Prisma.sql`m."platform" = ${s.platform}::"Platform"`);
   return Prisma.join(parts, " AND ");
+}
+
+export function uniqueSource(s: Scope, previous = false) {
+  const { start, end } = window(s, previous);
+  return uniqueMentionsSql({ organizationId: s.orgId, relevant: true, publishedAt: { gte: start, lt: end }, ...(s.monitorId && { monitorId: s.monitorId }), ...(s.platform && { platform: s.platform }) });
 }
 
 type KpiRow = {
@@ -43,14 +55,15 @@ type KpiRow = {
 
 async function kpiRow(s: Scope, previous: boolean) {
   const [r] = await db.$queryRaw<KpiRow[]>`
+    WITH scoped AS MATERIALIZED (SELECT * FROM ${uniqueSource(s, previous)} captures)
     SELECT count(*) AS mentions,
            sum(m.likes + m.comments + m.shares) AS engagement,
-           sum(coalesce(m."authorFollowers", 0)) AS reach,
+           (SELECT sum(a.followers) FROM (SELECT max(m."authorFollowers") followers FROM scoped m WHERE m."authorHandle" IS NOT NULL GROUP BY m.platform, lower(m."authorHandle")) a) AS reach,
            count(*) FILTER (WHERE m."isRisk") AS risks,
            count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
            count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
            count(*) FILTER (WHERE m.sentiment = 'NEUTRAL') AS neu
-    FROM "Mention" m WHERE ${cond(s, previous)}`;
+    FROM scoped m`;
   const n = (v: bigint | null) => Number(v ?? 0);
   const total = n(r.pos) + n(r.neg) + n(r.neu);
   return {
@@ -61,6 +74,7 @@ async function kpiRow(s: Scope, previous: boolean) {
     positive: n(r.pos),
     negative: n(r.neg),
     neutral: n(r.neu),
+    unclassified: n(r.mentions) - total,
     netSentiment: total ? Math.round(((n(r.pos) - n(r.neg)) / total) * 100) : 0,
   };
 }
@@ -73,6 +87,7 @@ export async function getKpis(s: Scope) {
   const delta = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : Math.round(((a - b) / b) * 100));
   return {
     ...current,
+    definitions: METRIC_DEFINITIONS,
     // Changes only mean something when the previous window has real data
     // (not right after a monitor was created or demo data was loaded).
     comparable: isComparable(current.mentions, previous.mentions),
@@ -100,25 +115,29 @@ export async function getTimeseries(s: Scope, opts: { unit?: "hour" | "day" } = 
   const { start, end } = window(s);
   const local = (col: Prisma.Sql) => Prisma.sql`date_trunc(${unit}, (${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})`;
   const rows = await db.$queryRaw<
-    { t: string; pos: bigint; neg: bigint; neu: bigint; total: bigint; eng: bigint | null; reach: bigint | null; risks: bigint }[]
+    { t: string; pos: bigint; neg: bigint; neu: bigint; total: bigint; eng: bigint | null; reach: bigint | null; risks: bigint; classified: bigint }[]
   >`
-    WITH buckets AS (
+    WITH scoped AS MATERIALIZED (SELECT * FROM ${uniqueSource(s)} captures),
+    follower_buckets AS (SELECT bucket, sum(followers) reach FROM (SELECT ${local(Prisma.sql`m."publishedAt"`)} bucket, m.platform, lower(m."authorHandle"), max(m."authorFollowers") followers FROM scoped m WHERE m."authorHandle" IS NOT NULL GROUP BY 1, 2, 3) a GROUP BY bucket),
+    buckets AS (
       SELECT generate_series(
-        ${local(Prisma.sql`${start}::timestamp`)},
-        ${local(Prisma.sql`${end}::timestamp`)},
+        ${local(Prisma.sql`${start.toISOString()}::timestamp`)},
+        ${local(Prisma.sql`${end.toISOString()}::timestamp`)},
         ${`1 ${unit}`}::interval
       ) AS b
     )
     SELECT to_char(buckets.b, 'YYYY-MM-DD"T"HH24:MI:SS') AS t,
            count(m.id) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
            count(m.id) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
-           count(m.id) FILTER (WHERE m.sentiment = 'NEUTRAL' OR (m.id IS NOT NULL AND m.sentiment IS NULL)) AS neu,
+           count(m.id) FILTER (WHERE m.sentiment = 'NEUTRAL') AS neu,
            count(m.id) AS total,
+           count(m.id) FILTER (WHERE m.sentiment IS NOT NULL) AS classified,
            sum(m.likes + m.comments + m.shares) AS eng,
-           sum(coalesce(m."authorFollowers", 0)) AS reach,
+           max(fb.reach) AS reach,
            count(m.id) FILTER (WHERE m."isRisk") AS risks
     FROM buckets
-    LEFT JOIN "Mention" m ON ${local(Prisma.sql`m."publishedAt"`)} = buckets.b AND ${cond(s)}
+    LEFT JOIN scoped m ON ${local(Prisma.sql`m."publishedAt"`)} = buckets.b
+    LEFT JOIN follower_buckets fb ON fb.bucket = buckets.b
     GROUP BY buckets.b ORDER BY buckets.b`;
   return {
     unit,
@@ -131,11 +150,12 @@ export async function getTimeseries(s: Scope, opts: { unit?: "hour" | "day" } = 
         positive: pos,
         negative: neg,
         neutral: Number(r.neu),
+        unclassified: total - Number(r.classified),
         total,
         engagement: Number(r.eng ?? 0),
         reach: Number(r.reach ?? 0),
         risks: Number(r.risks),
-        net: total ? Math.round(((pos - neg) / total) * 100) : 0,
+        net: Number(r.classified) ? Math.round(((pos - neg) / Number(r.classified)) * 100) : 0,
       };
     }),
   };
@@ -143,7 +163,7 @@ export async function getTimeseries(s: Scope, opts: { unit?: "hour" | "day" } = 
 
 export async function getPlatformBreakdown(s: Scope) {
   const rows = await db.$queryRaw<{ platform: Platform; n: bigint }[]>`
-    SELECT m.platform, count(*) AS n FROM "Mention" m WHERE ${cond(s)} GROUP BY 1 ORDER BY 2 DESC`;
+    SELECT m.platform, count(*) AS n FROM ${uniqueSource(s)} m WHERE ${cond(s)} GROUP BY 1 ORDER BY 2 DESC`;
   return rows.map((r) => ({ platform: r.platform, count: Number(r.n) }));
 }
 
@@ -153,7 +173,7 @@ export async function getTopTopics(s: Scope, limit = 8) {
            count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
            count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
            tp."labelEn" AS en, tp."labelAr" AS ar
-    FROM "Mention" m CROSS JOIN LATERAL unnest(m.topics) AS t(key)
+    FROM ${uniqueSource(s)} m CROSS JOIN LATERAL unnest(m.topics) AS t(key)
     LEFT JOIN "Topic" tp ON tp."organizationId" = m."organizationId" AND tp.key = t.key
     WHERE ${cond(s)}
     GROUP BY t.key, tp."labelEn", tp."labelAr" ORDER BY n DESC LIMIT ${limit}`;
@@ -168,17 +188,16 @@ export async function getTopTopics(s: Scope, limit = 8) {
 }
 
 export async function getTopAuthors(s: Scope, limit = 6) {
-  // One row per person: the same handle on several platforms is merged; the
-  // platform shown is where they posted most.
+  // Handles identify accounts only within their own platform.
   const rows = await db.$queryRaw<
     { handle: string; name: string | null; platform: Platform; followers: number | null; verified: boolean; n: bigint; eng: bigint; score: number | null }[]
   >`
     SELECT m."authorHandle" AS handle, max(m."authorName") AS name,
-           mode() WITHIN GROUP (ORDER BY m.platform) AS platform,
+           m.platform AS platform,
            max(m."authorFollowers") AS followers, bool_or(m."authorVerified") AS verified,
            count(*) AS n, sum(m.likes + m.comments + m.shares) AS eng, avg(m."sentimentScore") AS score
-    FROM "Mention" m WHERE ${cond(s)} AND m."authorHandle" IS NOT NULL
-    GROUP BY m."authorHandle"
+    FROM ${uniqueSource(s)} m WHERE ${cond(s)} AND m."authorHandle" IS NOT NULL
+    GROUP BY m.platform, m."authorHandle"
     ORDER BY max(coalesce(m."authorFollowers",0)) DESC, count(*) DESC LIMIT ${limit}`;
   return rows.map((r) => ({
     handle: r.handle,
@@ -198,7 +217,7 @@ export async function getShareOfVoice(s: Omit<Scope, "monitorId">) {
     SELECT mo.id, mo.name, mo."isCompetitor" AS competitor, count(m.id) AS n,
            avg(CASE m.sentiment WHEN 'POSITIVE' THEN 1 WHEN 'NEGATIVE' THEN -1 ELSE 0 END) AS net
     FROM "Monitor" mo JOIN "Mention" m ON m."monitorId" = mo.id
-    WHERE ${cond({ ...s, monitorId: undefined })} AND mo.type IN ('KEYWORD','PROFILE')
+    WHERE ${cond({ ...s, monitorId: undefined }, false)} AND mo.type IN ('KEYWORD','PROFILE')
     GROUP BY mo.id ORDER BY n DESC`;
   const total = rows.reduce((a, r) => a + Number(r.n), 0);
   return rows.map((r) => ({
@@ -264,7 +283,7 @@ export async function getDialectBreakdown(s: Scope) {
            count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
            count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
            count(*) FILTER (WHERE m.sarcasm) AS sarc
-    FROM "Mention" m WHERE ${cond(s)} AND m.dialect IS NOT NULL
+    FROM ${uniqueSource(s)} m WHERE ${cond(s)} AND m.dialect IS NOT NULL
     GROUP BY 1 ORDER BY 2 DESC`;
   return rows.map((r) => {
     const n = Number(r.n);
@@ -281,7 +300,7 @@ export async function getDialectBreakdown(s: Scope) {
 
 export async function getIntentBreakdown(s: Scope) {
   const rows = await db.$queryRaw<{ intent: Intent; n: bigint }[]>`
-    SELECT m.intent, count(*) AS n FROM "Mention" m WHERE ${cond(s)} AND m.intent IS NOT NULL GROUP BY 1 ORDER BY 2 DESC`;
+    SELECT m.intent, count(*) AS n FROM ${uniqueSource(s)} m WHERE ${cond(s)} AND m.intent IS NOT NULL GROUP BY 1 ORDER BY 2 DESC`;
   return rows.map((r) => ({ intent: r.intent, count: Number(r.n) }));
 }
 
@@ -292,7 +311,7 @@ export async function getTopSlang(s: Scope, limit = 12) {
            count(*) FILTER (WHERE m.sentiment = 'POSITIVE') AS pos,
            count(*) FILTER (WHERE m.sentiment = 'NEGATIVE') AS neg,
            mode() WITHIN GROUP (ORDER BY m.dialect) AS dialect
-    FROM "Mention" m CROSS JOIN LATERAL jsonb_array_elements(coalesce(m.slang, '[]'::jsonb)) AS x
+    FROM ${uniqueSource(s)} m CROSS JOIN LATERAL jsonb_array_elements(coalesce(m.slang, '[]'::jsonb)) AS x
     WHERE ${cond(s)}
     GROUP BY 1 ORDER BY n DESC LIMIT ${limit}`;
   return rows.map((r) => ({ term: r.term, gloss: r.gloss, count: Number(r.n), positive: Number(r.pos), negative: Number(r.neg), dialect: r.dialect }));
@@ -301,17 +320,15 @@ export async function getTopSlang(s: Scope, limit = 12) {
 export const INBOX_INTENTS: Intent[] = ["CHURN_RISK", "COMPLAINT", "QUESTION", "PURCHASE_INTENT"];
 
 export async function getInboxStats(orgId: string) {
-  const since = new Date(Date.now() - 7 * 86400_000);
-  const dayStart = new Date(Date.now() - 86400_000);
+  const org = await db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
+  const dayStart = localDayStart(org.timezone);
   const [awaiting, repliedToday, [rt]] = await Promise.all([
-    db.mention.count({
-      where: { organizationId: orgId, relevant: true, repliedAt: null, status: { not: "ARCHIVED" }, publishedAt: { gte: since }, OR: [{ intent: { in: INBOX_INTENTS } }, { isRisk: true }] },
-    }),
-    db.mention.count({ where: { organizationId: orgId, repliedAt: { gte: dayStart } } }),
+    countUniqueMentions(inboxWhere(orgId)),
+    countUniqueMentions({ organizationId: orgId, repliedAt: { gte: dayStart } }),
     db.$queryRaw<{ avg: number | null; p50: number | null }[]>`
       SELECT avg(extract(epoch FROM ("repliedAt" - "publishedAt")) / 60) AS avg,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM ("repliedAt" - "publishedAt")) / 60) AS p50
-      FROM "Mention" WHERE "organizationId" = ${orgId} AND "repliedAt" >= ${new Date(Date.now() - 30 * 86400_000)}`,
+      FROM ${uniqueMentionsSql({ organizationId: orgId, repliedAt: { gte: new Date(Date.now() - 30 * 86400_000) } })} m WHERE "repliedAt" >= "publishedAt"`,
   ]);
   return {
     awaiting,
@@ -341,7 +358,7 @@ export async function getPostingHeatmap(s: Scope): Promise<number[][]> {
     SELECT extract(dow FROM (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::int AS dow,
            extract(hour FROM (m."publishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::int AS hr,
            count(*) AS n
-    FROM "Mention" m WHERE ${cond(scope)}
+    FROM ${uniqueSource(scope)} m WHERE ${cond(scope)}
     GROUP BY 1, 2`;
   const grid = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
   for (const r of rows) grid[r.dow][r.hr] = Number(r.n);

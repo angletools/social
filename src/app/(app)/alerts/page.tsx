@@ -1,3 +1,4 @@
+import { DeliveryStatus } from "@/components/delivery-status";
 import { hasRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fmt, getDict } from "@/lib/i18n";
@@ -73,6 +74,7 @@ export default async function AlertsPage() {
   }
 
   return (
+    <>
     <AlertsView
       title={t.alerts.title}
       rules={ruleViews}
@@ -83,5 +85,7 @@ export default async function AlertsPage() {
       t={tp}
       labels={{ anyMonitor: t.alerts.anyMonitor, confirmDelete: t.common.confirmDelete, delete: t.common.delete, recent: t.alerts.recent }}
     />
+    <DeliveryStatus orgId={user.organizationId} weekly={false} canRetry={canEdit} />
+    </>
   );
 }

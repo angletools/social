@@ -1,7 +1,6 @@
+import { countUniqueMentions, findUniqueMentions } from "./mention-query";
 import type { AlertRule, Severity } from "@prisma/client";
 import { db } from "./db";
-import { sendEmail } from "./email";
-import { postWebhook } from "./webhooks";
 import { alertWebhooks, senderFor } from "./workspace";
 
 type Hit = { severity: Severity; titleEn: string; titleAr: string; bodyEn: string; bodyAr: string; link: string };
@@ -20,7 +19,7 @@ export async function checkRule(rule: AlertRule): Promise<Hit | null> {
 
   switch (rule.kind) {
     case "VOLUME_SPIKE": {
-      const n = await db.mention.count({ where: { ...base, publishedAt: { gte: since } } });
+      const n = await countUniqueMentions({ ...base, publishedAt: { gte: since } });
       if (n <= rule.threshold) return null;
       return {
         severity: "WARNING",
@@ -33,10 +32,10 @@ export async function checkRule(rule: AlertRule): Promise<Hit | null> {
     }
     case "NEGATIVE_SPIKE": {
       const [total, neg] = await Promise.all([
-        db.mention.count({ where: { ...base, publishedAt: { gte: since }, sentiment: { not: null } } }),
-        db.mention.count({ where: { ...base, publishedAt: { gte: since }, sentiment: "NEGATIVE" } }),
+        countUniqueMentions({ ...base, publishedAt: { gte: since }, sentiment: { not: null } }),
+        countUniqueMentions({ ...base, publishedAt: { gte: since }, sentiment: "NEGATIVE" }),
       ]);
-      if (total < 5) return null; // too little data to call a spike
+      if (total < rule.minimumVolume) return null; // too little data to call a spike
       const pct = Math.round((neg / total) * 100);
       if (pct <= rule.threshold) return null;
       return {
@@ -52,7 +51,7 @@ export async function checkRule(rule: AlertRule): Promise<Hit | null> {
       // Several words can be watched at once: "احتيال، نصب، hack".
       const words = (rule.keyword ?? "").split(/[,،]/).map((w) => w.trim()).filter(Boolean);
       if (words.length === 0) return null;
-      const hits = await db.mention.findMany({
+      const hits = await findUniqueMentions({
         where: { ...base, createdAt: { gte: createdAfter }, OR: words.map((w) => ({ text: { contains: w, mode: "insensitive" as const } })) },
         take: 3,
         orderBy: { publishedAt: "desc" },
@@ -109,14 +108,14 @@ export async function checkRule(rule: AlertRule): Promise<Hit | null> {
         publishedAt: { gte: since },
         OR: [{ enrichedAt: { gte: createdAfter } }, { enrichedAt: null, createdAt: { gte: createdAfter } }],
       };
-      const n = await db.mention.count({ where });
+      const n = await countUniqueMentions(where);
       if (n <= rule.threshold) return null;
       const top = await db.mention.findFirst({ where, orderBy: [{ authorFollowers: { sort: "desc", nulls: "last" } }, { publishedAt: "desc" }] });
       const hours = Math.round(rule.windowMinutes / 60);
       return {
         severity: n >= Math.max(3, rule.threshold * 2) ? "CRITICAL" : "WARNING",
-        titleEn: n === 1 ? `Someone says they may leave us` : `${n} people say they may leave us`,
-        titleAr: n === 1 ? `عميل يقول إنه قد يغادر` : `${n} أشخاص يقولون إنهم قد يغادرون`,
+        titleEn: n === 1 ? `Someone says they may leave us` : `${n} posts express intent to leave`,
+        titleAr: n === 1 ? `عميل يقول إنه قد يغادر` : `${n} منشورات تعبّر عن نية المغادرة`,
         bodyEn: top ? top.text.slice(0, 200) : `${n} churn-risk posts in the last ${hours}h (limit ${rule.threshold}).`,
         bodyAr: top ? top.text.slice(0, 200) : `${n} منشورات عن نية المغادرة خلال آخر ${hours} ساعة (الحد ${rule.threshold}).`,
         link: `${link}${link.includes("?") ? "&" : "?"}intent=CHURN_RISK`,
@@ -136,28 +135,18 @@ export async function evaluateAlerts(organizationId: string) {
     if (rule.lastTriggeredAt && Date.now() - rule.lastTriggeredAt.getTime() < rule.cooldownMinutes * 60_000) continue;
     const hit = await checkRule(rule);
     if (!hit) continue;
-    fired++;
-    await db.$transaction([
-      db.notification.create({ data: { organizationId, ruleId: rule.id, ...hit } }),
-      db.alertRule.update({ where: { id: rule.id }, data: { lastTriggeredAt: new Date() } }),
-    ]);
-    // The rule's own webhook overrides the workspace's default Slack / Teams channels.
-    for (const url of alertWebhooks(rule, channels)) {
+    const created = await db.$transaction(async (tx) => {
+      const claimed = await tx.alertRule.updateMany({ where: { id: rule.id, enabled: true, lastTriggeredAt: rule.lastTriggeredAt }, data: { lastTriggeredAt: new Date() } });
+      if (!claimed.count) return false;
+      const note = await tx.notification.create({ data: { organizationId, ruleId: rule.id, ...hit } });
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      const icon = hit.severity === "CRITICAL" ? "🔴" : hit.severity === "WARNING" ? "🟠" : "🔵";
-      await postWebhook(url, `${icon} *${hit.titleEn}*\n${hit.titleAr}\n> ${hit.bodyEn.replace(/\n/g, " ")}\n${appUrl}${hit.link}`).catch((e) =>
-        console.error("alert webhook failed", e),
-      );
-    }
-    if (rule.notifyEmail && rule.emails.length) {
-      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      await sendEmail(
-        rule.emails,
-        `[angle social] ${hit.titleEn}`,
-        `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`,
-        senderFor(channels),
-      ).catch((e) => console.error("alert email failed", e));
-    }
+      for (const [i, url] of alertWebhooks(rule, channels).entries()) {
+        await tx.delivery.create({ data: { organizationId, notificationId: note.id, dedupeKey: `${note.id}:webhook:${i}`, channel: "WEBHOOK", recipients: [], webhookUrl: url, body: `${hit.titleEn}\n${hit.titleAr}\n${hit.bodyEn}\n${appUrl}${hit.link}` } });
+      }
+      if (rule.notifyEmail && rule.emails.length) await tx.delivery.create({ data: { organizationId, notificationId: note.id, dedupeKey: `${note.id}:email`, channel: "EMAIL", recipients: rule.emails, subject: `[angle social] ${hit.titleEn}`, body: `${hit.titleAr}\n${hit.bodyAr}\n\n${hit.titleEn}\n${hit.bodyEn}\n\n${appUrl}${hit.link}`, sender: senderFor(channels) } });
+      return true;
+    });
+    if (created) fired++;
   }
   return fired;
 }
